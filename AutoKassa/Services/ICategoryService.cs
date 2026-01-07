@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-using AutoKassa.Models;
+﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Services

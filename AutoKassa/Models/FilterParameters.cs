@@ -1,5 +1,4 @@
-﻿using System;
-using AutoKassa.Models.Enums;
+﻿using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Models
 {

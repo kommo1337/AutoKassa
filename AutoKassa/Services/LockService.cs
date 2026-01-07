@@ -1,9 +1,8 @@
-﻿using System;
+﻿using AutoKassa.Helpers;
+using AutoKassa.ViewModels;
+using AutoKassa.Views;
 using System.Windows;
 using System.Windows.Threading;
-using AutoKassa.Views;
-using AutoKassa.ViewModels;
-using AutoKassa.Helpers;
 
 namespace AutoKassa.Services
 {

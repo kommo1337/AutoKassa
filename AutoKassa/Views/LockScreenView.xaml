@@ -210,7 +210,7 @@
                     CornerRadius="12"
                     Padding="40">
                     <Border.Effect>
-                        <DropShadowEffect Color="Black" 
+                        <DropShadowEffect Color="#7F716767" 
                                     Direction="270" 
                                     ShadowDepth="5" 
                                     Opacity="0.3" 

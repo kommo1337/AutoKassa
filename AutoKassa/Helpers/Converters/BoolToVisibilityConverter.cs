@@ -5,18 +5,33 @@ using System.Windows.Data;
 
 namespace AutoKassa.Helpers.Converters
 {
-    /// <summary>
-    /// Конвертер bool в Visibility
-    /// </summary>
     public class BoolToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is bool boolValue)
+            var boolValue = false;
+
+            if (value is bool b)
             {
-                return boolValue ? Visibility.Visible : Visibility.Collapsed;
+                boolValue = b;
             }
-            return Visibility.Collapsed;
+            else if (value is string str && !string.IsNullOrEmpty(str))
+            {
+                boolValue = true;
+            }
+            else if (value != null)
+            {
+                boolValue = true;
+            }
+
+            var inverse = parameter?.ToString()?.ToLower() == "inverse";
+
+            if (inverse)
+            {
+                boolValue = !boolValue;
+            }
+
+            return boolValue ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -25,6 +40,7 @@ namespace AutoKassa.Helpers.Converters
             {
                 return visibility == Visibility.Visible;
             }
+
             return false;
         }
     }

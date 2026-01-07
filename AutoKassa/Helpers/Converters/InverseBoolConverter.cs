@@ -4,9 +4,6 @@ using System.Windows.Data;
 
 namespace AutoKassa.Helpers.Converters
 {
-    /// <summary>
-    /// Конвертер инверсии bool (true -> false, false -> true)
-    /// </summary>
     public class InverseBoolConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -15,6 +12,7 @@ namespace AutoKassa.Helpers.Converters
             {
                 return !boolValue;
             }
+
             return true;
         }
 
@@ -24,6 +22,7 @@ namespace AutoKassa.Helpers.Converters
             {
                 return !boolValue;
             }
+
             return false;
         }
     }

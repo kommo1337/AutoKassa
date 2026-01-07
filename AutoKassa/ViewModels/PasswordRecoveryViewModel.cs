@@ -1,7 +1,7 @@
-﻿using System.Windows.Input;
-using AutoKassa.Helpers;
+﻿using AutoKassa.Helpers;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
+using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {

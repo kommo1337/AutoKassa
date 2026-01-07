@@ -1,5 +1,4 @@
-﻿using System.Linq;
-using AutoKassa.Models;
+﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 

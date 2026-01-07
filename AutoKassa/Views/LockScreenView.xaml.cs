@@ -1,8 +1,8 @@
-﻿using System.Windows;
+﻿using AutoKassa.ViewModels;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
-using AutoKassa.ViewModels;
 
 namespace AutoKassa.Views
 {
@@ -79,9 +79,6 @@ namespace AutoKassa.Views
             transform.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, shakeAnimation);
         }
 
-        /// <summary>
-        /// Обработчик кнопки закрытия приложения
-        /// </summary>
         /// <summary>
         /// Обработчик кнопки закрытия приложения
         /// </summary>

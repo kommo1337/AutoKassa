@@ -1,6 +1,6 @@
-﻿using System.Windows.Input;
-using AutoKassa.Helpers;
+﻿using AutoKassa.Helpers;
 using AutoKassa.Services;
+using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
@@ -79,16 +79,16 @@ namespace AutoKassa.ViewModels
             _navigationService.NavigateTo<TransactionsViewModel>();
         }
 
+
         private void NavigateToReports()
         {
-            // TODO: Реализовать после создания ReportsViewModel
-            // _navigationService.NavigateTo<ReportsViewModel>();
+            _navigationService.NavigateTo<ReportsViewModel>();
         }
 
         private void NavigateToCategories()
         {
-            // TODO: Реализовать после создания CategoriesViewModel
-            // _navigationService.NavigateTo<CategoriesViewModel>();
+
+            _navigationService.NavigateTo<CategoriesViewModel>();
         }
 
         private void NavigateToSettings()

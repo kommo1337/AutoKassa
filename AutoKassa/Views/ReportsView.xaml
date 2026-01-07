@@ -1,0 +1,94 @@
+﻿<UserControl x:Class="AutoKassa.Views.ReportsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:reports="clr-namespace:AutoKassa.ViewModels.Reports"
+             xmlns:reportsViews="clr-namespace:AutoKassa.Views.Reports"
+             Background="{StaticResource BackgroundBrush}">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- БОКОВАЯ ПАНЕЛЬ -->
+        <Border Grid.Column="0" 
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="#E0E0E0"
+                BorderThickness="0,0,1,0"
+                Padding="20">
+            <StackPanel>
+                <TextBlock Text="Отчеты" 
+                           FontSize="20" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,20"/>
+
+                <Button Command="{Binding ShowBalanceReportCommand}"
+                        Content="📊 Баланс за период"
+                        Margin="0,0,0,10">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="15,12"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FontSize" Value="14"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#E3F2FD"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- РАБОЧАЯ ОБЛАСТЬ -->
+        <ContentControl Grid.Column="1" 
+                        Content="{Binding CurrentReport}"
+                        Margin="20">
+            <ContentControl.Resources>
+                <DataTemplate DataType="{x:Type reports:BalanceReportViewModel}">
+                    <reportsViews:BalanceReportView/>
+                </DataTemplate>
+            </ContentControl.Resources>
+
+            <!-- Заглушка -->
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentReport}" Value="{x:Null}">
+                            <Setter Property="ContentTemplate">
+                                <Setter.Value>
+                                    <DataTemplate>
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <TextBlock Text="📊" FontSize="80" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                                            <TextBlock Text="Выберите отчет из списка слева" 
+                                                      FontSize="18" 
+                                                      Foreground="{StaticResource SecondaryTextBrush}"
+                                                      HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
+        </ContentControl>
+    </Grid>
+</UserControl>

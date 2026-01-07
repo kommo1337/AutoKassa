@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using AutoKassa.Models.Enums;
+﻿using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Helpers
 {

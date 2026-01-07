@@ -1,0 +1,318 @@
+﻿<UserControl x:Class="AutoKassa.Views.Reports.BalanceReportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <!-- Стиль для быстрых фильтров -->
+        <Style x:Key="QuickFilterButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                               BorderBrush="{TemplateBinding BorderBrush}"
+                               BorderThickness="{TemplateBinding BorderThickness}"
+                               CornerRadius="4"
+                               Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E3F2FD"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ЗАГОЛОВОК И ПАРАМЕТРЫ -->
+        <Border Grid.Row="0" 
+                Background="White"
+                CornerRadius="8"
+                Padding="20"
+                Margin="0,0,0,20">
+            <StackPanel>
+                <!-- Заголовок -->
+                <Grid Margin="0,0,0,20">
+                    <TextBlock Text="Баланс за период" 
+                               FontSize="24" 
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+
+                    <StackPanel Orientation="Horizontal" 
+                               HorizontalAlignment="Right">
+                        <Button Content="📊 PDF"
+                                Command="{Binding ExportToPdfCommand}"
+                                Background="Transparent"
+                                BorderBrush="#CCCCCC"
+                                BorderThickness="1"
+                                Padding="15,8"
+                                Margin="0,0,10,0"
+                                Cursor="Hand">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                       BorderBrush="{TemplateBinding BorderBrush}"
+                                                       BorderThickness="{TemplateBinding BorderThickness}"
+                                                       CornerRadius="4"
+                                                       Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#F5F5F5"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <Button Content="📑 Excel"
+                                Command="{Binding ExportToExcelCommand}"
+                                Background="Transparent"
+                                BorderBrush="#CCCCCC"
+                                BorderThickness="1"
+                                Padding="15,8"
+                                Cursor="Hand">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                       BorderBrush="{TemplateBinding BorderBrush}"
+                                                       BorderThickness="{TemplateBinding BorderThickness}"
+                                                       CornerRadius="4"
+                                                       Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#E8F5E9"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Параметры -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Выбор периода -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,20,0">
+                        <TextBlock Text="Период:" 
+                                   FontSize="14" 
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+
+                        <DatePicker SelectedDate="{Binding DateFrom, Mode=TwoWay}"
+                                   Width="140"
+                                   Margin="0,0,10,0"/>
+
+                        <TextBlock Text="—" 
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"/>
+
+                        <DatePicker SelectedDate="{Binding DateTo, Mode=TwoWay}"
+                                   Width="140"
+                                   Margin="0,0,10,0"/>
+
+                        <Button Content="Сформировать"
+                               Command="{Binding GenerateCommand}"
+                               Background="{StaticResource PrimaryBrush}"
+                               Foreground="White"
+                               BorderThickness="0"
+                               Padding="20,8"
+                               Margin="10,0,0,0"
+                               Cursor="Hand">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                       CornerRadius="4"
+                                                       Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                                                    VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#1976D2"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Быстрые фильтры -->
+                    <StackPanel Grid.Column="1" 
+                               Orientation="Horizontal" 
+                               HorizontalAlignment="Right">
+                        <Button Content="Сегодня" Click="QuickFilter_Click" Tag="Today" Style="{StaticResource QuickFilterButtonStyle}"/>
+                        <Button Content="Неделя" Click="QuickFilter_Click" Tag="Week" Style="{StaticResource QuickFilterButtonStyle}"/>
+                        <Button Content="Месяц" Click="QuickFilter_Click" Tag="Month" Style="{StaticResource QuickFilterButtonStyle}"/>
+                        <Button Content="Квартал" Click="QuickFilter_Click" Tag="Quarter" Style="{StaticResource QuickFilterButtonStyle}"/>
+                        <Button Content="Год" Click="QuickFilter_Click" Tag="Year" Style="{StaticResource QuickFilterButtonStyle}"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- СВОДКА -->
+        <Border Grid.Row="1" 
+                Background="White"
+                CornerRadius="8"
+                Padding="20"
+                Margin="0,0,0,20"
+                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Начальный баланс -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Начальный баланс" 
+                              FontSize="12" 
+                              Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <TextBlock Text="{Binding Report.StartBalance, Converter={StaticResource DecimalToStringConverter}}"
+                              FontSize="24"
+                              FontWeight="SemiBold"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Доходы -->
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="Доходы" 
+                              FontSize="12" 
+                              Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <TextBlock Text="{Binding Report.TotalIncome, Converter={StaticResource DecimalToStringConverter}}"
+                              FontSize="24"
+                              FontWeight="SemiBold"
+                              Foreground="{StaticResource SuccessBrush}"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Расходы -->
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Расходы" 
+                              FontSize="12" 
+                              Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <TextBlock Text="{Binding Report.TotalExpense, Converter={StaticResource DecimalToStringConverter}}"
+                              FontSize="24"
+                              FontWeight="SemiBold"
+                              Foreground="{StaticResource ErrorBrush}"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Конечный баланс -->
+                <StackPanel Grid.Column="3">
+                    <TextBlock Text="Конечный баланс" 
+                              FontSize="12" 
+                              Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <TextBlock Text="{Binding Report.EndBalance, Converter={StaticResource DecimalToStringConverter}}"
+                              FontSize="24"
+                              FontWeight="SemiBold"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ГРАФИК (временная заглушка) -->
+        <Border Grid.Row="2" 
+        Background="White"
+        CornerRadius="8"
+        Padding="20"
+        Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <!-- Временная заглушка вместо графика -->
+                <Border Background="#F5F5F5"
+                CornerRadius="8"
+                Padding="40">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="📈" FontSize="80" HorizontalAlignment="Center"/>
+                        <TextBlock Text="График будет добавлен следующим шагом" 
+                          FontSize="16" 
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          TextAlignment="Center"
+                          Margin="0,20,0,0"/>
+                        <TextBlock Text="Данные загружены успешно!" 
+                          FontSize="14" 
+                          Foreground="{StaticResource SuccessBrush}"
+                          TextAlignment="Center"
+                          Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Индикатор загрузки -->
+                <Grid Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+              Background="#88FFFFFF">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="⏳" FontSize="48" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Формирование отчета..." 
+                          FontSize="16" 
+                          Margin="0,10,0,0"
+                          HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Заглушка если нет данных -->
+        <Border Grid.Row="2" 
+                Background="White"
+                CornerRadius="8"
+                Padding="40"
+                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <TextBlock Text="📊" FontSize="80" HorizontalAlignment="Center"/>
+                <TextBlock Text="Выберите период и нажмите 'Сформировать'" 
+                          FontSize="18" 
+                          Foreground="{StaticResource SecondaryTextBrush}"
+                          TextAlignment="Center"
+                          Margin="0,20,0,0"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

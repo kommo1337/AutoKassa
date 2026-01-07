@@ -1,6 +1,6 @@
-﻿using System.Windows;
+﻿using AutoKassa.ViewModels;
+using System.Windows;
 using System.Windows.Controls;
-using AutoKassa.ViewModels;
 
 namespace AutoKassa.Views
 {

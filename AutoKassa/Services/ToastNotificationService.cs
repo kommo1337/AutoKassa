@@ -1,6 +1,4 @@
-﻿using System.Windows;
-
-namespace AutoKassa.Services
+﻿namespace AutoKassa.Services
 {
     /// <summary>
     /// Базовая реализация сервиса toast-уведомлений

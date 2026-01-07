@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using AutoKassa.Models;
+﻿using AutoKassa.Models;
 
 namespace AutoKassa.Services
 {

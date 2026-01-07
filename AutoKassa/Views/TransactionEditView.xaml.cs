@@ -1,8 +1,8 @@
-﻿using System.Globalization;
+﻿using AutoKassa.ViewModels;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Input;
-using AutoKassa.ViewModels;
 
 namespace AutoKassa.Views
 {

@@ -1,15 +1,11 @@
-﻿using System;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Input;
-using AutoKassa.Helpers;
+﻿using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.Views;
+using System.Collections.ObjectModel;
 using System.Windows;
-using AutoKassa.Views;
+using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {

@@ -1,5 +1,5 @@
-﻿using System.Windows;
-using AutoKassa.ViewModels;
+﻿using AutoKassa.ViewModels;
+using System.Windows;
 
 namespace AutoKassa
 {

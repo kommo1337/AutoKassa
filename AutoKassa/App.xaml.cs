@@ -1,9 +1,9 @@
-﻿using System;
-using System.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using AutoKassa.Services;
+﻿using AutoKassa.Services;
 using AutoKassa.ViewModels;
+using AutoKassa.ViewModels.Reports;
 using AutoKassa.Views;
+using Microsoft.Extensions.DependencyInjection;
+using System.Windows;
 
 namespace AutoKassa
 {
@@ -71,11 +71,20 @@ namespace AutoKassa
             services.AddSingleton<ILockService, LockService>();
             services.AddScoped<ITransactionService, TransactionService>();
             services.AddScoped<ICategoryService, CategoryService>();
+            services.AddScoped<IReportService, ReportService>();
+
 
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<InitialSetupViewModel>();
-            services.AddTransient<TransactionsViewModel>(); 
+            services.AddTransient<TransactionsViewModel>();
+            services.AddTransient<TransactionEditViewModel>();
+            services.AddTransient<CategoriesViewModel>();
+            services.AddTransient<CategoryEditViewModel>();
+            services.AddTransient<ReportsViewModel>();
+            services.AddTransient<BalanceReportViewModel>();
+
+
 
             // Регистрация Views
             services.AddSingleton<MainWindow>(provider =>

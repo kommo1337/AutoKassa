@@ -3,9 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:views="clr-namespace:AutoKassa.Views"
         xmlns:vm="clr-namespace:AutoKassa.ViewModels"
-        xmlns:local="clr-namespace:AutoKassa"
+        xmlns:views="clr-namespace:AutoKassa.Views"
         mc:Ignorable="d"
         Title="{Binding Title}" 
         Height="768" Width="1366"
@@ -181,9 +180,17 @@
                 Content="{Binding CurrentView}"
                 Margin="20">
                 <ContentControl.Resources>
-                    <!-- DataTemplates для ViewModels -->
                     <DataTemplate DataType="{x:Type vm:TransactionsViewModel}">
                         <views:TransactionsView/>
+                    </DataTemplate>
+
+                    <DataTemplate DataType="{x:Type vm:CategoriesViewModel}">
+                        <views:CategoriesView/>
+                    </DataTemplate>
+
+                    <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
+                        
+                        <views:ReportsView/>
                     </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>

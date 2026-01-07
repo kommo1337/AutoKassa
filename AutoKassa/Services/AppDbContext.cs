@@ -1,8 +1,5 @@
-﻿using System;
-using AutoKassa.Models;
+﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
-using System.Collections.Generic;
-using System.Reflection.Emit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutoKassa.Services
