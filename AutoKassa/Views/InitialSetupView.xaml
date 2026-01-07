@@ -1,0 +1,187 @@
+﻿<Window x:Class="AutoKassa.Views.InitialSetupView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+        Title="Первоначальная настройка - АвтоКасса" 
+        Height="600" Width="500"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="{StaticResource BackgroundBrush}">
+
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+        <!-- Стиль для TextBox -->
+        <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Style.Triggers>
+                <Trigger Property="IsFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Стиль для PasswordBox -->
+        <Style x:Key="InputPasswordBoxStyle" TargetType="PasswordBox">
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <!-- Стиль для текста ошибки -->
+        <Style x:Key="ErrorTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="40">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,30">
+            <TextBlock Text="💼" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+            <TextBlock Text="Добро пожаловать в АвтоКасса!" 
+                       FontSize="24" 
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       Foreground="{StaticResource ForegroundBrush}"/>
+            <TextBlock Text="Установите пароль для защиты приложения" 
+                       FontSize="14" 
+                       HorizontalAlignment="Center"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       Margin="0,10,0,0"/>
+        </StackPanel>
+
+        <!-- Форма -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Пароль -->
+                <TextBlock Text="Новый пароль" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <PasswordBox x:Name="PasswordBox"
+                             Style="{StaticResource InputPasswordBoxStyle}"
+                             PasswordChanged="PasswordBox_PasswordChanged"/>
+                <TextBlock Text="{Binding PasswordError}" 
+                           Style="{StaticResource ErrorTextStyle}"
+                           Visibility="{Binding PasswordError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                <!-- Индикатор надежности пароля -->
+                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                    <TextBlock Text="Надежность: " FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                    <TextBlock Text="{Binding PasswordStrengthText}" FontSize="12" FontWeight="SemiBold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PasswordStrength}" Value="0">
+                                        <Setter Property="Foreground" Value="#999999"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding PasswordStrength}" Value="1">
+                                        <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding PasswordStrength}" Value="2">
+                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding PasswordStrength}" Value="3">
+                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- Подтверждение пароля -->
+                <TextBlock Text="Подтверждение пароля" FontSize="14" FontWeight="SemiBold" Margin="0,15,0,5"/>
+                <PasswordBox x:Name="ConfirmPasswordBox"
+                             Style="{StaticResource InputPasswordBoxStyle}"
+                             PasswordChanged="ConfirmPasswordBox_PasswordChanged"/>
+                <TextBlock Text="{Binding ConfirmPasswordError}" 
+                           Style="{StaticResource ErrorTextStyle}"
+                           Visibility="{Binding ConfirmPasswordError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                <!-- Секретный вопрос -->
+                <TextBlock Text="Секретный вопрос (для восстановления пароля)" 
+                           FontSize="14" 
+                           FontWeight="SemiBold" 
+                           Margin="0,20,0,5"/>
+                <ComboBox ItemsSource="{Binding SecurityQuestions}"
+                          SelectedItem="{Binding SelectedQuestion}"
+                          DisplayMemberPath="Text"
+                          Padding="10"
+                          FontSize="14"/>
+
+                <!-- Свой вопрос (если выбран Custom) -->
+                <StackPanel Visibility="{Binding IsCustomQuestion, Converter={StaticResource BoolToVisibilityConverter}}"
+                            Margin="0,10,0,0">
+                    <TextBlock Text="Введите свой вопрос" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                    <TextBox Text="{Binding CustomQuestion, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource InputTextBoxStyle}"/>
+                    <TextBlock Text="{Binding CustomQuestionError}" 
+                               Style="{StaticResource ErrorTextStyle}"
+                               Visibility="{Binding CustomQuestionError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+
+                <!-- Ответ на секретный вопрос -->
+                <TextBlock Text="Ответ на секретный вопрос" FontSize="14" FontWeight="SemiBold" Margin="0,15,0,5"/>
+                <TextBox Text="{Binding Answer, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource InputTextBoxStyle}"/>
+                <TextBlock Text="{Binding AnswerError}" 
+                           Style="{StaticResource ErrorTextStyle}"
+                           Visibility="{Binding AnswerError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                <TextBlock Text="💡 Ответ будет использован для восстановления пароля в случае утери" 
+                           FontSize="12" 
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,10,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Кнопка продолжить -->
+        <Button Grid.Row="2" 
+                Command="{Binding ContinueCommand}"
+                Content="Продолжить"
+                Background="{StaticResource PrimaryBrush}"
+                Foreground="White"
+                Padding="20,12"
+                FontSize="16"
+                FontWeight="SemiBold"
+                BorderThickness="0"
+                Cursor="Hand"
+                Margin="0,20,0,0">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="4"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#1976D2"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Background" Value="#CCCCCC"/>
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+    </Grid>
+</Window>
