@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Threading;
 using AutoKassa.Views;
 using AutoKassa.ViewModels;
+using AutoKassa.Helpers;
 
 namespace AutoKassa.Services
 {
@@ -38,24 +39,46 @@ namespace AutoKassa.Services
 
             _isLocked = true;
 
+            // Получаем главное окно
+            var mainWindow = Application.Current.MainWindow;
+            if (mainWindow == null)
+            {
+                _isLocked = false;
+                return;
+            }
+
+            // Применяем размытие к главному окну
+            BlurHelper.ApplyBlur(mainWindow, radius: 15);
+
             // Создаем ViewModel для экрана блокировки
             var viewModel = new LockScreenViewModel(_passwordService, _settingsService);
 
             // Создаем и показываем окно блокировки
-            var lockWindow = new LockScreenView(viewModel);
+            var lockWindow = new LockScreenView(viewModel)
+            {
+                Owner = mainWindow,
+                Width = mainWindow.ActualWidth,
+                Height = mainWindow.ActualHeight
+            };
+
+            // Подписываемся на закрытие окна
+            lockWindow.Closed += (s, e) =>
+            {
+                // Убираем размытие в любом случае
+                BlurHelper.RemoveBlur(mainWindow);
+                _isLocked = false;
+            };
+
             var result = lockWindow.ShowDialog();
 
             if (result == true)
             {
+                // Успешная разблокировка
                 _isLocked = false;
-                // Сбрасываем таймер автоблокировки
                 ResetAutoLockTimer();
             }
-            else
-            {
-                // Если пользователь закрыл окно без разблокировки - закрываем приложение
-                Application.Current.Shutdown();
-            }
+            // Если result == false, это значит окно закрыто через крестик
+            // и Application.Shutdown() уже вызван в LockScreenView.xaml.cs
         }
 
         /// <summary>

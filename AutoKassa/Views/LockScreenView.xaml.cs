@@ -78,5 +78,60 @@ namespace AutoKassa.Views
             PasswordBorder.RenderTransform = transform;
             transform.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, shakeAnimation);
         }
+
+        /// <summary>
+        /// Обработчик кнопки закрытия приложения
+        /// </summary>
+        /// <summary>
+        /// Обработчик кнопки закрытия приложения
+        /// </summary>
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                "Вы действительно хотите закрыть приложение?",
+                "Подтверждение",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question
+            );
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Закрываем окно блокировки без результата
+                this.Close();
+
+                // Закрываем приложение
+                Application.Current.Shutdown();
+            }
+        }
+
+        /// <summary>
+        /// Перетаскивание окна при клике на фон (опционально)
+        /// </summary>
+        private void Window_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1)
+            {
+                // Не перетаскиваем если кликнули на карточку
+                if (e.OriginalSource is FrameworkElement element)
+                {
+                    var card = FindVisualParent<Border>(element);
+                    if (card?.Background == System.Windows.Media.Brushes.White)
+                        return;
+                }
+
+                this.DragMove();
+            }
+        }
+
+        /// <summary>
+        /// Поиск родительского элемента
+        /// </summary>
+        private T FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            var parentObject = System.Windows.Media.VisualTreeHelper.GetParent(child);
+            if (parentObject == null) return null;
+            if (parentObject is T parent) return parent;
+            return FindVisualParent<T>(parentObject);
+        }
     }
 }

@@ -13,5 +13,6 @@ namespace AutoKassa
             InitializeComponent();
             DataContext = viewModel;
         }
+
     }
 }

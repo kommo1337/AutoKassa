@@ -125,5 +125,50 @@ namespace AutoKassa.Services
             _cachedSettings.Theme = theme;
             SaveSettings(_cachedSettings);
         }
+
+        /// <summary>
+        /// Получить тип операции по умолчанию
+        /// </summary>
+        public OperationType GetDefaultOperationType()
+        {
+            return (OperationType)_cachedSettings.DefaultOperationType;
+        }
+
+        /// <summary>
+        /// Установить тип операции по умолчанию
+        /// </summary>
+        public void SetDefaultOperationType(OperationType type)
+        {
+            _cachedSettings.DefaultOperationType = (int)type;
+            SaveSettings(_cachedSettings);
+        }
+
+        /// <summary>
+        /// Получить ID категории по умолчанию для типа операции
+        /// </summary>
+        public int? GetDefaultCategoryId(OperationType type)
+        {
+            return type == OperationType.Income
+                ? _cachedSettings.DefaultIncomeCategoryId
+                : _cachedSettings.DefaultExpenseCategoryId;
+        }
+
+        /// <summary>
+        /// Установить категорию по умолчанию для типа операции
+        /// </summary>
+        public void SetDefaultCategoryId(OperationType type, int? categoryId)
+        {
+            if (type == OperationType.Income)
+            {
+                _cachedSettings.DefaultIncomeCategoryId = categoryId;
+            }
+            else
+            {
+                _cachedSettings.DefaultExpenseCategoryId = categoryId;
+            }
+            SaveSettings(_cachedSettings);
+        }
+
+
     }
 }

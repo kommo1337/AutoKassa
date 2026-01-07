@@ -1,6 +1,7 @@
 ﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
+
 namespace AutoKassa.Services
 {
     /// <summary>
@@ -52,5 +53,25 @@ namespace AutoKassa.Services
         /// Установить тему
         /// </summary>
         void SetTheme(string theme);
+
+        /// <summary>
+        /// Получить тип операции по умолчанию
+        /// </summary>
+        OperationType GetDefaultOperationType();
+
+        /// <summary>
+        /// Установить тип операции по умолчанию
+        /// </summary>
+        void SetDefaultOperationType(OperationType type);
+
+        /// <summary>
+        /// Получить ID категории по умолчанию для типа операции
+        /// </summary>
+        int? GetDefaultCategoryId(OperationType type);
+
+        /// <summary>
+        /// Установить категорию по умолчанию для типа операции
+        /// </summary>
+        void SetDefaultCategoryId(OperationType type, int? categoryId);
     }
 }

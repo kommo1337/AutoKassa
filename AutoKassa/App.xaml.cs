@@ -68,16 +68,19 @@ namespace AutoKassa
             services.AddSingleton<ISettingsService, SettingsService>();
             services.AddSingleton<IDialogService, DialogService>();
             services.AddSingleton<IToastNotificationService, ToastNotificationService>();
-            services.AddSingleton<ILockService, LockService>(); // ДОБАВИТЬ ЭТУ СТРОКУ
+            services.AddSingleton<ILockService, LockService>();
+            services.AddScoped<ITransactionService, TransactionService>();
+            services.AddScoped<ICategoryService, CategoryService>();
 
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<InitialSetupViewModel>();
+            services.AddTransient<TransactionsViewModel>(); 
 
             // Регистрация Views
             services.AddSingleton<MainWindow>(provider =>
             {
-            var viewModel = provider.GetRequiredService<MainWindowViewModel>();
+                var viewModel = provider.GetRequiredService<MainWindowViewModel>();
                 return new MainWindow(viewModel);
             });
         }

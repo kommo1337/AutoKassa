@@ -84,5 +84,21 @@ namespace AutoKassa.Models
         /// </summary>
         [Required]
         public int BackupKeepCount { get; set; }
+
+        /// <summary>
+        /// Тип операции по умолчанию для новых операций
+        /// </summary>
+        [Required]
+        public int DefaultOperationType { get; set; } = 2; // 2 = Expense (Расход)
+
+        /// <summary>
+        /// ID категории по умолчанию для доходов
+        /// </summary>
+        public int? DefaultIncomeCategoryId { get; set; }
+
+        /// <summary>
+        /// ID категории по умолчанию для расходов
+        /// </summary>
+        public int? DefaultExpenseCategoryId { get; set; }
     }
 }

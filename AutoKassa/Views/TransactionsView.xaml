@@ -1,0 +1,510 @@
+﻿<UserControl x:Class="AutoKassa.Views.TransactionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             Background="{StaticResource BackgroundBrush}">
+    
+    <UserControl.InputBindings>
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding AddCommand}"/>
+        <KeyBinding Key="F2" Command="{Binding EditCommand}"/>
+        <KeyBinding Key="Delete" Command="{Binding DeleteCommand}"/>
+        <KeyBinding Key="F5" Command="{Binding LoadCommand}"/>
+    </UserControl.InputBindings>
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:OperationTypeToColorConverter x:Key="OperationTypeToColorConverter"/>
+        <converters:OperationTypeToTextConverter x:Key="OperationTypeToTextConverter"/>
+        <converters:DecimalToStringConverter x:Key="DecimalToStringConverter"/>
+
+        <!-- Стиль для кнопок действий -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="15,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1976D2"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCCCCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Заголовок и кнопки -->
+            <RowDefinition Height="Auto"/>
+            <!-- Фильтры -->
+            <RowDefinition Height="*"/>
+            <!-- Таблица -->
+            <RowDefinition Height="Auto"/>
+            <!-- Информация и загрузка -->
+        </Grid.RowDefinitions>
+
+        <!-- ЗАГОЛОВОК И КНОПКИ ДЕЙСТВИЙ -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Операции" 
+                       FontSize="24" 
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="➕ Добавить операцию"
+                        Command="{Binding AddCommand}"
+                        Style="{StaticResource ActionButtonStyle}"
+                        Margin="0,0,10,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ПАНЕЛЬ ФИЛЬТРОВ -->
+        <Border Grid.Row="1" 
+                Background="{StaticResource SurfaceBrush}"
+                CornerRadius="8"
+                Padding="20"
+                Margin="0,0,0,20">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Строка 1: Период, Тип, Категория -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Дата от -->
+                    <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                        <TextBlock Text="Дата от" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,5"/>
+                        <DatePicker SelectedDate="{Binding DateFrom}" 
+                                    FontSize="14" 
+                                    Padding="8"/>
+                    </StackPanel>
+
+                    <!-- Дата до -->
+                    <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                        <TextBlock Text="Дата до" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,5"/>
+                        <DatePicker SelectedDate="{Binding DateTo}" 
+                                    FontSize="14" 
+                                    Padding="8"/>
+                    </StackPanel>
+
+                    <!-- Тип операции -->
+                    <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                        <TextBlock Text="Тип" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,5"/>
+                        <ComboBox ItemsSource="{Binding OperationTypes}"
+                                  SelectedItem="{Binding SelectedType}"
+                                  FontSize="14"
+                                  Padding="8">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}">
+                                                <Binding>
+                                                    <Binding.Converter>
+                                                        <converters:OperationTypeToTextConverter/>
+                                                    </Binding.Converter>
+                                                </Binding>
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                                        <Setter Property="Text" Value="Все"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Категория -->
+                    <StackPanel Grid.Column="3">
+                        <TextBlock Text="Категория" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,5"/>
+                        <ComboBox ItemsSource="{Binding Categories}"
+                                  SelectedItem="{Binding SelectedCategory}"
+                                  DisplayMemberPath="Name"
+                                  FontSize="14"
+                                  Padding="8"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Строка 2: Поиск и кнопки -->
+                <Grid Grid.Row="1" Margin="0,15,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Поиск -->
+                    <!-- Поиск -->
+                    <TextBox Grid.Column="0"
+         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+         FontSize="14"
+         Padding="10"
+         Margin="0,0,10,0">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding ApplyFiltersCommand}"/>
+                        </TextBox.InputBindings>
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="TextBox">
+                                            <Border Background="White"
+                                BorderBrush="#CCCCCC"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                                                <Grid>
+                                                    <ScrollViewer x:Name="PART_ContentHost" Margin="10,0"/>
+                                                    <TextBlock Text="🔍 Поиск по описанию..." 
+                                          Foreground="#999999"
+                                          Margin="10,0"
+                                          IsHitTestVisible="False"
+                                          VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsFocused" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <!-- Кнопки фильтров -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="Применить"
+                                Command="{Binding ApplyFiltersCommand}"
+                                Style="{StaticResource ActionButtonStyle}"
+                                Margin="0,0,10,0"/>
+                        <Button Content="Сбросить"
+                                Command="{Binding ResetFiltersCommand}"
+                                Background="Transparent"
+                                Foreground="{StaticResource ForegroundBrush}"
+                                BorderBrush="#CCCCCC"
+                                BorderThickness="1"
+                                Padding="15,10"
+                                Cursor="Hand"
+                                FontSize="14">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="4"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ТАБЛИЦА ОПЕРАЦИЙ -->
+        <Border Grid.Row="2"
+        Background="White"
+        BorderBrush="#E0E0E0"
+        BorderThickness="1"
+        CornerRadius="8">
+            <DataGrid ItemsSource="{Binding Transactions}"
+              SelectedItem="{Binding SelectedTransaction}"
+              AutoGenerateColumns="False"
+              IsReadOnly="True"
+              SelectionMode="Single"
+              GridLinesVisibility="Horizontal"
+              HeadersVisibility="Column"
+              RowHeight="60"
+              CanUserResizeRows="False"
+              CanUserSortColumns="False"
+              CanUserReorderColumns="False"
+              Background="White"
+              BorderThickness="0">
+
+                <DataGrid.Columns>
+                    <!-- Дата -->
+                    <DataGridTextColumn Header="Дата" 
+                                Binding="{Binding Date, StringFormat=dd.MM.yyyy}"
+                                Width="130">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="14"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="15,0,0,0"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <!-- Тип -->
+                    <DataGridTemplateColumn Header="Тип" Width="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Type, Converter={StaticResource OperationTypeToColorConverter}}"
+                                CornerRadius="12"
+                                Padding="16,6"
+                                HorizontalAlignment="Left"
+                                Margin="10,0,0,0">
+                                    <TextBlock Text="{Binding Type, Converter={StaticResource OperationTypeToTextConverter}}"
+                                      Foreground="White"
+                                      FontSize="13"
+                                      FontWeight="SemiBold"
+                                      TextAlignment="Center"/>
+                                </Border>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Категория -->
+                    <DataGridTextColumn Header="Категория" 
+                                Binding="{Binding Category.Name}"
+                                Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="14"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="10,0,0,0"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <!-- Сумма -->
+                    <DataGridTemplateColumn Header="Сумма" Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Amount, Converter={StaticResource DecimalToStringConverter}}"
+                                  FontWeight="SemiBold"
+                                  FontSize="15"
+                                  VerticalAlignment="Center"
+                                  Margin="10,0,15,0"
+                                  HorizontalAlignment="Left"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+
+                    <!-- Описание -->
+                    <DataGridTextColumn Header="Описание" 
+                                Binding="{Binding Description}"
+                                Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="14"/>
+                                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                <Setter Property="Margin" Value="10,0,10,0"/>
+                                <Setter Property="ToolTip" Value="{Binding Description}"/>
+                                <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+
+                    <!-- Действия -->
+                    <DataGridTemplateColumn Header="Действия" Width="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" 
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Background="Transparent">
+                                    <Button Content="✏️" 
+                                    Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    ToolTip="Редактировать (F2)"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    FontSize="18"
+                                    Width="36"
+                                    Height="36"
+                                    Margin="5,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                            CornerRadius="4"
+                                                            Padding="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                        VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#E3F2FD"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="🗑️" 
+                                    Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    ToolTip="Удалить (Delete)"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    FontSize="18"
+                                    Width="36"
+                                    Height="36"
+                                    Margin="5,0">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                            CornerRadius="4"
+                                                            Padding="5">
+                                                                <ContentPresenter HorizontalAlignment="Center" 
+                                                                        VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FFEBEE"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+
+                <!-- Стили DataGrid -->
+                <DataGrid.Resources>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="FontSize" Value="14"/>
+                        <Setter Property="Padding" Value="15,12"/>
+                        <Setter Property="BorderThickness" Value="0,0,0,2"/>
+                        <Setter Property="BorderBrush" Value="#E0E0E0"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                    </Style>
+
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="White"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FAFAFA"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#F5F5F5"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.Resources>
+            </DataGrid>
+        </Border>
+
+        <!-- ИНФОРМАЦИЯ И ЗАГРУЗКА -->
+        <Grid Grid.Row="3" Margin="0,15,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Информация -->
+            <TextBlock Grid.Column="0"
+                   Text="{Binding DisplayInfo}"
+                   FontSize="14"
+                   Foreground="{StaticResource SecondaryTextBrush}"
+                   VerticalAlignment="Center"/>
+
+            <!-- Кнопка "Загрузить еще" -->
+            <Button Grid.Column="1"
+                Content="Загрузить еще"
+                Command="{Binding LoadMoreCommand}"
+                Visibility="{Binding CanLoadMore, Converter={StaticResource BoolToVisibilityConverter}}"
+                Style="{StaticResource ActionButtonStyle}"/>
+
+            <!-- Индикатор загрузки -->
+            <ProgressBar Grid.Column="1"
+                     IsIndeterminate="True"
+                     Height="30"
+                     Width="150"
+                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+        </Grid>
+    </Grid>
+</UserControl>

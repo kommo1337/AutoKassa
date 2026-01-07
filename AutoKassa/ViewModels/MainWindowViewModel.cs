@@ -76,8 +76,7 @@ namespace AutoKassa.ViewModels
 
         private void NavigateToTransactions()
         {
-            // TODO: Реализовать после создания TransactionsViewModel
-            // _navigationService.NavigateTo<TransactionsViewModel>();
+            _navigationService.NavigateTo<TransactionsViewModel>();
         }
 
         private void NavigateToReports()

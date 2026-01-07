@@ -1,0 +1,308 @@
+﻿<Window x:Class="AutoKassa.Views.TransactionEditView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+        Title="{Binding Title}" 
+        Height="500" Width="450"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource BackgroundBrush}">
+
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+        <!-- Стиль для TextBox -->
+        <Style x:Key="InputTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style.Triggers>
+                <Trigger Property="IsFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                </Trigger>
+                <Trigger Property="Validation.HasError" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Стиль для ошибок -->
+        <Style x:Key="ErrorTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="Enter" Modifiers="Ctrl" Command="{Binding SaveCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}"/>
+    </Window.InputBindings>
+
+    <Grid Margin="30">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Заголовок -->
+            <RowDefinition Height="*"/>
+            <!-- Форма -->
+            <RowDefinition Height="Auto"/>
+            <!-- Кнопки -->
+        </Grid.RowDefinitions>
+
+        <!-- ЗАГОЛОВОК -->
+        <TextBlock Grid.Row="0" 
+                   Text="{Binding Title}"
+                   FontSize="20" 
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,20"/>
+
+        <!-- ФОРМА -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Сумма -->
+                <TextBlock Text="Сумма *" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <TextBox x:Name="AmountTextBox"
+         Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged, StringFormat={}}"
+         Style="{StaticResource InputTextBoxStyle}"
+         TabIndex="0"
+         PreviewTextInput="AmountTextBox_PreviewTextInput"
+         TextChanged="AmountTextBox_TextChanged">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding SaveCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
+                <TextBlock Text="{Binding AmountError}" 
+           Style="{StaticResource ErrorTextStyle}"
+           Visibility="{Binding AmountError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                <!-- Тип операции -->
+                <TextBlock Text="Тип операции *" FontSize="14" FontWeight="SemiBold" Margin="0,20,0,8"/>
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Content="Доход" 
+                                 IsChecked="{Binding IsIncome}"
+                                 GroupName="OperationType"
+                                 FontSize="14"
+                                 Margin="0,0,30,0"
+                                 TabIndex="1">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="RadioButton">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="2"
+                                                    CornerRadius="4"
+                                                    Padding="20,12"
+                                                    Cursor="Hand">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="Background" Value="White"/>
+                                <Setter Property="BorderBrush" Value="#CCCCCC"/>
+                                <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
+
+                    <RadioButton Content="Расход" 
+                                 IsChecked="{Binding IsExpense}"
+                                 GroupName="OperationType"
+                                 FontSize="14"
+                                 TabIndex="2">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="RadioButton">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="2"
+                                                    CornerRadius="4"
+                                                    Padding="20,12"
+                                                    Cursor="Hand">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="Background" Value="White"/>
+                                <Setter Property="BorderBrush" Value="#CCCCCC"/>
+                                <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource ErrorBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
+                </StackPanel>
+
+                <!-- Категория -->
+                <TextBlock Text="Категория *" FontSize="14" FontWeight="SemiBold" Margin="0,20,0,8"/>
+                <ComboBox ItemsSource="{Binding Categories}"
+                          SelectedItem="{Binding SelectedCategory}"
+                          DisplayMemberPath="Name"
+                          FontSize="14"
+                          Padding="12"
+                          TabIndex="3">
+                    <ComboBox.Style>
+                        <Style TargetType="ComboBox">
+                            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ComboBox.Style>
+                </ComboBox>
+
+                <!-- Дата -->
+                <TextBlock Text="Дата *" FontSize="14" FontWeight="SemiBold" Margin="0,20,0,8"/>
+                <DatePicker SelectedDate="{Binding Date}"
+                            FontSize="14"
+                            Padding="12"
+                            TabIndex="4">
+                    <DatePicker.Style>
+                        <Style TargetType="DatePicker">
+                            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DatePicker.Style>
+                </DatePicker>
+
+                <!-- Описание -->
+                <TextBlock Text="Описание (необязательно)" FontSize="14" FontWeight="SemiBold" Margin="0,20,0,8"/>
+                <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource InputTextBoxStyle}"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         Height="80"
+                         VerticalContentAlignment="Top"
+                         MaxLength="500"
+                         TabIndex="5"/>
+                <TextBlock Text="{Binding Description.Length, StringFormat='{}{0}/500 символов'}" 
+                           FontSize="11"
+                           Foreground="{StaticResource SecondaryTextBrush}"
+                           HorizontalAlignment="Right"
+                           Margin="0,5,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- КНОПКИ -->
+        <Grid Grid.Row="2" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Горячие клавиши подсказка -->
+            <TextBlock Grid.Column="0"
+                       Text="Ctrl+Enter - сохранить, Esc - отмена"
+                       FontSize="11"
+                       Foreground="{StaticResource SecondaryTextBrush}"
+                       VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <!-- Отмена -->
+                <Button Content="Отмена"
+                        Command="{Binding CancelCommand}"
+                        Background="Transparent"
+                        Foreground="{StaticResource ForegroundBrush}"
+                        BorderBrush="#CCCCCC"
+                        BorderThickness="1"
+                        Padding="20,12"
+                        FontSize="14"
+                        Cursor="Hand"
+                        Margin="0,0,10,0"
+                        TabIndex="7">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <!-- Сохранить -->
+                <Button Content="Сохранить"
+                        Command="{Binding SaveCommand}"
+                        Background="{StaticResource PrimaryBrush}"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Padding="30,12"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Cursor="Hand"
+                        TabIndex="6">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#1976D2"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Background" Value="#CCCCCC"/>
+                                    <Setter Property="Cursor" Value="Arrow"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

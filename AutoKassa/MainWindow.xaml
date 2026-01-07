@@ -3,6 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:AutoKassa.Views"
+        xmlns:vm="clr-namespace:AutoKassa.ViewModels"
         xmlns:local="clr-namespace:AutoKassa"
         mc:Ignorable="d"
         Title="{Binding Title}" 
@@ -176,11 +178,13 @@
 
             <!-- MAIN CONTENT -->
             <ContentControl Grid.Column="1" 
-                            Content="{Binding CurrentView}"
-                            Margin="20">
-                <!-- Здесь будет отображаться текущий View через DataTemplate -->
+                Content="{Binding CurrentView}"
+                Margin="20">
                 <ContentControl.Resources>
-                    <!-- DataTemplates для ViewModels будут добавлены позже -->
+                    <!-- DataTemplates для ViewModels -->
+                    <DataTemplate DataType="{x:Type vm:TransactionsViewModel}">
+                        <views:TransactionsView/>
+                    </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>
         </Grid>
