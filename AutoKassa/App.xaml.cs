@@ -72,7 +72,7 @@ namespace AutoKassa
             services.AddScoped<ITransactionService, TransactionService>();
             services.AddScoped<ICategoryService, CategoryService>();
             services.AddScoped<IReportService, ReportService>();
-
+            services.AddSingleton<IExportService, ExportService>();
 
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();
@@ -83,6 +83,7 @@ namespace AutoKassa
             services.AddTransient<CategoryEditViewModel>();
             services.AddTransient<ReportsViewModel>();
             services.AddTransient<BalanceReportViewModel>();
+            services.AddTransient<CategoryReportViewModel>();
 
 
 

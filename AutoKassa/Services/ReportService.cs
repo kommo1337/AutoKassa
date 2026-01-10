@@ -34,10 +34,11 @@ namespace AutoKassa.Services
             // Получаем начальный баланс
             report.StartBalance = await GetInitialBalanceAsync(dateFrom);
 
-            // Получаем операции за период
+            // Получаем операции за период (включая весь последний день)
+            var dateToEnd = dateTo.Date.AddDays(1);
             var transactions = await _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => t.Date >= dateFrom && t.Date <= dateTo)
+                .Where(t => t.Date >= dateFrom.Date && t.Date < dateToEnd)
                 .OrderBy(t => t.Date)
                 .ToListAsync();
 
@@ -68,13 +69,18 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<decimal> GetInitialBalanceAsync(DateTime date)
         {
-            var incomeBeforeDate = await _context.Transactions
-                .Where(t => t.Type == OperationType.Income && t.Date < date)
-                .SumAsync(t => (decimal?)t.Amount) ?? 0;
+            // SQLite не поддерживает Sum для decimal, поэтому загружаем данные в память
+            var transactionsBeforeDate = await _context.Transactions
+                .Where(t => t.Date < date.Date)
+                .ToListAsync();
 
-            var expenseBeforeDate = await _context.Transactions
-                .Where(t => t.Type == OperationType.Expense && t.Date < date)
-                .SumAsync(t => (decimal?)t.Amount) ?? 0;
+            var incomeBeforeDate = transactionsBeforeDate
+                .Where(t => t.Type == OperationType.Income)
+                .Sum(t => t.Amount);
+
+            var expenseBeforeDate = transactionsBeforeDate
+                .Where(t => t.Type == OperationType.Expense)
+                .Sum(t => t.Amount);
 
             return incomeBeforeDate - expenseBeforeDate;
         }
@@ -125,6 +131,73 @@ namespace AutoKassa.Services
             }
 
             return dailyBalances;
+        }
+
+        /// <summary>
+        /// Сформировать отчет "Структура по категориям"
+        /// </summary>
+        public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType)
+        {
+            var report = new CategoryReport
+            {
+                DateFrom = dateFrom,
+                DateTo = dateTo,
+                OperationType = operationType
+            };
+
+            // Получаем операции за период с указанным типом (включая весь последний день)
+            var dateToEnd = dateTo.Date.AddDays(1);
+            var transactions = await _context.Transactions
+                .Include(t => t.Category)
+                .Where(t => t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType)
+                .ToListAsync();
+
+            // Общая сумма и количество операций
+            report.TotalAmount = transactions.Sum(t => t.Amount);
+            report.TransactionCount = transactions.Count;
+
+            // Группируем по категориям
+            var categoryGroups = transactions
+                .GroupBy(t => t.Category)
+                .Select(g => new
+                {
+                    Category = g.Key,
+                    Amount = g.Sum(t => t.Amount),
+                    Count = g.Count()
+                })
+                .OrderByDescending(x => x.Amount)
+                .ToList();
+
+            // Цвета для диаграммы
+            var colors = new[]
+            {
+                "#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0",
+                "#00BCD4", "#FFEB3B", "#795548", "#607D8B", "#F44336",
+                "#3F51B5", "#009688", "#FFC107", "#673AB7", "#8BC34A"
+            };
+
+            // Формируем данные по категориям
+            int colorIndex = 0;
+            foreach (var group in categoryGroups)
+            {
+                var percentage = report.TotalAmount > 0
+                    ? (double)(group.Amount / report.TotalAmount) * 100
+                    : 0;
+
+                report.CategoryItems.Add(new CategoryReportItem
+                {
+                    CategoryId = group.Category?.Id ?? 0,
+                    CategoryName = group.Category?.Name ?? "Без категории",
+                    Amount = group.Amount,
+                    Percentage = Math.Round(percentage, 1),
+                    TransactionCount = group.Count,
+                    Color = colors[colorIndex % colors.Length]
+                });
+
+                colorIndex++;
+            }
+
+            return report;
         }
     }
 }

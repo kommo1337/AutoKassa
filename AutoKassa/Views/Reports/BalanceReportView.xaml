@@ -1,7 +1,7 @@
 ﻿<UserControl x:Class="AutoKassa.Views.Reports.BalanceReportView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             
+             xmlns:oxy="http://oxyplot.org/wpf"
              Background="{StaticResource BackgroundBrush}">
 
     <UserControl.Resources>
@@ -259,41 +259,26 @@
             </Grid>
         </Border>
 
-        <!-- ГРАФИК (временная заглушка) -->
-        <Border Grid.Row="2" 
-        Background="White"
-        CornerRadius="8"
-        Padding="20"
-        Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Grid>
-                <!-- Временная заглушка вместо графика -->
-                <Border Background="#F5F5F5"
+        <!-- ГРАФИК -->
+        <Border Grid.Row="2"
+                Background="White"
                 CornerRadius="8"
-                Padding="40">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="📈" FontSize="80" HorizontalAlignment="Center"/>
-                        <TextBlock Text="График будет добавлен следующим шагом" 
-                          FontSize="16" 
-                          Foreground="{StaticResource SecondaryTextBrush}"
-                          TextAlignment="Center"
-                          Margin="0,20,0,0"/>
-                        <TextBlock Text="Данные загружены успешно!" 
-                          FontSize="14" 
-                          Foreground="{StaticResource SuccessBrush}"
-                          TextAlignment="Center"
-                          Margin="0,10,0,0"/>
-                    </StackPanel>
-                </Border>
+                Padding="20"
+                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <!-- График OxyPlot -->
+                <oxy:PlotView Model="{Binding PlotModel}"
+                              Background="Transparent"/>
 
                 <!-- Индикатор загрузки -->
                 <Grid Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
-              Background="#88FFFFFF">
+                      Background="#88FFFFFF">
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock Text="⏳" FontSize="48" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Формирование отчета..." 
-                          FontSize="16" 
-                          Margin="0,10,0,0"
-                          HorizontalAlignment="Center"/>
+                        <TextBlock Text="..." FontSize="48" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Формирование отчета..."
+                                   FontSize="16"
+                                   Margin="0,10,0,0"
+                                   HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Grid>
             </Grid>

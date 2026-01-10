@@ -21,9 +21,10 @@ namespace AutoKassa.ViewModels
         private decimal _amount;
         private OperationType _type;
         private Category _selectedCategory;
-        private string _description;
-        private List<Category> _categories;
+        private string _description = string.Empty;
+        private List<Category> _categories = new List<Category>();
         private string _amountError;
+        private bool _isInitialized;
 
         private readonly ISettingsService _settingsService;
 
@@ -38,16 +39,22 @@ namespace AutoKassa.ViewModels
             _dialogService = dialogService;
             _settingsService = settingsService;
 
-            // Значения по умолчанию из настроек
-            Date = DateTime.Now;
-            Type = _settingsService.GetDefaultOperationType();
-
             // Команды
             SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
             CancelCommand = new RelayCommand(_ => Cancel());
 
+            // Значения по умолчанию из настроек
+            Date = DateTime.Now;
+            _type = _settingsService.GetDefaultOperationType();
+
             // Загрузка категорий
-            _ = LoadCategoriesAsync();
+            _ = InitializeAsync();
+        }
+
+        private async System.Threading.Tasks.Task InitializeAsync()
+        {
+            await LoadCategoriesAsync();
+            _isInitialized = true;
         }
 
         #region Свойства
@@ -106,8 +113,13 @@ namespace AutoKassa.ViewModels
             {
                 if (SetProperty(ref _type, value))
                 {
-                    // При смене типа фильтруем категории
-                    _ = LoadCategoriesAsync();
+                    // При смене типа фильтруем категории (только после инициализации)
+                    if (_isInitialized)
+                    {
+                        _ = LoadCategoriesAsync();
+                    }
+                    OnPropertyChanged(nameof(IsIncome));
+                    OnPropertyChanged(nameof(IsExpense));
                 }
             }
         }
@@ -204,7 +216,7 @@ namespace AutoKassa.ViewModels
         /// <summary>
         /// Инициализация для редактирования
         /// </summary>
-        public void InitializeForEdit(Transaction transaction)
+        public async void InitializeForEdit(Transaction transaction)
         {
             IsEditMode = true;
             _transaction = transaction;
@@ -215,10 +227,12 @@ namespace AutoKassa.ViewModels
             Description = transaction.Description;
 
             // Загрузим категории и выберем нужную
-            _ = LoadCategoriesAsync().ContinueWith(t =>
+            await LoadCategoriesAsync();
+
+            if (Categories != null && Categories.Count > 0)
             {
-                SelectedCategory = Categories?.FirstOrDefault(c => c.Id == transaction.CategoryId);
-            });
+                SelectedCategory = Categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+            }
         }
 
         /// <summary>
@@ -229,7 +243,7 @@ namespace AutoKassa.ViewModels
             try
             {
                 var categories = await _categoryService.GetByTypeAsync(Type, activeOnly: true);
-                Categories = categories;
+                Categories = categories ?? new List<Category>();
 
                 // Если категория не выбрана или не подходит по типу
                 if (SelectedCategory == null || SelectedCategory.Type != Type)
@@ -237,13 +251,13 @@ namespace AutoKassa.ViewModels
                     // Пытаемся установить категорию по умолчанию из настроек
                     var defaultCategoryId = _settingsService.GetDefaultCategoryId(Type);
 
-                    if (defaultCategoryId.HasValue)
+                    if (defaultCategoryId.HasValue && Categories.Count > 0)
                     {
                         SelectedCategory = Categories.FirstOrDefault(c => c.Id == defaultCategoryId.Value);
                     }
 
                     // Если не нашли, выбираем первую
-                    if (SelectedCategory == null)
+                    if (SelectedCategory == null && Categories.Count > 0)
                     {
                         SelectedCategory = Categories.FirstOrDefault();
                     }
@@ -251,6 +265,7 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
+                Categories = new List<Category>();
                 _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
             }
         }

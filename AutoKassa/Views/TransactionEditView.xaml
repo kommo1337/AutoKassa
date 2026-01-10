@@ -65,11 +65,11 @@
                 <!-- Сумма -->
                 <TextBlock Text="Сумма *" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBox x:Name="AmountTextBox"
-         Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged, StringFormat={}}"
-         Style="{StaticResource InputTextBoxStyle}"
-         TabIndex="0"
-         PreviewTextInput="AmountTextBox_PreviewTextInput"
-         TextChanged="AmountTextBox_TextChanged">
+                         Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource InputTextBoxStyle}"
+                         TabIndex="0"
+                         PreviewTextInput="AmountTextBox_PreviewTextInput"
+                         TextChanged="AmountTextBox_TextChanged">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Enter" Command="{Binding SaveCommand}"/>
                     </TextBox.InputBindings>
@@ -207,7 +207,7 @@
                          VerticalContentAlignment="Top"
                          MaxLength="500"
                          TabIndex="5"/>
-                <TextBlock Text="{Binding Description.Length, StringFormat='{}{0}/500 символов'}" 
+                <TextBlock Text="{Binding Description.Length, FallbackValue='0/500 символов', StringFormat={}{0}/500 символов}"
                            FontSize="11"
                            Foreground="{StaticResource SecondaryTextBrush}"
                            HorizontalAlignment="Right"

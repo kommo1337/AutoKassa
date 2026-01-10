@@ -1,31 +1,33 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using AutoKassa.Helpers;
+using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 using AutoKassa.Services;
 using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Legends;
 using OxyPlot.Series;
 
 namespace AutoKassa.ViewModels.Reports
 {
     /// <summary>
-    /// ViewModel для отчета "Баланс за период"
+    /// ViewModel для отчета "Структура по категориям"
     /// </summary>
-    public class BalanceReportViewModel : BaseReportViewModel
+    public class CategoryReportViewModel : BaseReportViewModel
     {
         private readonly IReportService _reportService;
         private readonly IExportService _exportService;
 
         private DateTime _dateFrom;
         private DateTime _dateTo;
-        private BalanceReport _report;
+        private OperationType _selectedOperationType;
+        private CategoryReport _report;
         private PlotModel _plotModel;
 
-        public BalanceReportViewModel(
+        public CategoryReportViewModel(
             IReportService reportService,
             IExportService exportService,
             IDialogService dialogService) : base(dialogService)
@@ -33,17 +35,22 @@ namespace AutoKassa.ViewModels.Reports
             _reportService = reportService;
             _exportService = exportService;
 
-            // По умолчанию - текущий месяц
+            // По умолчанию - текущий месяц, расходы
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now.Date;
+            _selectedOperationType = OperationType.Expense;
 
             // Инициализация пустой модели графика
             _plotModel = new PlotModel();
+
+            // Команды для переключения типа операций
+            ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
+            ShowIncomeCommand = new RelayCommand(_ => SetOperationType(OperationType.Income));
         }
 
         #region Свойства
 
-        public override string ReportName => "Баланс за период";
+        public override string ReportName => "Структура по категориям";
 
         /// <summary>
         /// Дата начала периода
@@ -76,9 +83,35 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
+        /// Выбранный тип операций
+        /// </summary>
+        public OperationType SelectedOperationType
+        {
+            get => _selectedOperationType;
+            set
+            {
+                if (SetProperty(ref _selectedOperationType, value))
+                {
+                    OnPropertyChanged(nameof(IsExpenseSelected));
+                    OnPropertyChanged(nameof(IsIncomeSelected));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Выбраны расходы
+        /// </summary>
+        public bool IsExpenseSelected => SelectedOperationType == OperationType.Expense;
+
+        /// <summary>
+        /// Выбраны доходы
+        /// </summary>
+        public bool IsIncomeSelected => SelectedOperationType == OperationType.Income;
+
+        /// <summary>
         /// Данные отчета
         /// </summary>
-        public BalanceReport Report
+        public CategoryReport Report
         {
             get => _report;
             set => SetProperty(ref _report, value);
@@ -92,6 +125,22 @@ namespace AutoKassa.ViewModels.Reports
             get => _plotModel;
             set => SetProperty(ref _plotModel, value);
         }
+
+        /// <summary>
+        /// Список типов операций для ComboBox
+        /// </summary>
+        public List<OperationTypeItem> OperationTypes { get; } = new List<OperationTypeItem>
+        {
+            new OperationTypeItem { Type = OperationType.Expense, Name = "Расходы" },
+            new OperationTypeItem { Type = OperationType.Income, Name = "Доходы" }
+        };
+
+        #endregion
+
+        #region Команды
+
+        public ICommand ShowExpensesCommand { get; }
+        public ICommand ShowIncomeCommand { get; }
 
         #endregion
 
@@ -109,11 +158,19 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
+        /// Установить тип операций
+        /// </summary>
+        private void SetOperationType(OperationType type)
+        {
+            SelectedOperationType = type;
+        }
+
+        /// <summary>
         /// Загрузка данных отчета
         /// </summary>
         protected override async Task LoadDataAsync()
         {
-            Report = await _reportService.GenerateBalanceReportAsync(DateFrom, DateTo);
+            Report = await _reportService.GenerateCategoryReportAsync(DateFrom, DateTo, SelectedOperationType);
 
             // Обновляем график
             UpdateChart();
@@ -124,92 +181,41 @@ namespace AutoKassa.ViewModels.Reports
         /// </summary>
         private void UpdateChart()
         {
-            if (Report == null || Report.DailyBalances == null || !Report.DailyBalances.Any())
+            if (Report == null || Report.CategoryItems == null || !Report.CategoryItems.Any())
                 return;
 
             // Создаём новую модель графика
             var model = new PlotModel
             {
-                Title = "Баланс за период"
+                Title = SelectedOperationType == OperationType.Expense
+                    ? "Структура расходов"
+                    : "Структура доходов"
             };
 
-            // Добавляем легенду
-            model.Legends.Add(new Legend
+            // Создаем круговую диаграмму
+            var pieSeries = new PieSeries
             {
-                LegendPosition = LegendPosition.BottomCenter,
-                LegendOrientation = LegendOrientation.Horizontal
-            });
-
-            // Ось X (даты)
-            var dateAxis = new DateTimeAxis
-            {
-                Position = AxisPosition.Bottom,
-                StringFormat = "dd.MM",
-                Angle = 45,
-                FontSize = 11,
-                MajorGridlineStyle = LineStyle.Solid,
-                MajorGridlineColor = OxyColor.FromRgb(230, 230, 230)
+                StrokeThickness = 2,
+                InsideLabelPosition = 0.5,
+                AngleSpan = 360,
+                StartAngle = 0,
+                InsideLabelFormat = "{1:0.0}%",
+                OutsideLabelFormat = "{0}",
+                TickHorizontalLength = 0,
+                TickRadialLength = 0
             };
-            model.Axes.Add(dateAxis);
 
-            // Ось Y (значения)
-            var valueAxis = new LinearAxis
+            // Добавляем данные по категориям
+            foreach (var item in Report.CategoryItems)
             {
-                Position = AxisPosition.Left,
-                StringFormat = "N0",
-                FontSize = 11,
-                MinimumPadding = 0.1,
-                MaximumPadding = 0.1,
-                MajorGridlineStyle = LineStyle.Solid,
-                MajorGridlineColor = OxyColor.FromRgb(230, 230, 230)
-            };
-            model.Axes.Add(valueAxis);
-
-            // Серия доходов (область)
-            var incomeSeries = new AreaSeries
-            {
-                Title = "Доходы",
-                Color = OxyColor.Parse("#4CAF50"),
-                Fill = OxyColor.FromAColor(100, OxyColor.Parse("#4CAF50")),
-                StrokeThickness = 2
-            };
-            foreach (var daily in Report.DailyBalances)
-            {
-                incomeSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(daily.Date), (double)daily.Income));
+                pieSeries.Slices.Add(new PieSlice(item.CategoryName, (double)item.Amount)
+                {
+                    Fill = OxyColor.Parse(item.Color),
+                    IsExploded = false
+                });
             }
-            model.Series.Add(incomeSeries);
 
-            // Серия расходов (область)
-            var expenseSeries = new AreaSeries
-            {
-                Title = "Расходы",
-                Color = OxyColor.Parse("#F44336"),
-                Fill = OxyColor.FromAColor(100, OxyColor.Parse("#F44336")),
-                StrokeThickness = 2
-            };
-            foreach (var daily in Report.DailyBalances)
-            {
-                expenseSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(daily.Date), (double)daily.Expense));
-            }
-            model.Series.Add(expenseSeries);
-
-            // Серия баланса (линия)
-            var balanceSeries = new LineSeries
-            {
-                Title = "Баланс",
-                Color = OxyColor.Parse("#2196F3"),
-                StrokeThickness = 3,
-                MarkerType = MarkerType.Circle,
-                MarkerSize = 6,
-                MarkerFill = OxyColor.Parse("#2196F3"),
-                MarkerStroke = OxyColors.White,
-                MarkerStrokeThickness = 2
-            };
-            foreach (var daily in Report.DailyBalances)
-            {
-                balanceSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(daily.Date), (double)daily.Balance));
-            }
-            model.Series.Add(balanceSeries);
+            model.Series.Add(pieSeries);
 
             PlotModel = model;
         }
@@ -264,7 +270,7 @@ namespace AutoKassa.ViewModels.Reports
 
             try
             {
-                var filePath = await _exportService.ExportBalanceReportToPdfAsync(Report);
+                var filePath = await _exportService.ExportCategoryReportToPdfAsync(Report);
                 _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
 
                 // Открываем файл
@@ -289,7 +295,7 @@ namespace AutoKassa.ViewModels.Reports
 
             try
             {
-                var filePath = await _exportService.ExportBalanceReportToExcelAsync(Report);
+                var filePath = await _exportService.ExportCategoryReportToExcelAsync(Report);
                 _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
 
                 // Открываем файл
@@ -302,5 +308,14 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// Элемент для списка типов операций
+    /// </summary>
+    public class OperationTypeItem
+    {
+        public OperationType Type { get; set; }
+        public string Name { get; set; }
     }
 }

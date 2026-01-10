@@ -24,7 +24,39 @@
                            Margin="0,0,0,20"/>
 
                 <Button Command="{Binding ShowBalanceReportCommand}"
-                        Content="📊 Баланс за период"
+                        Content="Баланс за период"
+                        Margin="0,0,0,10">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Padding" Value="15,12"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="FontSize" Value="14"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="4"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#E3F2FD"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <Button Command="{Binding ShowCategoryReportCommand}"
+                        Content="Структура по категориям"
                         Margin="0,0,0,10">
                     <Button.Style>
                         <Style TargetType="Button">
@@ -64,6 +96,9 @@
             <ContentControl.Resources>
                 <DataTemplate DataType="{x:Type reports:BalanceReportViewModel}">
                     <reportsViews:BalanceReportView/>
+                </DataTemplate>
+                <DataTemplate DataType="{x:Type reports:CategoryReportViewModel}">
+                    <reportsViews:CategoryReportView/>
                 </DataTemplate>
             </ContentControl.Resources>
 

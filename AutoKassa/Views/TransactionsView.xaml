@@ -126,26 +126,7 @@
                                   Padding="8">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock>
-                                        <TextBlock.Text>
-                                            <MultiBinding StringFormat="{}">
-                                                <Binding>
-                                                    <Binding.Converter>
-                                                        <converters:OperationTypeToTextConverter/>
-                                                    </Binding.Converter>
-                                                </Binding>
-                                            </MultiBinding>
-                                        </TextBlock.Text>
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding}" Value="{x:Null}">
-                                                        <Setter Property="Text" Value="Все"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <TextBlock Text="{Binding Converter={StaticResource OperationTypeToTextConverter}, TargetNullValue='Все'}"/>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
