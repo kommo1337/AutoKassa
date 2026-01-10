@@ -6,17 +6,19 @@
         xmlns:vm="clr-namespace:AutoKassa.ViewModels"
         xmlns:views="clr-namespace:AutoKassa.Views"
         mc:Ignorable="d"
-        Title="{Binding Title}" 
+        Title="{Binding Title}"
         Height="768" Width="1366"
         MinHeight="720" MinWidth="1280"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Background="{StaticResource BackgroundBrush}">
     
     <Window.Resources>
         <Style x:Key="NavButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="BorderThickness" Value="0,0,4,0"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="Padding" Value="20,15"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -41,8 +43,17 @@
                 <Trigger Property="IsPressed" Value="True">
                     <Setter Property="Background" Value="#BBDEFB"/>
                 </Trigger>
+                <!-- Активное состояние через Tag -->
+                <Trigger Property="Tag" Value="Active">
+                    <Setter Property="Background" Value="#E3F2FD"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Конвертер bool в Tag -->
+        <Style x:Key="NavButtonActiveStyle" TargetType="Button" BasedOn="{StaticResource NavButtonStyle}"/>
     </Window.Resources>
 
     <!-- Горячие клавиши -->
@@ -128,47 +139,142 @@
                 <StackPanel Margin="0,20,0,0">
 
                     <!-- Главная -->
-                    <Button Command="{Binding NavigateToDashboardCommand}"
-                            Style="{StaticResource NavButtonStyle}">
+                    <Button Command="{Binding NavigateToDashboardCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDashboardActive}" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="🏠" FontSize="20" Margin="0,0,10,0"/>
-                            <TextBlock Text="Главная" FontSize="14"/>
+                            <TextBlock Text="Главная" FontSize="14">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDashboardActive}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Button>
 
                     <!-- Операции -->
-                    <Button Command="{Binding NavigateToTransactionsCommand}"
-                            Style="{StaticResource NavButtonStyle}">
+                    <Button Command="{Binding NavigateToTransactionsCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTransactionsActive}" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="💳" FontSize="20" Margin="0,0,10,0"/>
-                            <TextBlock Text="Операции" FontSize="14"/>
+                            <TextBlock Text="Операции" FontSize="14">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsTransactionsActive}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Button>
 
                     <!-- Отчеты -->
-                    <Button Command="{Binding NavigateToReportsCommand}"
-                            Style="{StaticResource NavButtonStyle}">
+                    <Button Command="{Binding NavigateToReportsCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsReportsActive}" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📊" FontSize="20" Margin="0,0,10,0"/>
-                            <TextBlock Text="Отчеты" FontSize="14"/>
+                            <TextBlock Text="Отчеты" FontSize="14">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsReportsActive}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Button>
 
                     <!-- Категории -->
-                    <Button Command="{Binding NavigateToCategoriesCommand}"
-                            Style="{StaticResource NavButtonStyle}">
+                    <Button Command="{Binding NavigateToCategoriesCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCategoriesActive}" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="📁" FontSize="20" Margin="0,0,10,0"/>
-                            <TextBlock Text="Категории" FontSize="14"/>
+                            <TextBlock Text="Категории" FontSize="14">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCategoriesActive}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Button>
 
                     <!-- Настройки -->
-                    <Button Command="{Binding NavigateToSettingsCommand}"
-                            Style="{StaticResource NavButtonStyle}">
+                    <Button Command="{Binding NavigateToSettingsCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSettingsActive}" Value="True">
+                                        <Setter Property="Background" Value="#E3F2FD"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⚙️" FontSize="20" Margin="0,0,10,0"/>
-                            <TextBlock Text="Настройки" FontSize="14"/>
+                            <TextBlock Text="Настройки" FontSize="14">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSettingsActive}" Value="True">
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Button>
 
@@ -180,6 +286,10 @@
                 Content="{Binding CurrentView}"
                 Margin="20">
                 <ContentControl.Resources>
+                    <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+                        <views:DashboardView/>
+                    </DataTemplate>
+
                     <DataTemplate DataType="{x:Type vm:TransactionsViewModel}">
                         <views:TransactionsView/>
                     </DataTemplate>
@@ -189,7 +299,6 @@
                     </DataTemplate>
 
                     <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
-                        
                         <views:ReportsView/>
                     </DataTemplate>
                 </ContentControl.Resources>

@@ -5,7 +5,8 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet remove:*)",
       "Bash(dotnet add package:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(Select-String -Pattern \"error\" -CaseSensitive)"
     ]
   }
 }

@@ -35,6 +35,9 @@ namespace AutoKassa.ViewModels
 
             // Запускаем таймер автоблокировки
             _lockService.StartAutoLockTimer();
+
+            // Навигация на главную страницу при старте
+            NavigateToDashboard();
         }
 
         #region Свойства
@@ -53,6 +56,31 @@ namespace AutoKassa.ViewModels
         /// </summary>
         public ViewModelBase CurrentView => _navigationService.CurrentView;
 
+        /// <summary>
+        /// Активна ли страница "Главная"
+        /// </summary>
+        public bool IsDashboardActive => CurrentView is DashboardViewModel;
+
+        /// <summary>
+        /// Активна ли страница "Операции"
+        /// </summary>
+        public bool IsTransactionsActive => CurrentView is TransactionsViewModel;
+
+        /// <summary>
+        /// Активна ли страница "Отчеты"
+        /// </summary>
+        public bool IsReportsActive => CurrentView is ReportsViewModel;
+
+        /// <summary>
+        /// Активна ли страница "Категории"
+        /// </summary>
+        public bool IsCategoriesActive => CurrentView is CategoriesViewModel;
+
+        /// <summary>
+        /// Активна ли страница "Настройки"
+        /// </summary>
+        public bool IsSettingsActive => false; // TODO: CurrentView is SettingsViewModel
+
         #endregion
 
         #region Команды
@@ -70,8 +98,7 @@ namespace AutoKassa.ViewModels
 
         private void NavigateToDashboard()
         {
-            // TODO: Реализовать после создания DashboardViewModel
-            // _navigationService.NavigateTo<DashboardViewModel>();
+            _navigationService.NavigateTo<DashboardViewModel>();
         }
 
         private void NavigateToTransactions()
@@ -113,6 +140,11 @@ namespace AutoKassa.ViewModels
         private void OnCurrentViewChanged()
         {
             OnPropertyChanged(nameof(CurrentView));
+            OnPropertyChanged(nameof(IsDashboardActive));
+            OnPropertyChanged(nameof(IsTransactionsActive));
+            OnPropertyChanged(nameof(IsReportsActive));
+            OnPropertyChanged(nameof(IsCategoriesActive));
+            OnPropertyChanged(nameof(IsSettingsActive));
         }
 
         #endregion

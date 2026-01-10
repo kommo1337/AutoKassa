@@ -77,6 +77,7 @@ namespace AutoKassa
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<InitialSetupViewModel>();
+            services.AddTransient<DashboardViewModel>();
             services.AddTransient<TransactionsViewModel>();
             services.AddTransient<TransactionEditViewModel>();
             services.AddTransient<CategoriesViewModel>();

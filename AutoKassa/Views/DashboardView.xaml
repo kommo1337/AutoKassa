@@ -1,0 +1,803 @@
+<UserControl x:Class="AutoKassa.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:oxy="http://oxyplot.org/wpf"
+             xmlns:vm="clr-namespace:AutoKassa.ViewModels"
+             xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:OperationTypeToColorConverter x:Key="OperationTypeToColorConverter"/>
+        <converters:OperationTypeToTextConverter x:Key="OperationTypeToTextConverter"/>
+        <converters:DecimalToStringConverter x:Key="DecimalToStringConverter"/>
+        <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
+
+        <!-- Стиль для кнопок периода -->
+        <Style x:Key="PeriodButtonStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource PrimaryBrush}"
+                                BorderThickness="0,0,0,2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="BorderThickness" Value="0,0,0,2"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="border" Property="BorderThickness" Value="0"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E3F2FD"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для карточек сводки -->
+        <Style x:Key="SummaryCardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="0,0,15,0"/>
+        </Style>
+
+        <!-- Стиль для основной кнопки -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#43A047"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCCCCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Конвертер для стрелки изменения -->
+        <Style x:Key="ChangeIndicatorStyle" TargetType="TextBlock">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Path=Text, RelativeSource={RelativeSource Self}, Converter={StaticResource IsPositiveConverter}}" Value="True">
+                    <Setter Property="Foreground" Value="#4CAF50"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <!-- Заголовок + Период -->
+            <RowDefinition Height="Auto"/>
+            <!-- Карточки сводки + Мини-график -->
+            <RowDefinition Height="*"/>
+            <!-- Быстрое добавление + Последние операции -->
+        </Grid.RowDefinitions>
+
+        <!-- ЗАГОЛОВОК И ПЕРЕКЛЮЧАТЕЛЬ ПЕРИОДА -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Главная"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+
+            <!-- Переключатель периода -->
+            <Border Grid.Column="2"
+                    Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="8">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Content="Сегодня"
+                                 Style="{StaticResource PeriodButtonStyle}"
+                                 IsChecked="{Binding IsTodaySelected, Mode=OneWay}"
+                                 Command="{Binding SelectPeriodCommand}"
+                                 CommandParameter="{x:Static vm:PeriodType.Today}"/>
+                    <RadioButton Content="Неделя"
+                                 Style="{StaticResource PeriodButtonStyle}"
+                                 IsChecked="{Binding IsWeekSelected, Mode=OneWay}"
+                                 Command="{Binding SelectPeriodCommand}"
+                                 CommandParameter="{x:Static vm:PeriodType.Week}"/>
+                    <RadioButton Content="Месяц"
+                                 Style="{StaticResource PeriodButtonStyle}"
+                                 IsChecked="{Binding IsMonthSelected, Mode=OneWay}"
+                                 Command="{Binding SelectPeriodCommand}"
+                                 CommandParameter="{x:Static vm:PeriodType.Month}"/>
+                    <RadioButton Content="Год"
+                                 Style="{StaticResource PeriodButtonStyle}"
+                                 IsChecked="{Binding IsYearSelected, Mode=OneWay}"
+                                 Command="{Binding SelectPeriodCommand}"
+                                 CommandParameter="{x:Static vm:PeriodType.Year}"/>
+                    <RadioButton Content="Произвольный"
+                                 Style="{StaticResource PeriodButtonStyle}"
+                                 IsChecked="{Binding IsCustomSelected, Mode=OneWay}"
+                                 Command="{Binding SelectPeriodCommand}"
+                                 CommandParameter="{x:Static vm:PeriodType.Custom}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Произвольный период (если выбран) -->
+        <Border Grid.Row="0"
+                Margin="0,50,0,0"
+                Visibility="{Binding IsCustomPeriodVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                HorizontalAlignment="Right"
+                Background="{StaticResource SurfaceBrush}"
+                CornerRadius="8"
+                Padding="15">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="С:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <DatePicker SelectedDate="{Binding DateFrom}" Width="120"/>
+                <TextBlock Text="По:" VerticalAlignment="Center" Margin="15,0,10,0"/>
+                <DatePicker SelectedDate="{Binding DateTo}" Width="120"/>
+                <Button Content="Применить"
+                        Command="{Binding ApplyCustomPeriodCommand}"
+                        Background="{StaticResource PrimaryBrush}"
+                        Foreground="White"
+                        Padding="15,8"
+                        Margin="15,0,0,0"
+                        BorderThickness="0"
+                        Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- КАРТОЧКИ СВОДКИ И МИНИ-ГРАФИК -->
+        <Grid Grid.Row="1" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1.2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Карточка Доходы -->
+            <Border Grid.Column="0"
+                    Style="{StaticResource SummaryCardStyle}"
+                    Background="#E8F5E9">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <TextBlock Text="^"
+                                   FontSize="24"
+                                   Foreground="#4CAF50"
+                                   FontWeight="Bold"
+                                   Margin="0,0,10,0"/>
+                        <TextBlock Text="Доходы"
+                                   FontSize="14"
+                                   Foreground="#666666"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="#2E7D32"
+                               Margin="0,10,0,5">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0:N0} ₽">
+                                <Binding Path="TotalIncome"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <TextBlock FontSize="13">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#4CAF50"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IncomeChangePercent, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                            <Setter Property="Foreground" Value="#F44336"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            <Run Text="{Binding IncomeChangePercent, StringFormat={}{0:+0.0;-0.0;0}%}"/>
+                        </TextBlock>
+                        <TextBlock Text=" vs пред. период"
+                                   FontSize="12"
+                                   Foreground="#999999"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Карточка Расходы -->
+            <Border Grid.Column="1"
+                    Style="{StaticResource SummaryCardStyle}"
+                    Background="#FFEBEE">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <TextBlock Text="v"
+                                   FontSize="24"
+                                   Foreground="#F44336"
+                                   
+                                   Margin="0,0,10,0"/>
+                        <TextBlock Text="Расходы"
+                                   FontSize="14"
+                                   Foreground="#666666"
+                                   VerticalAlignment="Center" Cursor=""/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1"
+                               FontSize="28"
+                               Foreground="#C62828"
+                               Margin="0,10,0,5" FontWeight="Bold">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0:N0} ₽">
+                                <Binding Path="TotalExpense"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <TextBlock FontSize="13">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#F44336"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ExpenseChangePercent, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                            <Setter Property="Foreground" Value="#4CAF50"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            <Run Text="{Binding ExpenseChangePercent, StringFormat={}{0:+0.0;-0.0;0}%}"/>
+                        </TextBlock>
+                        <TextBlock Text=" vs пред. период"
+                                   FontSize="12"
+                                   Foreground="#999999"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Карточка Прибыль -->
+            <Border Grid.Column="2"
+                    Style="{StaticResource SummaryCardStyle}"
+                    Background="#E3F2FD">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <TextBlock Text="~"
+                                   FontSize="24"
+                                   Foreground="#2196F3"
+                                   FontWeight="Bold"
+                                   Margin="0,0,10,0"/>
+                        <TextBlock Text="Прибыль"
+                                   FontSize="14"
+                                   Foreground="#666666"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="1"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Margin="0,10,0,5">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#1565C0"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                        <Setter Property="Foreground" Value="#C62828"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0:N0} ₽">
+                                <Binding Path="Profit"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal">
+                        <TextBlock Text="{Binding Profitability, StringFormat=Рентабельность: {0:0.0}%}"
+                                   FontSize="12"
+                                   Foreground="#666666"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Мини-график -->
+            <Border Grid.Column="3"
+                    Background="White"
+                    CornerRadius="12"
+                    Padding="15"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="Chart_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="Динамика" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock Text=" (клик для полного отчета)"
+                                   FontSize="12"
+                                   Foreground="#999999"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <oxy:PlotView Grid.Row="1" Grid.Column="0"
+                                  Model="{Binding ChartModel}"
+                                  MinHeight="100"
+                                  Background="Transparent"/>
+
+                    <!-- Легенда справа вертикально -->
+                    <StackPanel Grid.Row="1" Grid.Column="1"
+                                Orientation="Vertical"
+                                VerticalAlignment="Center"
+                                Margin="10,0,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Border Width="16" Height="3" Background="#4CAF50" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="Доходы" FontSize="11" Foreground="#666666"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Border Width="16" Height="3" Background="#F44336" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="Расходы" FontSize="11" Foreground="#666666"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="16" Height="3" Background="#2196F3" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="Прибыль" FontSize="11" Foreground="#666666"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- БЫСТРОЕ ДОБАВЛЕНИЕ И ПОСЛЕДНИЕ ОПЕРАЦИИ -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Форма быстрого добавления -->
+            <Border Grid.Column="0"
+                    Background="White"
+                    CornerRadius="12"
+                    Padding="20"
+                    Margin="0,0,20,0"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Заголовок -->
+                    <TextBlock Grid.Row="0"
+                               Text="Добавить операцию"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,20"/>
+
+                    <!-- Поле суммы -->
+                    <TextBox Grid.Row="1"
+                             Text="{Binding QuickAmountText, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="24"
+                             FontWeight="SemiBold"
+                             Padding="15"
+                             Margin="0,0,0,15"
+                             BorderBrush="#E0E0E0"
+                             BorderThickness="1">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="TextBox">
+                                            <Border Background="White"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="8">
+                                                <Grid>
+                                                    <ScrollViewer x:Name="PART_ContentHost" Margin="15,0"/>
+                                                    <TextBlock Text="0.00 ₽"
+                                                               Foreground="#CCCCCC"
+                                                               FontSize="24"
+                                                               FontWeight="SemiBold"
+                                                               Margin="15,0"
+                                                               IsHitTestVisible="False"
+                                                               VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <!-- Toggle Доход/Расход -->
+                    <Grid Grid.Row="2" Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <RadioButton Grid.Column="0"
+                                     IsChecked="{Binding IsIncome, Converter={StaticResource InverseBoolConverter}}"
+                                     GroupName="TransactionType"
+                                     Cursor="Hand">
+                            <RadioButton.Template>
+                                <ControlTemplate TargetType="RadioButton">
+                                    <Border x:Name="border"
+                                            Background="#FFEBEE"
+                                            CornerRadius="8,0,0,8"
+                                            Padding="15,12">
+                                        <TextBlock x:Name="text"
+                                                   Text="Расход"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F44336"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#F44336"/>
+                                            <Setter TargetName="text" Property="Foreground" Value="White"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </RadioButton.Template>
+                        </RadioButton>
+
+                        <RadioButton Grid.Column="1"
+                                     IsChecked="{Binding IsIncome}"
+                                     GroupName="TransactionType"
+                                     Cursor="Hand">
+                            <RadioButton.Template>
+                                <ControlTemplate TargetType="RadioButton">
+                                    <Border x:Name="border"
+                                            Background="#E8F5E9"
+                                            CornerRadius="0,8,8,0"
+                                            Padding="15,12">
+                                        <TextBlock x:Name="text"
+                                                   Text="Доход"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#4CAF50"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="#4CAF50"/>
+                                            <Setter TargetName="text" Property="Foreground" Value="White"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </RadioButton.Template>
+                        </RadioButton>
+                    </Grid>
+
+                    <!-- Категория -->
+                    <ComboBox Grid.Row="3"
+                              ItemsSource="{Binding FilteredCategories}"
+                              SelectedItem="{Binding SelectedCategory}"
+                              DisplayMemberPath="Name"
+                              FontSize="14"
+                              Padding="12"
+                              Margin="0,0,0,15"
+                              IsTextSearchEnabled="True"
+                              IsTextSearchCaseSensitive="False"/>
+
+                    <!-- Ссылка "Изменить дату" -->
+                    <StackPanel Grid.Row="4" Margin="0,0,0,10">
+                        <TextBlock Visibility="{Binding IsDateVisible, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
+                                   Cursor="Hand"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   FontSize="13"
+                                   MouseLeftButtonDown="ToggleDate_Click">
+                            <Run Text="Изменить дату"/>
+                        </TextBlock>
+
+                        <StackPanel Visibility="{Binding IsDateVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    Orientation="Horizontal">
+                            <DatePicker SelectedDate="{Binding QuickDate}" Width="150"/>
+                            <TextBlock Text="x"
+                                       Margin="10,0,0,0"
+                                       Cursor="Hand"
+                                       Foreground="#999999"
+                                       VerticalAlignment="Center"
+                                       MouseLeftButtonDown="ToggleDate_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Ссылка "+ Добавить описание" -->
+                    <StackPanel Grid.Row="5" Margin="0,0,0,15">
+                        <TextBlock Visibility="{Binding IsDescriptionVisible, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
+                                   Cursor="Hand"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   FontSize="13"
+                                   MouseLeftButtonDown="ToggleDescription_Click">
+                            <Run Text="+ Добавить описание"/>
+                        </TextBlock>
+
+                        <Grid Visibility="{Binding IsDescriptionVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBox Text="{Binding QuickDescription, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="14"
+                                     Padding="12"
+                                     Height="70"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     BorderBrush="#E0E0E0"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- Кнопка добавления -->
+                    <Button Grid.Row="6"
+                            Content="Добавить"
+                            Command="{Binding AddQuickTransactionCommand}"
+                            Style="{StaticResource PrimaryButtonStyle}"/>
+                </Grid>
+            </Border>
+
+            <!-- Последние операции -->
+            <Border Grid.Column="1"
+                    Background="White"
+                    CornerRadius="12"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Заголовок -->
+                    <Grid Grid.Row="0" Margin="20,20,20,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="Последние операции"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"/>
+
+                        <TextBlock Grid.Column="1"
+                                   Text="Показать все >"
+                                   Foreground="{StaticResource PrimaryBrush}"
+                                   Cursor="Hand"
+                                   VerticalAlignment="Center"
+                                   MouseLeftButtonDown="ShowAllTransactions_Click"/>
+                    </Grid>
+
+                    <!-- Таблица операций -->
+                    <DataGrid Grid.Row="1"
+                              ItemsSource="{Binding RecentTransactions}"
+                              SelectedItem="{Binding SelectedTransaction}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              RowHeight="50"
+                              CanUserResizeRows="False"
+                              CanUserSortColumns="False"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Margin="0,0,0,10"
+                              Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}}">
+
+                        <DataGrid.InputBindings>
+                            <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding OpenTransactionCommand}"/>
+                        </DataGrid.InputBindings>
+
+                        <DataGrid.Columns>
+                            <!-- Дата -->
+                            <DataGridTextColumn Header="Дата"
+                                                Binding="{Binding Date, StringFormat=dd.MM.yyyy}"
+                                                Width="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="13"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Margin" Value="15,0,0,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- Тип -->
+                            <DataGridTemplateColumn Header="Тип" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding Type, Converter={StaticResource OperationTypeToColorConverter}}"
+                                                CornerRadius="10"
+                                                Padding="12,4"
+                                                HorizontalAlignment="Left"
+                                                Margin="10,0,0,0">
+                                            <TextBlock Text="{Binding Type, Converter={StaticResource OperationTypeToTextConverter}}"
+                                                       Foreground="White"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Категория -->
+                            <DataGridTextColumn Header="Категория"
+                                                Binding="{Binding Category.Name}"
+                                                Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="13"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Margin" Value="10,0,0,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <!-- Сумма -->
+                            <DataGridTextColumn Header="Сумма"
+                                                Binding="{Binding Amount, Converter={StaticResource DecimalToStringConverter}}"
+                                                Width="150">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="14"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Margin" Value="10,0,15,0"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+
+                        <!-- Стили DataGrid -->
+                        <DataGrid.Resources>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+                                <Setter Property="FontWeight" Value="Normal"/>
+                                <Setter Property="FontSize" Value="13"/>
+                                <Setter Property="Padding" Value="15,10"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                <Setter Property="BorderBrush" Value="#E0E0E0"/>
+                            </Style>
+
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#FAFAFA"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#F0F0F0"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Resources>
+                    </DataGrid>
+
+                    <!-- Заглушка если нет операций -->
+                    <StackPanel Grid.Row="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}">
+                        <TextBlock Text="Операций пока нет"
+                                   FontSize="16"
+                                   Foreground="#999999"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Добавьте первую операцию слева"
+                                   FontSize="13"
+                                   Foreground="#CCCCCC"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,5,0,0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Индикатор загрузки -->
+        <Border Grid.RowSpan="3"
+                Background="#80FFFFFF"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="200" Height="4"/>
+                <TextBlock Text="Загрузка..."
+                           Margin="0,10,0,0"
+                           Foreground="{StaticResource SecondaryTextBrush}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
