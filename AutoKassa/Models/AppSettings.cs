@@ -100,5 +100,102 @@ namespace AutoKassa.Models
         /// ID категории по умолчанию для расходов
         /// </summary>
         public int? DefaultExpenseCategoryId { get; set; }
+
+        #region Общие настройки
+
+        /// <summary>
+        /// Включена ли автоблокировка
+        /// </summary>
+        [Required]
+        public bool AutoLockEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Показывать уведомления
+        /// </summary>
+        [Required]
+        public bool ShowNotifications { get; set; } = true;
+
+        #endregion
+
+        #region Настройки операций
+
+        /// <summary>
+        /// Показывать кнопку "Операции" в боковом меню
+        /// </summary>
+        [Required]
+        public bool ShowOperationsInSidebar { get; set; } = false;
+
+        /// <summary>
+        /// Количество записей на странице по умолчанию
+        /// </summary>
+        [Required]
+        public int DefaultPageSize { get; set; } = 20;
+
+        /// <summary>
+        /// Подтверждать удаление операций
+        /// </summary>
+        [Required]
+        public bool ConfirmDelete { get; set; } = true;
+
+        #endregion
+
+        #region Настройки отчетов
+
+        /// <summary>
+        /// Автоматически формировать отчеты
+        /// </summary>
+        [Required]
+        public bool AutoGenerateReports { get; set; } = false;
+
+        #endregion
+
+        #region Настройки резервного копирования
+
+        /// <summary>
+        /// Интервал автоматического резервного копирования (дней)
+        /// </summary>
+        [Required]
+        public int AutoBackupDays { get; set; } = 7;
+
+        #endregion
+
+        #region Настройки безопасности
+
+        /// <summary>
+        /// Требовать пароль при запуске
+        /// </summary>
+        [Required]
+        public bool RequirePasswordOnStartup { get; set; } = true;
+
+        /// <summary>
+        /// Срок действия пароля (дней, 0 = никогда)
+        /// </summary>
+        [Required]
+        public int PasswordExpireDays { get; set; } = 0;
+
+        #endregion
+
+        #region Настройки интерфейса
+
+        /// <summary>
+        /// Язык интерфейса
+        /// </summary>
+        [Required]
+        [MaxLength(10)]
+        public string Language { get; set; } = "ru-RU";
+
+        /// <summary>
+        /// Ширина окна по умолчанию
+        /// </summary>
+        [Required]
+        public double WindowWidth { get; set; } = 1200;
+
+        /// <summary>
+        /// Высота окна по умолчанию
+        /// </summary>
+        [Required]
+        public double WindowHeight { get; set; } = 700;
+
+        #endregion
     }
 }

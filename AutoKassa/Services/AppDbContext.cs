@@ -220,12 +220,25 @@ namespace AutoKassa.Services
                     SecurityAnswerHash = null,
                     CustomSecurityQuestion = null,
                     AutoLockTimeout = 10,
+                    AutoLockEnabled = true,
                     Theme = "Light",
-                    DefaultPeriodFilter = "CurrentMonth",
-                    BackupEnabled = true,
+                    DefaultPeriodFilter = "Month",
+                    ShowNotifications = true,
+                    ShowOperationsInSidebar = false,
+                    DefaultPageSize = 20,
+                    ConfirmDelete = true,
+                    AutoGenerateReports = false,
+                    BackupEnabled = false,
                     BackupFrequency = "Weekly",
                     BackupPath = null,
-                    BackupKeepCount = 10
+                    BackupKeepCount = 10,
+                    AutoBackupDays = 7,
+                    RequirePasswordOnStartup = true,
+                    PasswordExpireDays = 0,
+                    Language = "ru-RU",
+                    WindowWidth = 1200,
+                    WindowHeight = 700,
+                    DefaultOperationType = 2
                 }
             );
         }

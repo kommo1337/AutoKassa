@@ -11,14 +11,21 @@ namespace AutoKassa.ViewModels
     {
         private readonly INavigationService _navigationService;
         private readonly ILockService _lockService;
+        private readonly ISettingsService _settingsService;
         private string _title = "АвтоКасса";
+        private bool _showCategoriesInSidebar;
 
         public MainWindowViewModel(
             INavigationService navigationService,
-            ILockService lockService)
+            ILockService lockService,
+            ISettingsService settingsService)
         {
             _navigationService = navigationService;
             _lockService = lockService;
+            _settingsService = settingsService;
+
+            // Загружаем настройки
+            LoadSettings();
 
             // Подписка на изменение текущего View
             _navigationService.CurrentViewChanged += OnCurrentViewChanged;
@@ -79,7 +86,16 @@ namespace AutoKassa.ViewModels
         /// <summary>
         /// Активна ли страница "Настройки"
         /// </summary>
-        public bool IsSettingsActive => false; // TODO: CurrentView is SettingsViewModel
+        public bool IsSettingsActive => CurrentView is SettingsViewModel;
+
+        /// <summary>
+        /// Показывать кнопку "Категории" в боковом меню
+        /// </summary>
+        public bool ShowCategoriesInSidebar
+        {
+            get => _showCategoriesInSidebar;
+            set => SetProperty(ref _showCategoriesInSidebar, value);
+        }
 
         #endregion
 
@@ -120,8 +136,24 @@ namespace AutoKassa.ViewModels
 
         private void NavigateToSettings()
         {
-            // TODO: Реализовать после создания SettingsViewModel
-            // _navigationService.NavigateTo<SettingsViewModel>();
+            _navigationService.NavigateTo<SettingsViewModel>();
+        }
+
+        /// <summary>
+        /// Загрузить настройки
+        /// </summary>
+        private void LoadSettings()
+        {
+            var settings = _settingsService.GetSettings();
+            ShowCategoriesInSidebar = settings.ShowOperationsInSidebar; // Используем то же поле для категорий
+        }
+
+        /// <summary>
+        /// Обновить настройки из сервиса
+        /// </summary>
+        public void RefreshSettings()
+        {
+            LoadSettings();
         }
 
         #endregion

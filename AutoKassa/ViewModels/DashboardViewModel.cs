@@ -90,6 +90,8 @@ namespace AutoKassa.ViewModels
 
             // Команды операций
             OpenTransactionCommand = new RelayCommand(_ => OpenTransaction(), _ => SelectedTransaction != null);
+            EditTransactionCommand = new RelayCommand(_ => OpenTransaction(), _ => SelectedTransaction != null);
+            DeleteTransactionCommand = new RelayCommand(async _ => await DeleteTransactionAsync(), _ => SelectedTransaction != null);
             NavigateToAllTransactionsCommand = new RelayCommand(_ => NavigateToAllTransactions());
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
 
@@ -391,6 +393,8 @@ namespace AutoKassa.ViewModels
         public ICommand ToggleDescriptionCommand { get; }
         public ICommand ToggleDateCommand { get; }
         public ICommand OpenTransactionCommand { get; }
+        public ICommand EditTransactionCommand { get; }
+        public ICommand DeleteTransactionCommand { get; }
         public ICommand NavigateToAllTransactionsCommand { get; }
         public ICommand OpenFullReportCommand { get; }
 
@@ -763,6 +767,39 @@ namespace AutoKassa.ViewModels
             if (window.ShowDialog() == true)
             {
                 _ = LoadDataAsync();
+            }
+        }
+
+        /// <summary>
+        /// Удалить операцию
+        /// </summary>
+        private async Task DeleteTransactionAsync()
+        {
+            if (SelectedTransaction == null) return;
+
+            var result = _dialogService.ShowConfirmation(
+                $"Вы уверены, что хотите удалить операцию?\n\n" +
+                $"Дата: {SelectedTransaction.Date:dd.MM.yyyy}\n" +
+                $"Сумма: {SelectedTransaction.Amount:N2} ₽\n" +
+                $"Категория: {SelectedTransaction.Category?.Name}",
+                "Подтверждение удаления"
+            );
+
+            if (!result) return;
+
+            try
+            {
+                await _transactionService.DeleteAsync(SelectedTransaction.Id);
+                RecentTransactions.Remove(SelectedTransaction);
+                HasTransactions = RecentTransactions.Any();
+                _toastService.ShowSuccess("Операция удалена");
+
+                // Обновляем сводку
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                _toastService.ShowError($"Ошибка удаления: {ex.Message}");
             }
         }
 

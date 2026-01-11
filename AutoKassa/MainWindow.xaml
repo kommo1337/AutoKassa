@@ -222,8 +222,9 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Категории -->
-                    <Button Command="{Binding NavigateToCategoriesCommand}">
+                    <!-- Категории (скрыта, доступна через настройки) -->
+                    <Button Command="{Binding NavigateToCategoriesCommand}"
+                            Visibility="{Binding ShowCategoriesInSidebar, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
@@ -300,6 +301,10 @@
 
                     <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
                         <views:ReportsView/>
+                    </DataTemplate>
+
+                    <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+                        <views:SettingsView/>
                     </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>

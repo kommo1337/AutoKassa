@@ -38,7 +38,7 @@ namespace AutoKassa.Services
             var dateToEnd = dateTo.Date.AddDays(1);
             var transactions = await _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => t.Date >= dateFrom.Date && t.Date < dateToEnd)
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd)
                 .OrderBy(t => t.Date)
                 .ToListAsync();
 
@@ -71,7 +71,7 @@ namespace AutoKassa.Services
         {
             // SQLite не поддерживает Sum для decimal, поэтому загружаем данные в память
             var transactionsBeforeDate = await _context.Transactions
-                .Where(t => t.Date < date.Date)
+                .Where(t => !t.IsDeleted && t.Date < date.Date)
                 .ToListAsync();
 
             var incomeBeforeDate = transactionsBeforeDate
@@ -149,7 +149,7 @@ namespace AutoKassa.Services
             var dateToEnd = dateTo.Date.AddDays(1);
             var transactions = await _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType)
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType)
                 .ToListAsync();
 
             // Общая сумма и количество операций

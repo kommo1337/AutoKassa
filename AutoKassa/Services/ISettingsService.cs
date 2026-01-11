@@ -73,5 +73,52 @@ namespace AutoKassa.Services
         /// Установить категорию по умолчанию для типа операции
         /// </summary>
         void SetDefaultCategoryId(OperationType type, int? categoryId);
+
+        #region Новые асинхронные методы
+
+        /// <summary>
+        /// Получить настройки асинхронно
+        /// </summary>
+        Task<AppSettings> GetSettingsAsync();
+
+        /// <summary>
+        /// Сохранить настройки асинхронно
+        /// </summary>
+        Task SaveSettingsAsync(AppSettings settings);
+
+        /// <summary>
+        /// Сбросить настройки к значениям по умолчанию
+        /// </summary>
+        Task ResetToDefaultsAsync();
+
+        /// <summary>
+        /// Экспортировать настройки в JSON файл
+        /// </summary>
+        /// <param name="filePath">Путь к файлу</param>
+        /// <returns>true если экспорт успешен</returns>
+        Task<bool> ExportSettingsAsync(string filePath);
+
+        /// <summary>
+        /// Импортировать настройки из JSON файла
+        /// </summary>
+        /// <param name="filePath">Путь к файлу</param>
+        /// <returns>true если импорт успешен</returns>
+        Task<bool> ImportSettingsAsync(string filePath);
+
+        /// <summary>
+        /// Создать резервную копию базы данных
+        /// </summary>
+        /// <param name="backupPath">Путь для сохранения</param>
+        /// <returns>Путь к созданному файлу или null при ошибке</returns>
+        Task<string?> CreateBackupAsync(string backupPath);
+
+        /// <summary>
+        /// Восстановить базу данных из резервной копии
+        /// </summary>
+        /// <param name="backupFilePath">Путь к файлу резервной копии</param>
+        /// <returns>true если восстановление успешно</returns>
+        Task<bool> RestoreBackupAsync(string backupFilePath);
+
+        #endregion
     }
 }

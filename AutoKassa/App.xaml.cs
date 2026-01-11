@@ -85,6 +85,8 @@ namespace AutoKassa
             services.AddTransient<ReportsViewModel>();
             services.AddTransient<BalanceReportViewModel>();
             services.AddTransient<CategoryReportViewModel>();
+            services.AddTransient<SettingsViewModel>();
+            services.AddTransient<ChangePasswordViewModel>();
 
 
 

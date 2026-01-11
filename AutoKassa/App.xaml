@@ -34,6 +34,7 @@
             <converters:OperationTypeToColorConverter x:Key="OperationTypeToColorConverter"/>
             <converters:OperationTypeToTextConverter x:Key="OperationTypeToTextConverter"/>
             <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
 
             <!-- ========== ГЛОБАЛЬНЫЕ СТИЛИ UI ========== -->
 

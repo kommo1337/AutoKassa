@@ -1,0 +1,522 @@
+<UserControl x:Class="AutoKassa.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <!-- Стиль для вкладок -->
+        <Style x:Key="SettingsTabStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
+            <Setter Property="Padding" Value="16,14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,2">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E3F2FD"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F5F5F5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль для секции настроек -->
+        <Style x:Key="SettingsSectionStyle" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <!-- Стиль для заголовка секции -->
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
+
+        <!-- Стиль для строки настройки -->
+        <Style x:Key="SettingRowStyle" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <!-- Стиль кнопки действия -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E0E0E0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Стиль основной кнопки -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1976D2"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#BDBDBD"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Text="Настройки"
+                       FontSize="24"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+
+            <Button Grid.Column="1"
+                    Content="Сохранить"
+                    Command="{Binding SaveCommand}"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    Margin="0,0,12,0"/>
+
+            <Button Grid.Column="2"
+                    Content="Отмена"
+                    Command="{Binding CancelCommand}"
+                    Style="{StaticResource ActionButtonStyle}"/>
+        </Grid>
+
+        <!-- Основной контент -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Боковая панель с вкладками -->
+            <Border Grid.Column="0"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,0,20,0"
+                    BorderBrush="#E0E0E0"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Вкладки -->
+                    <StackPanel Grid.Row="0">
+                        <RadioButton Content="Общие"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="True"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Операции"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Отчеты"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Резерв. копир."
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Безопасность"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Интерфейс"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     GroupName="SettingsTabs"/>
+                    </StackPanel>
+
+                    <!-- Кнопки внизу -->
+                    <StackPanel Grid.Row="1" Margin="0,20,0,0">
+                        <Separator Margin="0,0,0,12" Background="#E0E0E0"/>
+                        <Button Content="Экспорт"
+                                Command="{Binding ExportCommand}"
+                                Style="{StaticResource ActionButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,8"/>
+                        <Button Content="Импорт"
+                                Command="{Binding ImportCommand}"
+                                Style="{StaticResource ActionButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,8"/>
+                        <Button Content="Сброс"
+                                Command="{Binding ResetCommand}"
+                                Style="{StaticResource ActionButtonStyle}"
+                                HorizontalAlignment="Stretch"
+                                Foreground="{StaticResource ErrorBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Контент вкладок -->
+            <ScrollViewer Grid.Column="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+
+                    <!-- Общие настройки -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Общие настройки" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <!-- Автоблокировка -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Автоблокировка экрана" FontSize="14"/>
+                                    <TextBlock Text="Блокировать приложение при неактивности"
+                                               FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding AutoLockEnabled}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Время неактивности -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Время неактивности (мин)" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding AutoLockMinutes, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         TextAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Уведомления -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Показывать уведомления" FontSize="14" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding ShowNotifications}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Тема -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="150"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Тема оформления" FontSize="14" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailableThemes}"
+                                          SelectedItem="{Binding SelectedTheme}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Настройки операций -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Настройки операций" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <!-- Показать категории в меню -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Показывать 'Категории' в меню" FontSize="14"/>
+                                    <TextBlock Text="Добавить кнопку Категории в боковое меню"
+                                               FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding ShowOperationsInSidebar}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Записей на странице -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Записей на странице" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding DefaultPageSize, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         TextAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Подтверждение удаления -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Подтверждать удаление" FontSize="14" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding ConfirmDelete}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Настройки отчетов -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Настройки отчетов" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <!-- Период по умолчанию -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="150"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Период по умолчанию" FontSize="14" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailablePeriods}"
+                                          SelectedItem="{Binding SelectedDefaultPeriod}"/>
+                            </Grid>
+
+                            <!-- Автогенерация -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Автоматически формировать отчеты" FontSize="14" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding AutoGenerateReports}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Резервное копирование -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Резервное копирование" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <!-- Автобэкап -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Автоматическое резервное копирование" FontSize="14" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding BackupEnabled}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Интервал -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Интервал (дней)" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding AutoBackupDays, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         TextAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Путь -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding BackupPath, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         Margin="0,0,10,0"/>
+                                <Button Grid.Column="1"
+                                        Content="Обзор..."
+                                        Command="{Binding SelectBackupPathCommand}"
+                                        Style="{StaticResource ActionButtonStyle}"/>
+                            </Grid>
+
+                            <!-- Кнопки действий -->
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="Создать копию сейчас"
+                                        Command="{Binding CreateBackupCommand}"
+                                        Style="{StaticResource ActionButtonStyle}"
+                                        Margin="0,0,12,0"/>
+                                <Button Content="Восстановить из копии"
+                                        Command="{Binding RestoreBackupCommand}"
+                                        Style="{StaticResource ActionButtonStyle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Безопасность -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Безопасность" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <!-- Пароль при запуске -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Требовать пароль при запуске" FontSize="14" VerticalAlignment="Center"/>
+                                <CheckBox Grid.Column="1"
+                                          IsChecked="{Binding RequirePasswordOnStartup}"
+                                          VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Срок пароля -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Срок действия пароля (дней)" FontSize="14"/>
+                                    <TextBlock Text="0 = никогда не истекает"
+                                               FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding PasswordExpireDays, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         TextAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Кнопка смены пароля -->
+                            <Button Content="Изменить пароль"
+                                    Command="{Binding ChangePasswordCommand}"
+                                    Style="{StaticResource ActionButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Интерфейс -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Интерфейс" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <!-- Язык -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="150"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Язык интерфейса" FontSize="14" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailableLanguages}"
+                                          SelectedItem="{Binding SelectedLanguage}"/>
+                            </Grid>
+
+                            <!-- Ширина окна -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Ширина окна по умолчанию" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding WindowWidth, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         TextAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Высота окна -->
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="100"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Высота окна по умолчанию" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding WindowHeight, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8"
+                                         TextAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Индикатор загрузки -->
+        <Border Grid.RowSpan="2"
+                Background="#80FFFFFF"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="200" Height="4"/>
+                <TextBlock Text="Загрузка..."
+                           Margin="0,10,0,0"
+                           Foreground="{StaticResource SecondaryTextBrush}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
