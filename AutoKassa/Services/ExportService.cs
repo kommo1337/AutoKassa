@@ -501,5 +501,252 @@ namespace AutoKassa.Services
         }
 
         #endregion
+
+        #region Transaction Detail Report
+
+        /// <summary>
+        /// Экспорт отчета "Детализация операций" в PDF
+        /// </summary>
+        public Task<string> ExportTransactionDetailReportToPdfAsync(TransactionDetailReport report)
+        {
+            return Task.Run(() =>
+            {
+                var fileName = $"Детализация_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                var filePath = Path.Combine(_exportFolder, fileName);
+
+                Document.Create(container =>
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4.Landscape()); // Альбомная ориентация для таблицы
+                        page.Margin(30);
+                        page.DefaultTextStyle(x => x.FontSize(10));
+
+                        // Заголовок
+                        page.Header().Element(c => ComposeTransactionDetailHeader(c, report));
+
+                        // Содержимое
+                        page.Content().Element(c => ComposeTransactionDetailContent(c, report));
+
+                        // Подвал
+                        page.Footer().AlignCenter().Text(text =>
+                        {
+                            text.Span("AutoKassa | Сформировано: ");
+                            text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                        });
+                    });
+                }).GeneratePdf(filePath);
+
+                return filePath;
+            });
+        }
+
+        private void ComposeTransactionDetailHeader(IContainer container, TransactionDetailReport report)
+        {
+            container.Column(column =>
+            {
+                column.Item().AlignCenter().Text("Отчет: Детализация операций")
+                    .FontSize(18).Bold();
+
+                var periodText = $"{report.DateFrom:dd.MM.yyyy} - {report.DateTo:dd.MM.yyyy}";
+                if (report.FilterType.HasValue)
+                {
+                    periodText += $" | {(report.FilterType == OperationType.Income ? "Доходы" : "Расходы")}";
+                }
+                if (!string.IsNullOrEmpty(report.FilterCategoryName))
+                {
+                    periodText += $" | {report.FilterCategoryName}";
+                }
+
+                column.Item().AlignCenter().Text(periodText).FontSize(12);
+                column.Item().PaddingVertical(10).LineHorizontal(1);
+            });
+        }
+
+        private void ComposeTransactionDetailContent(IContainer container, TransactionDetailReport report)
+        {
+            container.Column(column =>
+            {
+                // Сводка
+                column.Item().PaddingBottom(20).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Операций:").FontSize(11);
+                        c.Item().Text($"{report.TransactionCount}").FontSize(14).Bold();
+                    });
+
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Доходы:").FontSize(11);
+                        c.Item().Text($"+{report.TotalIncome:N2} руб.").FontSize(14).Bold().FontColor(Colors.Green.Medium);
+                    });
+
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Расходы:").FontSize(11);
+                        c.Item().Text($"-{report.TotalExpense:N2} руб.").FontSize(14).Bold().FontColor(Colors.Red.Medium);
+                    });
+
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Разница:").FontSize(11);
+                        c.Item().Text($"{report.NetAmount:N2} руб.").FontSize(14).Bold()
+                            .FontColor(report.NetAmount >= 0 ? Colors.Blue.Medium : Colors.Red.Medium);
+                    });
+                });
+
+                // Таблица операций
+                if (report.Transactions != null && report.Transactions.Any())
+                {
+                    column.Item().Text("Список операций").FontSize(12).Bold();
+                    column.Item().PaddingTop(10).Table(table =>
+                    {
+                        // Определение колонок
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(70);  // Дата
+                            columns.ConstantColumn(60);  // Тип
+                            columns.ConstantColumn(80);  // Сумма
+                            columns.RelativeColumn(2);   // Категория
+                            columns.RelativeColumn(3);   // Описание
+                        });
+
+                        // Заголовок таблицы
+                        table.Header(header =>
+                        {
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Дата").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Тип").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Сумма").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Категория").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Описание").Bold();
+                        });
+
+                        // Данные
+                        foreach (var transaction in report.Transactions)
+                        {
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(transaction.Date.ToString("dd.MM.yyyy"));
+
+                            var typeColor = transaction.Type == OperationType.Income
+                                ? Colors.Green.Medium
+                                : Colors.Red.Medium;
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(transaction.TypeName).FontColor(typeColor);
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .AlignRight().Text($"{transaction.Amount:N2}");
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(transaction.CategoryName);
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(transaction.Description ?? "");
+                        }
+                    });
+                }
+            });
+        }
+
+        /// <summary>
+        /// Экспорт отчета "Детализация операций" в Excel
+        /// </summary>
+        public Task<string> ExportTransactionDetailReportToExcelAsync(TransactionDetailReport report)
+        {
+            return Task.Run(() =>
+            {
+                var fileName = $"Детализация_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                var filePath = Path.Combine(_exportFolder, fileName);
+
+                using var workbook = new XLWorkbook();
+                var worksheet = workbook.Worksheets.Add("Детализация операций");
+
+                // Заголовок
+                worksheet.Cell("A1").Value = "Отчет: Детализация операций";
+                worksheet.Cell("A1").Style.Font.Bold = true;
+                worksheet.Cell("A1").Style.Font.FontSize = 16;
+                worksheet.Range("A1:E1").Merge();
+
+                var periodText = $"Период: {report.DateFrom:dd.MM.yyyy} - {report.DateTo:dd.MM.yyyy}";
+                if (report.FilterType.HasValue)
+                {
+                    periodText += $" | {(report.FilterType == OperationType.Income ? "Доходы" : "Расходы")}";
+                }
+                if (!string.IsNullOrEmpty(report.FilterCategoryName))
+                {
+                    periodText += $" | {report.FilterCategoryName}";
+                }
+
+                worksheet.Cell("A2").Value = periodText;
+                worksheet.Range("A2:E2").Merge();
+
+                // Сводка
+                worksheet.Cell("A4").Value = "Операций:";
+                worksheet.Cell("B4").Value = report.TransactionCount;
+
+                worksheet.Cell("A5").Value = "Доходы:";
+                worksheet.Cell("B5").Value = report.TotalIncome;
+                worksheet.Cell("B5").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+                worksheet.Cell("B5").Style.Font.FontColor = XLColor.Green;
+
+                worksheet.Cell("A6").Value = "Расходы:";
+                worksheet.Cell("B6").Value = report.TotalExpense;
+                worksheet.Cell("B6").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+                worksheet.Cell("B6").Style.Font.FontColor = XLColor.Red;
+
+                worksheet.Cell("A7").Value = "Разница:";
+                worksheet.Cell("B7").Value = report.NetAmount;
+                worksheet.Cell("B7").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+                worksheet.Cell("B7").Style.Font.FontColor = report.NetAmount >= 0 ? XLColor.Blue : XLColor.Red;
+                worksheet.Cell("B7").Style.Font.Bold = true;
+
+                // Таблица операций
+                if (report.Transactions != null && report.Transactions.Any())
+                {
+                    var currentRow = 9;
+
+                    // Заголовки
+                    worksheet.Cell(currentRow, 1).Value = "Дата";
+                    worksheet.Cell(currentRow, 2).Value = "Тип";
+                    worksheet.Cell(currentRow, 3).Value = "Сумма";
+                    worksheet.Cell(currentRow, 4).Value = "Категория";
+                    worksheet.Cell(currentRow, 5).Value = "Описание";
+
+                    var headerRange = worksheet.Range(currentRow, 1, currentRow, 5);
+                    headerRange.Style.Font.Bold = true;
+                    headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+                    headerRange.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+                    currentRow++;
+
+                    // Данные
+                    foreach (var transaction in report.Transactions)
+                    {
+                        worksheet.Cell(currentRow, 1).Value = transaction.Date.ToString("dd.MM.yyyy");
+
+                        worksheet.Cell(currentRow, 2).Value = transaction.TypeName;
+                        worksheet.Cell(currentRow, 2).Style.Font.FontColor =
+                            transaction.Type == OperationType.Income ? XLColor.Green : XLColor.Red;
+
+                        worksheet.Cell(currentRow, 3).Value = transaction.Amount;
+                        worksheet.Cell(currentRow, 3).Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+
+                        worksheet.Cell(currentRow, 4).Value = transaction.CategoryName;
+                        worksheet.Cell(currentRow, 5).Value = transaction.Description ?? "";
+
+                        currentRow++;
+                    }
+                }
+
+                // Автоширина колонок
+                worksheet.Columns().AdjustToContents();
+
+                workbook.SaveAs(filePath);
+                return filePath;
+            });
+        }
+
+        #endregion
     }
 }

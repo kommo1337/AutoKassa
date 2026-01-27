@@ -27,5 +27,15 @@ namespace AutoKassa.Services
         /// Экспорт отчета "Структура по категориям" в Excel
         /// </summary>
         Task<string> ExportCategoryReportToExcelAsync(CategoryReport report);
+
+        /// <summary>
+        /// Экспорт отчета "Детализация операций" в PDF
+        /// </summary>
+        Task<string> ExportTransactionDetailReportToPdfAsync(TransactionDetailReport report);
+
+        /// <summary>
+        /// Экспорт отчета "Детализация операций" в Excel
+        /// </summary>
+        Task<string> ExportTransactionDetailReportToExcelAsync(TransactionDetailReport report);
     }
 }

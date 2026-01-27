@@ -199,5 +199,76 @@ namespace AutoKassa.Services
 
             return report;
         }
+
+        /// <summary>
+        /// Сформировать отчет "Детализация операций"
+        /// </summary>
+        public async Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(
+            DateTime dateFrom,
+            DateTime dateTo,
+            OperationType? operationType = null,
+            int? categoryId = null)
+        {
+            var report = new TransactionDetailReport
+            {
+                DateFrom = dateFrom,
+                DateTo = dateTo,
+                FilterType = operationType,
+                FilterCategoryId = categoryId
+            };
+
+            // Получаем операции за период (включая весь последний день)
+            var dateToEnd = dateTo.Date.AddDays(1);
+            var query = _context.Transactions
+                .Include(t => t.Category)
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
+
+            // Фильтр по типу операции
+            if (operationType.HasValue)
+            {
+                query = query.Where(t => t.Type == operationType.Value);
+            }
+
+            // Фильтр по категории
+            if (categoryId.HasValue)
+            {
+                query = query.Where(t => t.CategoryId == categoryId.Value);
+            }
+
+            var transactions = await query.OrderBy(t => t.Date).ThenBy(t => t.CreatedAt).ToListAsync();
+
+            // Получаем название категории для фильтра
+            if (categoryId.HasValue)
+            {
+                var category = await _context.Categories.FindAsync(categoryId.Value);
+                report.FilterCategoryName = category?.Name;
+            }
+
+            // Преобразуем в элементы отчета
+            foreach (var transaction in transactions)
+            {
+                report.Transactions.Add(new TransactionDetailItem
+                {
+                    Id = transaction.Id,
+                    Date = transaction.Date,
+                    Type = transaction.Type,
+                    Amount = transaction.Amount,
+                    CategoryName = transaction.Category?.Name ?? "Без категории",
+                    Description = transaction.Description ?? string.Empty,
+                    CreatedAt = transaction.CreatedAt
+                });
+            }
+
+            // Считаем итоги
+            report.TotalIncome = transactions
+                .Where(t => t.Type == OperationType.Income)
+                .Sum(t => t.Amount);
+
+            report.TotalExpense = transactions
+                .Where(t => t.Type == OperationType.Expense)
+                .Sum(t => t.Amount);
+
+            return report;
+        }
     }
 }

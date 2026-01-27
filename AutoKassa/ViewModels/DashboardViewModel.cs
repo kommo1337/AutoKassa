@@ -470,7 +470,8 @@ namespace AutoKassa.ViewModels
             var filters = new TransactionFilterParameters
             {
                 DateFrom = DateFrom,
-                DateTo = DateTo.Date.AddDays(1).AddTicks(-1) // До конца дня
+                DateTo = DateTo, // TransactionService уже обрабатывает включение полного дня
+                Take = int.MaxValue // Получаем ВСЕ операции без пагинации для расчета сводки
             };
 
             var transactions = await _transactionService.GetTransactionsAsync(filters);
@@ -500,7 +501,8 @@ namespace AutoKassa.ViewModels
             var prevFilters = new TransactionFilterParameters
             {
                 DateFrom = prevDateFrom,
-                DateTo = prevDateTo.Date.AddDays(1).AddTicks(-1)
+                DateTo = prevDateTo, // TransactionService уже обрабатывает включение полного дня
+                Take = int.MaxValue // Получаем ВСЕ операции без пагинации для расчета изменений
             };
 
             var prevTransactions = await _transactionService.GetTransactionsAsync(prevFilters);
@@ -539,7 +541,8 @@ namespace AutoKassa.ViewModels
             var filters = new TransactionFilterParameters
             {
                 DateFrom = DateFrom,
-                DateTo = DateTo.Date.AddDays(1).AddTicks(-1)
+                DateTo = DateTo, // TransactionService уже обрабатывает включение полного дня
+                Take = int.MaxValue // Получаем ВСЕ операции без пагинации для графика
             };
 
             var transactions = await _transactionService.GetTransactionsAsync(filters);

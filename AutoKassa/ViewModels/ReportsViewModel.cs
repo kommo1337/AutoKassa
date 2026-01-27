@@ -17,6 +17,7 @@ namespace AutoKassa.ViewModels
             // Команды навигации между отчетами
             ShowBalanceReportCommand = new RelayCommand(_ => ShowBalanceReport());
             ShowCategoryReportCommand = new RelayCommand(_ => ShowCategoryReport());
+            ShowTransactionDetailReportCommand = new RelayCommand(_ => ShowTransactionDetailReport());
         }
 
         #region Свойства
@@ -36,6 +37,7 @@ namespace AutoKassa.ViewModels
 
         public ICommand ShowBalanceReportCommand { get; }
         public ICommand ShowCategoryReportCommand { get; }
+        public ICommand ShowTransactionDetailReportCommand { get; }
 
         #endregion
 
@@ -50,6 +52,12 @@ namespace AutoKassa.ViewModels
         private void ShowCategoryReport()
         {
             var viewModel = App.GetService<CategoryReportViewModel>();
+            CurrentReport = viewModel;
+        }
+
+        private void ShowTransactionDetailReport()
+        {
+            var viewModel = App.GetService<TransactionDetailReportViewModel>();
             CurrentReport = viewModel;
         }
 

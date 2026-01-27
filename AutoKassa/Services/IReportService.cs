@@ -24,5 +24,10 @@ namespace AutoKassa.Services
         /// Сформировать отчет "Структура по категориям"
         /// </summary>
         Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType);
+
+        /// <summary>
+        /// Сформировать отчет "Детализация операций"
+        /// </summary>
+        Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(DateTime dateFrom, DateTime dateTo, OperationType? operationType = null, int? categoryId = null);
     }
 }
