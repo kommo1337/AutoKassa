@@ -24,7 +24,8 @@ namespace AutoKassa.ViewModels
             _lockService = lockService;
             _settingsService = settingsService;
 
-            // Загружаем настройки
+            // Загружаем настройкиb
+
             LoadSettings();
 
             // Подписка на изменение текущего View
