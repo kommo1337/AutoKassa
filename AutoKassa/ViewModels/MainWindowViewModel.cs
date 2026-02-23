@@ -26,6 +26,7 @@ namespace AutoKassa.ViewModels
 
             // Загружаем настройкиb
 
+
             LoadSettings();
 
             // Подписка на изменение текущего View

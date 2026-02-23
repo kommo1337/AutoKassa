@@ -54,6 +54,8 @@
             <converters:PaymentTypeToIconConverter x:Key="PaymentTypeToIconConverter"/>
             <converters:PaymentTypeToTextConverter x:Key="PaymentTypeToTextConverter"/>
             <converters:CategoryColorConverter x:Key="CategoryColorConverter"/>
+            <converters:TransactionAmountConverter x:Key="TransactionAmountConverter"/>
+            <converters:TransactionDotColorConverter x:Key="TransactionDotColorConverter"/>
 
             <!-- ========== СТИЛИ КНОПОК ========== -->
 
@@ -177,6 +179,36 @@
                 </Style.Triggers>
             </Style>
 
+            <!-- PeriodPresetButton — кнопка пресета периода в popup -->
+            <Style x:Key="PeriodPresetButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="#344054"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="Padding" Value="8,7"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                    CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#F0F2F5"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#E2E5EA"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- FlatListItem — строка списка без рамок -->
             <Style x:Key="FlatListItem" TargetType="Border">
                 <Setter Property="Background" Value="Transparent"/>
@@ -290,6 +322,69 @@
                         <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                     </Trigger>
                 </Style.Triggers>
+            </Style>
+
+            <!-- ========== CALENDAR STYLES ========== -->
+
+            <Style TargetType="CalendarDayButton">
+                <Setter Property="Width" Value="30"/>
+                <Setter Property="Height" Value="30"/>
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Foreground" Value="#344054"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CalendarDayButton">
+                            <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                    CornerRadius="6" Width="28" Height="28">
+                                <TextBlock Text="{TemplateBinding Content}" FontSize="11"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#F0F2F5"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#22c55e"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                                <Trigger Property="IsToday" Value="True">
+                                    <Setter TargetName="bg" Property="BorderBrush" Value="#22c55e"/>
+                                    <Setter TargetName="bg" Property="BorderThickness" Value="1.5"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="CalendarButton">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Foreground" Value="#344054"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CalendarButton">
+                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="6">
+                                <TextBlock Text="{TemplateBinding Content}" FontSize="12"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{TemplateBinding Foreground}"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#F0F2F5"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
         </ResourceDictionary>

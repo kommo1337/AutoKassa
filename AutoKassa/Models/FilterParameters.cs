@@ -38,6 +38,16 @@ namespace AutoKassa.Models
         public string SearchText { get; set; }
 
         /// <summary>
+        /// Минимальная сумма операции
+        /// </summary>
+        public decimal? AmountFrom { get; set; }
+
+        /// <summary>
+        /// Максимальная сумма операции
+        /// </summary>
+        public decimal? AmountTo { get; set; }
+
+        /// <summary>
         /// Количество записей для пропуска (для пагинации)
         /// </summary>
         public int Skip { get; set; }

@@ -144,6 +144,12 @@ namespace AutoKassa.Services
                 query = query.Where(t => t.Type == filters.Type.Value);
             }
 
+            // Фильтр по типу оплаты
+            if (filters.PaymentType.HasValue)
+            {
+                query = query.Where(t => t.PaymentType == filters.PaymentType.Value);
+            }
+
             // Фильтр по категории
             if (filters.CategoryId.HasValue)
             {
@@ -155,6 +161,17 @@ namespace AutoKassa.Services
             {
                 var searchText = filters.SearchText.ToLower();
                 query = query.Where(t => t.Description != null && t.Description.ToLower().Contains(searchText));
+            }
+
+            // Фильтр по сумме
+            if (filters.AmountFrom.HasValue)
+            {
+                query = query.Where(t => t.Amount >= filters.AmountFrom.Value);
+            }
+
+            if (filters.AmountTo.HasValue)
+            {
+                query = query.Where(t => t.Amount <= filters.AmountTo.Value);
             }
 
             return query;

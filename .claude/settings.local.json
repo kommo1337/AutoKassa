@@ -17,7 +17,8 @@
       "Bash(powershell:*)",
       "Bash(cd \"C:/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/MigrationHelper\" && dotnet run -- \"C:/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/AutoKassa/bin/Debug/net8.0-windows/AutoKassa.db\" 2>&1)",
       "Bash(git:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(Select-String error CS|Ошибок::*)"
     ]
   }
 }

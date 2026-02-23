@@ -13,8 +13,8 @@ namespace AutoKassa.Helpers.Converters
             if (value is OperationType operationType)
             {
                 return operationType == OperationType.Income
-                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4CAF50"))
-                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F44336"));
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22c55e"))
+                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ef4444"));
             }
 
             return new SolidColorBrush(Colors.Gray);

@@ -1,38 +1,70 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
-using AutoKassa.Views;
 using System.Collections.ObjectModel;
-using System.Windows;
+using System.Globalization;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    /// <summary>
-    /// ViewModel для экрана списка операций
-    /// </summary>
+    public enum PeriodPreset
+    {
+        Today,
+        Week,
+        Month,
+        LastMonth,
+        Quarter,
+        AllTime,
+        Custom
+    }
+
     public class TransactionsViewModel : ViewModelBase
     {
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
+        private readonly ISettingsService _settingsService;
 
         private ObservableCollection<Transaction> _transactions;
         private ObservableCollection<Category> _categories;
+        private ObservableCollection<DateGroup> _groupedTransactions = new();
         private Transaction _selectedTransaction;
         private bool _isLoading;
         private int _totalCount;
         private int _currentPage;
         private int _pageSize = 100;
+        private decimal _totalIncome;
+        private decimal _totalExpense;
+        private static readonly CultureInfo RuCulture = new("ru-RU");
 
-        // Фильтры
+        // Filters
         private DateTime? _dateFrom;
         private DateTime? _dateTo;
         private OperationType? _selectedType;
         private Category _selectedCategory;
         private string _searchText;
-        private readonly ISettingsService _settingsService;
+        private PaymentType? _selectedPaymentTypeFilter;
+        private string _amountFromText;
+        private string _amountToText;
+        private decimal? _amountFrom;
+        private decimal? _amountTo;
+
+        // Period picker
+        private PeriodPreset _selectedPeriodPreset = PeriodPreset.Month;
+        private bool _isPeriodPickerOpen;
+
+        // Modal
+        private bool _isModalOpen;
+        private TransactionEditViewModel _editViewModel;
+
+        // Inline add
+        private bool _isInlineOpen;
+        private string _inlineAmountText;
+        private OperationType _inlineType = OperationType.Expense;
+        private Category _inlineCategory;
+        private PaymentType _inlinePaymentType = PaymentType.Cash;
+        private string _inlineDescription;
 
         public TransactionsViewModel(
             ITransactionService transactionService,
@@ -48,7 +80,7 @@ namespace AutoKassa.ViewModels
             Transactions = new ObservableCollection<Transaction>();
             Categories = new ObservableCollection<Category>();
 
-            // Команды
+            // Standard commands
             LoadCommand = new RelayCommand(async _ => await LoadDataAsync());
             AddCommand = new RelayCommand(_ => AddTransaction());
             EditCommand = new RelayCommand(_ => EditTransaction(), _ => SelectedTransaction != null);
@@ -56,140 +88,271 @@ namespace AutoKassa.ViewModels
             ApplyFiltersCommand = new RelayCommand(async _ => await ApplyFiltersAsync());
             ResetFiltersCommand = new RelayCommand(async _ => await ResetFiltersAsync());
             LoadMoreCommand = new RelayCommand(async _ => await LoadMoreAsync());
+            SelectAllPaymentCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); await LoadDataAsync(); });
+            SelectCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.Cash; RefreshPaymentFilterUI(); await LoadDataAsync(); });
+            SelectNonCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.NonCash; RefreshPaymentFilterUI(); await LoadDataAsync(); });
+            FilterByIncomeCommand = new RelayCommand(async _ => { _selectedType = OperationType.Income; RefreshTypeFilterUI(); await LoadDataAsync(); });
+            FilterByExpenseCommand = new RelayCommand(async _ => { _selectedType = OperationType.Expense; RefreshTypeFilterUI(); await LoadDataAsync(); });
+            ResetTypeFilterCommand = new RelayCommand(async _ => { _selectedType = null; RefreshTypeFilterUI(); await LoadDataAsync(); });
 
-            // Установка фильтров по умолчанию (текущий месяц)
-            DateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            DateTo = DateTime.Now;
+            // Period picker commands
+            TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
+            SelectPeriodCommand = new RelayCommand(async p => { if (p is string s) await SelectPeriodAsync(s); });
 
-            // Загрузка данных
+            // Inline add commands
+            OpenInlineCommand = new RelayCommand(_ => OpenInline());
+            InlineSaveCommand = new RelayCommand(async _ => await InlineSaveAsync());
+            InlineCancelCommand = new RelayCommand(_ => CloseInline());
+            InlineToggleTypeCommand = new RelayCommand(_ => InlineType = InlineType == OperationType.Expense ? OperationType.Income : OperationType.Expense);
+            InlineSelectCashCommand = new RelayCommand(_ => InlinePaymentType = PaymentType.Cash);
+            InlineSelectNonCashCommand = new RelayCommand(_ => InlinePaymentType = PaymentType.NonCash);
+
+            // Default period = current month
+            _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            _dateTo = DateTime.Now;
+
             _ = InitializeAsync();
         }
 
-        #region Свойства
+        #region Properties — transactions
 
-        /// <summary>
-        /// Список операций
-        /// </summary>
+        public ObservableCollection<DateGroup> GroupedTransactions
+        {
+            get => _groupedTransactions;
+            set => SetProperty(ref _groupedTransactions, value);
+        }
+
+        public decimal TotalIncome
+        {
+            get => _totalIncome;
+            set { if (SetProperty(ref _totalIncome, value)) OnPropertyChanged(nameof(TotalIncomeFormatted)); }
+        }
+
+        public decimal TotalExpense
+        {
+            get => _totalExpense;
+            set { if (SetProperty(ref _totalExpense, value)) OnPropertyChanged(nameof(TotalExpenseFormatted)); }
+        }
+
+        public string TotalIncomeFormatted => $"+{TotalIncome.ToString("N0", RuCulture)} ₽";
+        public string TotalExpenseFormatted => $"−{TotalExpense.ToString("N0", RuCulture)} ₽";
+
+        public bool HasTransactions => GroupedTransactions.Any();
+
+        public bool IsAllTypeFilter => _selectedType == null;
+        public bool IsIncomeFilter => _selectedType == OperationType.Income;
+        public bool IsExpenseFilter => _selectedType == OperationType.Expense;
+
         public ObservableCollection<Transaction> Transactions
         {
             get => _transactions;
             set => SetProperty(ref _transactions, value);
         }
 
-        /// <summary>
-        /// Список категорий для фильтра
-        /// </summary>
         public ObservableCollection<Category> Categories
         {
             get => _categories;
-            set => SetProperty(ref _categories, value);
+            set
+            {
+                if (SetProperty(ref _categories, value))
+                    OnPropertyChanged(nameof(InlineCategories));
+            }
         }
 
-        /// <summary>
-        /// Выбранная операция
-        /// </summary>
         public Transaction SelectedTransaction
         {
             get => _selectedTransaction;
             set => SetProperty(ref _selectedTransaction, value);
         }
 
-        /// <summary>
-        /// Идет загрузка данных
-        /// </summary>
         public bool IsLoading
         {
             get => _isLoading;
             set => SetProperty(ref _isLoading, value);
         }
 
-        /// <summary>
-        /// Общее количество записей
-        /// </summary>
         public int TotalCount
         {
             get => _totalCount;
-            set
-            {
-                if (SetProperty(ref _totalCount, value))
-                {
-                    OnPropertyChanged(nameof(DisplayInfo));
-                }
-            }
+            set { if (SetProperty(ref _totalCount, value)) OnPropertyChanged(nameof(DisplayInfo)); }
         }
 
-        /// <summary>
-        /// Информация о количестве отображаемых записей
-        /// </summary>
-        public string DisplayInfo => $"Показано {Transactions.Count} из {TotalCount} записей";
-
-        /// <summary>
-        /// Можно ли загрузить еще записи
-        /// </summary>
+        public string DisplayInfo => $"Показано {Transactions.Count} из {TotalCount}";
         public bool CanLoadMore => Transactions.Count < TotalCount;
 
         #endregion
 
-        #region Фильтры
+        #region Properties — filters
 
-        /// <summary>
-        /// Дата начала периода
-        /// </summary>
         public DateTime? DateFrom
         {
             get => _dateFrom;
             set => SetProperty(ref _dateFrom, value);
         }
 
-        /// <summary>
-        /// Дата окончания периода
-        /// </summary>
         public DateTime? DateTo
         {
             get => _dateTo;
             set => SetProperty(ref _dateTo, value);
         }
 
-        /// <summary>
-        /// Выбранный тип операции (null = все)
-        /// </summary>
         public OperationType? SelectedType
         {
             get => _selectedType;
-            set => SetProperty(ref _selectedType, value);
+            set { if (SetProperty(ref _selectedType, value)) RefreshTypeFilterUI(); }
         }
 
-        /// <summary>
-        /// Выбранная категория (null = все)
-        /// </summary>
         public Category SelectedCategory
         {
             get => _selectedCategory;
             set => SetProperty(ref _selectedCategory, value);
         }
 
-        /// <summary>
-        /// Текст поиска по описанию
-        /// </summary>
         public string SearchText
         {
             get => _searchText;
             set => SetProperty(ref _searchText, value);
         }
 
-        /// <summary>
-        /// Список типов операций для фильтра
-        /// </summary>
-        public OperationType?[] OperationTypes => new OperationType?[]
+        public bool IsAllPaymentFilter => _selectedPaymentTypeFilter == null;
+        public bool IsCashFilter => _selectedPaymentTypeFilter == PaymentType.Cash;
+        public bool IsNonCashFilter => _selectedPaymentTypeFilter == PaymentType.NonCash;
+
+        public string AmountFromText
         {
-            null, // "Все"
-            OperationType.Income,
-            OperationType.Expense
-        };
+            get => _amountFromText;
+            set
+            {
+                _amountFromText = value;
+                _amountFrom = decimal.TryParse(value, NumberStyles.Any, RuCulture, out var v) ? v : (decimal?)null;
+                OnPropertyChanged();
+            }
+        }
+
+        public string AmountToText
+        {
+            get => _amountToText;
+            set
+            {
+                _amountToText = value;
+                _amountTo = decimal.TryParse(value, NumberStyles.Any, RuCulture, out var v) ? v : (decimal?)null;
+                OnPropertyChanged();
+            }
+        }
 
         #endregion
 
-        #region Команды
+        #region Properties — period picker
+
+        public PeriodPreset SelectedPeriodPreset
+        {
+            get => _selectedPeriodPreset;
+            set { if (SetProperty(ref _selectedPeriodPreset, value)) OnPropertyChanged(nameof(PeriodLabel)); }
+        }
+
+        public string PeriodLabel => _selectedPeriodPreset switch
+        {
+            PeriodPreset.Today => "Сегодня",
+            PeriodPreset.Week => "Эта неделя",
+            PeriodPreset.Month => "Этот месяц",
+            PeriodPreset.LastMonth => "Прошлый месяц",
+            PeriodPreset.Quarter => "Квартал",
+            PeriodPreset.AllTime => "Всё время",
+            PeriodPreset.Custom when _dateFrom.HasValue && _dateTo.HasValue =>
+                $"{_dateFrom.Value:dd.MM} – {_dateTo.Value:dd.MM}",
+            _ => "Период"
+        };
+
+        public bool IsPeriodPickerOpen
+        {
+            get => _isPeriodPickerOpen;
+            set => SetProperty(ref _isPeriodPickerOpen, value);
+        }
+
+        #endregion
+
+        #region Properties — modal
+
+        public bool IsModalOpen
+        {
+            get => _isModalOpen;
+            set => SetProperty(ref _isModalOpen, value);
+        }
+
+        public TransactionEditViewModel EditViewModel
+        {
+            get => _editViewModel;
+            set => SetProperty(ref _editViewModel, value);
+        }
+
+        #endregion
+
+        #region Properties — inline add
+
+        public bool IsInlineOpen
+        {
+            get => _isInlineOpen;
+            set => SetProperty(ref _isInlineOpen, value);
+        }
+
+        public string InlineAmountText
+        {
+            get => _inlineAmountText;
+            set => SetProperty(ref _inlineAmountText, value);
+        }
+
+        public OperationType InlineType
+        {
+            get => _inlineType;
+            set
+            {
+                if (SetProperty(ref _inlineType, value))
+                {
+                    OnPropertyChanged(nameof(IsInlineExpense));
+                    OnPropertyChanged(nameof(IsInlineIncome));
+                    OnPropertyChanged(nameof(InlineCategories));
+                    InlineCategory = InlineCategories.FirstOrDefault();
+                }
+            }
+        }
+
+        public bool IsInlineExpense => _inlineType == OperationType.Expense;
+        public bool IsInlineIncome => _inlineType == OperationType.Income;
+
+        public Category InlineCategory
+        {
+            get => _inlineCategory;
+            set => SetProperty(ref _inlineCategory, value);
+        }
+
+        public PaymentType InlinePaymentType
+        {
+            get => _inlinePaymentType;
+            set
+            {
+                if (SetProperty(ref _inlinePaymentType, value))
+                {
+                    OnPropertyChanged(nameof(InlineIsCash));
+                    OnPropertyChanged(nameof(InlineIsNonCash));
+                }
+            }
+        }
+
+        public bool InlineIsCash => _inlinePaymentType == PaymentType.Cash;
+        public bool InlineIsNonCash => _inlinePaymentType == PaymentType.NonCash;
+
+        public string InlineDescription
+        {
+            get => _inlineDescription;
+            set => SetProperty(ref _inlineDescription, value);
+        }
+
+        public IEnumerable<Category> InlineCategories =>
+            Categories.Where(c => c.Id > 0 && c.Type == _inlineType);
+
+        #endregion
+
+        #region Commands
 
         public ICommand LoadCommand { get; }
         public ICommand AddCommand { get; }
@@ -198,23 +361,31 @@ namespace AutoKassa.ViewModels
         public ICommand ApplyFiltersCommand { get; }
         public ICommand ResetFiltersCommand { get; }
         public ICommand LoadMoreCommand { get; }
+        public ICommand SelectAllPaymentCommand { get; }
+        public ICommand SelectCashFilterCommand { get; }
+        public ICommand SelectNonCashFilterCommand { get; }
+        public ICommand FilterByIncomeCommand { get; }
+        public ICommand FilterByExpenseCommand { get; }
+        public ICommand ResetTypeFilterCommand { get; }
+        public ICommand TogglePeriodPickerCommand { get; }
+        public ICommand SelectPeriodCommand { get; }
+        public ICommand OpenInlineCommand { get; }
+        public ICommand InlineSaveCommand { get; }
+        public ICommand InlineCancelCommand { get; }
+        public ICommand InlineToggleTypeCommand { get; }
+        public ICommand InlineSelectCashCommand { get; }
+        public ICommand InlineSelectNonCashCommand { get; }
 
         #endregion
 
-        #region Методы
+        #region Methods
 
-        /// <summary>
-        /// Инициализация (загрузка категорий и данных)
-        /// </summary>
         private async Task InitializeAsync()
         {
             await LoadCategoriesAsync();
             await LoadDataAsync();
         }
 
-        /// <summary>
-        /// Загрузка категорий для фильтра
-        /// </summary>
         private async Task LoadCategoriesAsync()
         {
             try
@@ -222,12 +393,13 @@ namespace AutoKassa.ViewModels
                 var categories = await _categoryService.GetActiveAsync();
 
                 Categories.Clear();
-                Categories.Add(new Category { Id = 0, Name = "Все категории" }); // Заглушка для "Все"
+                Categories.Add(new Category { Id = 0, Name = "Все категории" });
 
                 foreach (var category in categories)
-                {
                     Categories.Add(category);
-                }
+
+                OnPropertyChanged(nameof(InlineCategories));
+                InlineCategory = InlineCategories.FirstOrDefault();
             }
             catch (Exception ex)
             {
@@ -235,9 +407,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Загрузка данных с учетом фильтров
-        /// </summary>
         private async Task LoadDataAsync()
         {
             try
@@ -246,18 +415,16 @@ namespace AutoKassa.ViewModels
                 _currentPage = 0;
 
                 var filters = BuildFilterParameters();
-
                 var transactions = await _transactionService.GetTransactionsAsync(filters);
                 var totalCount = await _transactionService.GetTotalCountAsync(filters);
 
                 Transactions.Clear();
-                foreach (var transaction in transactions)
-                {
-                    Transactions.Add(transaction);
-                }
+                foreach (var t in transactions)
+                    Transactions.Add(t);
 
                 TotalCount = totalCount;
                 OnPropertyChanged(nameof(CanLoadMore));
+                RebuildGroupsAndTotals();
             }
             catch (Exception ex)
             {
@@ -269,9 +436,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Загрузить еще записи (Lazy Loading)
-        /// </summary>
         private async Task LoadMoreAsync()
         {
             if (!CanLoadMore || IsLoading) return;
@@ -286,13 +450,12 @@ namespace AutoKassa.ViewModels
 
                 var transactions = await _transactionService.GetTransactionsAsync(filters);
 
-                foreach (var transaction in transactions)
-                {
-                    Transactions.Add(transaction);
-                }
+                foreach (var t in transactions)
+                    Transactions.Add(t);
 
                 OnPropertyChanged(nameof(DisplayInfo));
                 OnPropertyChanged(nameof(CanLoadMore));
+                RebuildGroupsAndTotals();
             }
             catch (Exception ex)
             {
@@ -304,18 +467,18 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Построить параметры фильтрации
-        /// </summary>
         private TransactionFilterParameters BuildFilterParameters()
         {
             return new TransactionFilterParameters
             {
                 DateFrom = DateFrom,
                 DateTo = DateTo,
-                Type = SelectedType,
+                Type = _selectedType,
+                PaymentType = _selectedPaymentTypeFilter,
                 CategoryId = SelectedCategory?.Id > 0 ? SelectedCategory.Id : (int?)null,
                 SearchText = SearchText,
+                AmountFrom = _amountFrom,
+                AmountTo = _amountTo,
                 Skip = _currentPage * _pageSize,
                 Take = _pageSize,
                 SortBy = "Date",
@@ -323,76 +486,135 @@ namespace AutoKassa.ViewModels
             };
         }
 
-        /// <summary>
-        /// Применить фильтры
-        /// </summary>
+        private void RefreshPaymentFilterUI()
+        {
+            OnPropertyChanged(nameof(IsAllPaymentFilter));
+            OnPropertyChanged(nameof(IsCashFilter));
+            OnPropertyChanged(nameof(IsNonCashFilter));
+        }
+
+        private void RefreshTypeFilterUI()
+        {
+            OnPropertyChanged(nameof(IsAllTypeFilter));
+            OnPropertyChanged(nameof(IsIncomeFilter));
+            OnPropertyChanged(nameof(IsExpenseFilter));
+        }
+
+        private void RebuildGroupsAndTotals()
+        {
+            TotalIncome = Transactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
+            TotalExpense = Transactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
+
+            GroupedTransactions.Clear();
+            var grouped = Transactions.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
+
+            foreach (var g in grouped)
+            {
+                var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
+                GroupedTransactions.Add(new DateGroup
+                {
+                    Date = g.Key,
+                    DayTotal = dayTotal,
+                    Items = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
+                });
+            }
+
+            OnPropertyChanged(nameof(HasTransactions));
+        }
+
         private async Task ApplyFiltersAsync()
         {
+            IsPeriodPickerOpen = false;
             await LoadDataAsync();
         }
 
-        /// <summary>
-        /// Сбросить фильтры
-        /// </summary>
         private async Task ResetFiltersAsync()
         {
+            _selectedPeriodPreset = PeriodPreset.Month;
+            OnPropertyChanged(nameof(PeriodLabel));
+
             DateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             DateTo = DateTime.Now;
-            SelectedType = null;
+            _selectedType = null;
+            RefreshTypeFilterUI();
+            _selectedPaymentTypeFilter = null;
+            RefreshPaymentFilterUI();
             SelectedCategory = Categories.FirstOrDefault();
             SearchText = string.Empty;
+            AmountFromText = string.Empty;
+            AmountToText = string.Empty;
 
             await LoadDataAsync();
         }
 
-        /// <summary>
-        /// Добавить операцию
-        /// </summary>
-        /// <summary>
-        /// Добавить операцию
-        /// </summary>
-        private void AddTransaction()
+        private async Task SelectPeriodAsync(string preset)
         {
-            var viewModel = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
-            viewModel.InitializeForAdd();
+            var today = DateTime.Today;
 
-            var window = new TransactionEditView(viewModel)
+            switch (preset)
             {
-                Owner = Application.Current.MainWindow
-            };
-
-            if (window.ShowDialog() == true)
-            {
-                // Перезагружаем данные
-                _ = LoadDataAsync();
+                case "Today":
+                    DateFrom = today;
+                    DateTo = today;
+                    _selectedPeriodPreset = PeriodPreset.Today;
+                    break;
+                case "Week":
+                    var dow = (int)today.DayOfWeek;
+                    var mondayOffset = dow == 0 ? -6 : 1 - dow;
+                    DateFrom = today.AddDays(mondayOffset);
+                    DateTo = today;
+                    _selectedPeriodPreset = PeriodPreset.Week;
+                    break;
+                case "Month":
+                    DateFrom = new DateTime(today.Year, today.Month, 1);
+                    DateTo = today;
+                    _selectedPeriodPreset = PeriodPreset.Month;
+                    break;
+                case "LastMonth":
+                    var last = today.AddMonths(-1);
+                    DateFrom = new DateTime(last.Year, last.Month, 1);
+                    DateTo = new DateTime(last.Year, last.Month, DateTime.DaysInMonth(last.Year, last.Month));
+                    _selectedPeriodPreset = PeriodPreset.LastMonth;
+                    break;
+                case "Quarter":
+                    DateFrom = today.AddMonths(-3);
+                    DateTo = today;
+                    _selectedPeriodPreset = PeriodPreset.Quarter;
+                    break;
+                case "AllTime":
+                    DateFrom = null;
+                    DateTo = null;
+                    _selectedPeriodPreset = PeriodPreset.AllTime;
+                    break;
             }
+
+            OnPropertyChanged(nameof(PeriodLabel));
+            IsPeriodPickerOpen = false;
+            await LoadDataAsync();
         }
 
-        /// <summary>
-        /// Редактировать операцию
-        /// </summary>
+        private void AddTransaction()
+        {
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            vm.InitializeForAdd();
+            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnCancelled = () => { IsModalOpen = false; };
+            EditViewModel = vm;
+            IsModalOpen = true;
+        }
+
         private void EditTransaction()
         {
             if (SelectedTransaction == null) return;
 
-            var viewModel = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
-            viewModel.InitializeForEdit(SelectedTransaction);
-
-            var window = new TransactionEditView(viewModel)
-            {
-                Owner = Application.Current.MainWindow
-            };
-
-            if (window.ShowDialog() == true)
-            {
-                // Перезагружаем данные
-                _ = LoadDataAsync();
-            }
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            vm.InitializeForEdit(SelectedTransaction);
+            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnCancelled = () => { IsModalOpen = false; };
+            EditViewModel = vm;
+            IsModalOpen = true;
         }
 
-        /// <summary>
-        /// Удалить операцию
-        /// </summary>
         private async Task DeleteTransactionAsync()
         {
             if (SelectedTransaction == null) return;
@@ -402,8 +624,7 @@ namespace AutoKassa.ViewModels
                 $"Дата: {SelectedTransaction.Date:dd.MM.yyyy}\n" +
                 $"Сумма: {SelectedTransaction.Amount:N2} ₽\n" +
                 $"Категория: {SelectedTransaction.Category?.Name}",
-                "Подтверждение удаления"
-            );
+                "Подтверждение удаления");
 
             if (!result) return;
 
@@ -412,12 +633,66 @@ namespace AutoKassa.ViewModels
                 await _transactionService.DeleteAsync(SelectedTransaction.Id);
                 Transactions.Remove(SelectedTransaction);
                 TotalCount--;
-
-                _dialogService.ShowInfo("Операция успешно удалена");
+                RebuildGroupsAndTotals();
             }
             catch (Exception ex)
             {
                 _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+            }
+        }
+
+        private void OpenInline()
+        {
+            InlineAmountText = string.Empty;
+            InlineType = OperationType.Expense;
+            InlinePaymentType = PaymentType.Cash;
+            InlineDescription = string.Empty;
+            InlineCategory = InlineCategories.FirstOrDefault();
+            IsInlineOpen = true;
+        }
+
+        private void CloseInline()
+        {
+            IsInlineOpen = false;
+        }
+
+        private async Task InlineSaveAsync()
+        {
+            if (!decimal.TryParse(
+                    InlineAmountText?.Replace(',', '.'),
+                    NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out decimal amount) || amount <= 0)
+            {
+                _dialogService.ShowError("Введите корректную сумму");
+                return;
+            }
+
+            if (InlineCategory == null)
+            {
+                _dialogService.ShowError("Выберите категорию");
+                return;
+            }
+
+            try
+            {
+                var transaction = new Transaction
+                {
+                    Date = DateTime.Now,
+                    Amount = amount,
+                    Type = InlineType,
+                    CategoryId = InlineCategory.Id,
+                    Description = InlineDescription ?? string.Empty,
+                    PaymentType = InlinePaymentType
+                };
+
+                await _transactionService.AddAsync(transaction);
+                CloseInline();
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowError($"Ошибка добавления: {ex.Message}");
             }
         }
 

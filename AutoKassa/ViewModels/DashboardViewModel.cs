@@ -911,15 +911,22 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void OpenAddTransaction()
         {
-            var viewModel = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
-            var window = new TransactionEditView(viewModel)
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            vm.InitializeForAdd();
+            bool saved = false;
+            var win = new Window
             {
-                Owner = Application.Current.MainWindow
+                Title = "Новая операция",
+                Height = 620, Width = 470,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = Application.Current.MainWindow,
+                ResizeMode = ResizeMode.NoResize,
+                Content = new TransactionEditView { DataContext = vm }
             };
-            if (window.ShowDialog() == true)
-            {
-                _ = LoadDataAsync();
-            }
+            vm.OnSaved = () => { saved = true; win.Close(); };
+            vm.OnCancelled = () => { win.Close(); };
+            win.ShowDialog();
+            if (saved) _ = LoadDataAsync();
         }
 
         /// <summary>
@@ -930,18 +937,22 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var viewModel = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
-            viewModel.InitializeForEdit(t);
-
-            var window = new TransactionEditView(viewModel)
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            vm.InitializeForEdit(t);
+            bool saved = false;
+            var win = new Window
             {
-                Owner = Application.Current.MainWindow
+                Title = "Редактировать операцию",
+                Height = 620, Width = 470,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = Application.Current.MainWindow,
+                ResizeMode = ResizeMode.NoResize,
+                Content = new TransactionEditView { DataContext = vm }
             };
-
-            if (window.ShowDialog() == true)
-            {
-                _ = LoadDataAsync();
-            }
+            vm.OnSaved = () => { saved = true; win.Close(); };
+            vm.OnCancelled = () => { win.Close(); };
+            win.ShowDialog();
+            if (saved) _ = LoadDataAsync();
         }
 
         /// <summary>
