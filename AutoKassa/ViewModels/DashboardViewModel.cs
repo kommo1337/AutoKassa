@@ -60,6 +60,17 @@ namespace AutoKassa.ViewModels
         private PlotModel _chartModel;
         private bool _isLoading;
 
+        // Сгруппированные операции и панели
+        private ObservableCollection<DateGroup> _groupedTransactions;
+        private ObservableCollection<CategorySummaryItem> _topExpenses;
+        private ObservableCollection<CategorySummaryItem> _topIncomes;
+        private int _statsCount;
+        private int _statsDays;
+        private decimal _statsAvgExpense;
+        private decimal _statsAvgIncome;
+        private decimal _todayBalance;
+        private bool _hasTodayTransactions;
+
         #endregion
 
         public DashboardViewModel(
@@ -77,10 +88,14 @@ namespace AutoKassa.ViewModels
 
             FilteredCategories = new ObservableCollection<Category>();
             RecentTransactions = new ObservableCollection<Transaction>();
+            GroupedTransactions = new ObservableCollection<DateGroup>();
+            TopExpenses = new ObservableCollection<CategorySummaryItem>();
+            TopIncomes = new ObservableCollection<CategorySummaryItem>();
 
             // Команды периода
             SelectPeriodCommand = new RelayCommand(period => SelectPeriod((PeriodType)period));
             ApplyCustomPeriodCommand = new RelayCommand(async _ => await LoadDataAsync());
+            OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
 
             // Команды быстрого добавления
             AddQuickTransactionCommand = new RelayCommand(async _ => await AddQuickTransactionAsync(), _ => CanAddQuickTransaction());
@@ -88,10 +103,10 @@ namespace AutoKassa.ViewModels
             ToggleDescriptionCommand = new RelayCommand(_ => IsDescriptionVisible = !IsDescriptionVisible);
             ToggleDateCommand = new RelayCommand(_ => IsDateVisible = !IsDateVisible);
 
-            // Команды операций
-            OpenTransactionCommand = new RelayCommand(_ => OpenTransaction(), _ => SelectedTransaction != null);
-            EditTransactionCommand = new RelayCommand(_ => OpenTransaction(), _ => SelectedTransaction != null);
-            DeleteTransactionCommand = new RelayCommand(async _ => await DeleteTransactionAsync(), _ => SelectedTransaction != null);
+            // Команды операций (параметр = конкретная транзакция или null → используем SelectedTransaction)
+            OpenTransactionCommand = new RelayCommand(t => OpenTransaction(t as Transaction ?? SelectedTransaction));
+            EditTransactionCommand = new RelayCommand(t => OpenTransaction(t as Transaction ?? SelectedTransaction));
+            DeleteTransactionCommand = new RelayCommand(async t => await DeleteTransactionAsync(t as Transaction ?? SelectedTransaction));
             NavigateToAllTransactionsCommand = new RelayCommand(_ => NavigateToAllTransactions());
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
 
@@ -384,10 +399,77 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
+        #region Свойства группировки и статистики
+
+        public ObservableCollection<DateGroup> GroupedTransactions
+        {
+            get => _groupedTransactions;
+            set => SetProperty(ref _groupedTransactions, value);
+        }
+
+        public ObservableCollection<CategorySummaryItem> TopExpenses
+        {
+            get => _topExpenses;
+            set => SetProperty(ref _topExpenses, value);
+        }
+
+        public ObservableCollection<CategorySummaryItem> TopIncomes
+        {
+            get => _topIncomes;
+            set => SetProperty(ref _topIncomes, value);
+        }
+
+        public int StatsCount
+        {
+            get => _statsCount;
+            set => SetProperty(ref _statsCount, value);
+        }
+
+        public int StatsDays
+        {
+            get => _statsDays;
+            set => SetProperty(ref _statsDays, value);
+        }
+
+        public decimal StatsAvgExpense
+        {
+            get => _statsAvgExpense;
+            set => SetProperty(ref _statsAvgExpense, value);
+        }
+
+        public decimal StatsAvgIncome
+        {
+            get => _statsAvgIncome;
+            set => SetProperty(ref _statsAvgIncome, value);
+        }
+
+        public decimal TodayBalance
+        {
+            get => _todayBalance;
+            set
+            {
+                if (SetProperty(ref _todayBalance, value))
+                    OnPropertyChanged(nameof(TodayBalanceFormatted));
+            }
+        }
+
+        public bool HasTodayTransactions
+        {
+            get => _hasTodayTransactions;
+            set => SetProperty(ref _hasTodayTransactions, value);
+        }
+
+        public string TodayBalanceFormatted =>
+            TodayBalance > 0 ? $"+{TodayBalance:N0} ₽" :
+            TodayBalance < 0 ? $"{TodayBalance:N0} ₽" : "0 ₽";
+
+        #endregion
+
         #region Команды
 
         public ICommand SelectPeriodCommand { get; }
         public ICommand ApplyCustomPeriodCommand { get; }
+        public ICommand OpenAddTransactionCommand { get; }
         public ICommand AddQuickTransactionCommand { get; }
         public ICommand ToggleTransactionTypeCommand { get; }
         public ICommand ToggleDescriptionCommand { get; }
@@ -449,8 +531,9 @@ namespace AutoKassa.ViewModels
                 var summaryTask = LoadSummaryAsync();
                 var recentTask = LoadRecentTransactionsAsync();
                 var chartTask = LoadChartDataAsync();
+                var todayTask = LoadTodayBalanceAsync();
 
-                await Task.WhenAll(summaryTask, recentTask, chartTask);
+                await Task.WhenAll(summaryTask, recentTask, chartTask, todayTask);
             }
             catch (Exception ex)
             {
@@ -522,15 +605,86 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task LoadRecentTransactionsAsync()
         {
-            var transactions = await _transactionService.GetRecentAsync(10);
+            var filters = new TransactionFilterParameters
+            {
+                DateFrom = DateFrom,
+                DateTo = DateTo,
+                Take = int.MaxValue
+            };
+            var transactions = await _transactionService.GetTransactionsAsync(filters);
+            var list = transactions.OrderByDescending(t => t.Date).ToList();
 
             RecentTransactions.Clear();
-            foreach (var transaction in transactions)
-            {
-                RecentTransactions.Add(transaction);
-            }
+            foreach (var t in list.Take(50))
+                RecentTransactions.Add(t);
 
             HasTransactions = RecentTransactions.Any();
+
+            // Группировка по дням
+            GroupedTransactions.Clear();
+            var grouped = list
+                .GroupBy(t => t.Date.Date)
+                .OrderByDescending(g => g.Key)
+                .Take(30);
+
+            foreach (var g in grouped)
+            {
+                var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
+                GroupedTransactions.Add(new DateGroup
+                {
+                    Date = g.Key,
+                    DayTotal = dayTotal,
+                    Items = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
+                });
+            }
+
+            // Статистика
+            StatsCount = list.Count;
+            var expList = list.Where(t => t.Type == OperationType.Expense).ToList();
+            var incList = list.Where(t => t.Type == OperationType.Income).ToList();
+            StatsAvgExpense = expList.Any() ? expList.Average(t => t.Amount) : 0;
+            StatsAvgIncome = incList.Any() ? incList.Average(t => t.Amount) : 0;
+            StatsDays = grouped.Count();
+
+            // Топ расходов
+            var topExp = list
+                .Where(t => t.Type == OperationType.Expense)
+                .GroupBy(t => t.Category?.Name ?? "?")
+                .Select(g => new CategorySummaryItem { Name = g.Key, Total = g.Sum(t => t.Amount) })
+                .OrderByDescending(x => x.Total)
+                .Take(5);
+
+            TopExpenses.Clear();
+            foreach (var item in topExp) TopExpenses.Add(item);
+
+            // Топ доходов
+            var topInc = list
+                .Where(t => t.Type == OperationType.Income)
+                .GroupBy(t => t.Category?.Name ?? "?")
+                .Select(g => new CategorySummaryItem { Name = g.Key, Total = g.Sum(t => t.Amount) })
+                .OrderByDescending(x => x.Total)
+                .Take(5);
+
+            TopIncomes.Clear();
+            foreach (var item in topInc) TopIncomes.Add(item);
+        }
+
+        /// <summary>
+        /// Загрузка баланса за сегодня (всегда DateTime.Today, независимо от выбранного периода)
+        /// </summary>
+        private async Task LoadTodayBalanceAsync()
+        {
+            var filters = new TransactionFilterParameters
+            {
+                DateFrom = DateTime.Today,
+                DateTo = DateTime.Today,
+                Take = int.MaxValue
+            };
+            var todayTransactions = await _transactionService.GetTransactionsAsync(filters);
+            HasTodayTransactions = todayTransactions.Any();
+            var todayIncome = todayTransactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
+            var todayExpense = todayTransactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
+            TodayBalance = todayIncome - todayExpense;
         }
 
         /// <summary>
@@ -753,14 +907,31 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
+        /// Открыть диалог добавления новой операции
+        /// </summary>
+        private void OpenAddTransaction()
+        {
+            var viewModel = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            var window = new TransactionEditView(viewModel)
+            {
+                Owner = Application.Current.MainWindow
+            };
+            if (window.ShowDialog() == true)
+            {
+                _ = LoadDataAsync();
+            }
+        }
+
+        /// <summary>
         /// Открыть операцию для редактирования
         /// </summary>
-        private void OpenTransaction()
+        private void OpenTransaction(Transaction transaction = null)
         {
-            if (SelectedTransaction == null) return;
+            var t = transaction ?? SelectedTransaction;
+            if (t == null) return;
 
             var viewModel = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
-            viewModel.InitializeForEdit(SelectedTransaction);
+            viewModel.InitializeForEdit(t);
 
             var window = new TransactionEditView(viewModel)
             {
@@ -776,15 +947,16 @@ namespace AutoKassa.ViewModels
         /// <summary>
         /// Удалить операцию
         /// </summary>
-        private async Task DeleteTransactionAsync()
+        private async Task DeleteTransactionAsync(Transaction transaction = null)
         {
-            if (SelectedTransaction == null) return;
+            var t = transaction ?? SelectedTransaction;
+            if (t == null) return;
 
             var result = _dialogService.ShowConfirmation(
                 $"Вы уверены, что хотите удалить операцию?\n\n" +
-                $"Дата: {SelectedTransaction.Date:dd.MM.yyyy}\n" +
-                $"Сумма: {SelectedTransaction.Amount:N2} ₽\n" +
-                $"Категория: {SelectedTransaction.Category?.Name}",
+                $"Дата: {t.Date:dd.MM.yyyy}\n" +
+                $"Сумма: {t.Amount:N2} ₽\n" +
+                $"Категория: {t.Category?.Name}",
                 "Подтверждение удаления"
             );
 
@@ -792,8 +964,8 @@ namespace AutoKassa.ViewModels
 
             try
             {
-                await _transactionService.DeleteAsync(SelectedTransaction.Id);
-                RecentTransactions.Remove(SelectedTransaction);
+                await _transactionService.DeleteAsync(t.Id);
+                RecentTransactions.Remove(t);
                 HasTransactions = RecentTransactions.Any();
                 _toastService.ShowSuccess("Операция удалена");
 
@@ -837,5 +1009,37 @@ namespace AutoKassa.ViewModels
         Month,
         Year,
         Custom
+    }
+
+    /// <summary>
+    /// Группа операций за один день
+    /// </summary>
+    public class DateGroup
+    {
+        public DateTime Date { get; set; }
+        public decimal DayTotal { get; set; }
+        public ObservableCollection<Transaction> Items { get; set; } = new();
+
+        public string DateLabel => Date == DateTime.Today
+            ? "Сегодня"
+            : Date == DateTime.Today.AddDays(-1)
+                ? "Вчера"
+                : Date.ToString("d MMMM", new System.Globalization.CultureInfo("ru-RU"));
+
+        public string DayTotalFormatted => DayTotal >= 0
+            ? $"+{DayTotal:N0} ₽"
+            : $"{DayTotal:N0} ₽";
+
+        public string DayTotalColor => DayTotal >= 0 ? "#22c55e" : "#ef4444";
+    }
+
+    /// <summary>
+    /// Позиция в топе категорий
+    /// </summary>
+    public class CategorySummaryItem
+    {
+        public string Name { get; set; }
+        public decimal Total { get; set; }
+        public string TotalFormatted => $"{Total:N0} ₽";
     }
 }

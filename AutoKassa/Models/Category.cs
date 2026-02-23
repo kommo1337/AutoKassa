@@ -42,6 +42,12 @@ namespace AutoKassa.Models
         public bool IsSystem { get; set; }
 
         /// <summary>
+        /// Цвет категории в формате HEX (например, #6366f1)
+        /// </summary>
+        [MaxLength(7)]
+        public string Color { get; set; }
+
+        /// <summary>
         /// Дата создания категории
         /// </summary>
         [Required]

@@ -23,6 +23,11 @@ namespace AutoKassa.Models
         public OperationType? Type { get; set; }
 
         /// <summary>
+        /// Тип оплаты (null = все)
+        /// </summary>
+        public PaymentType? PaymentType { get; set; }
+
+        /// <summary>
         /// ID категории (null = все)
         /// </summary>
         public int? CategoryId { get; set; }

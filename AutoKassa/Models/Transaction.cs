@@ -36,6 +36,12 @@ namespace AutoKassa.Models
         public OperationType Type { get; set; }
 
         /// <summary>
+        /// Тип оплаты (Наличные/Безналичные)
+        /// </summary>
+        [Required]
+        public PaymentType PaymentType { get; set; } = PaymentType.Cash;
+
+        /// <summary>
         /// ID категории операции
         /// </summary>
         [Required]

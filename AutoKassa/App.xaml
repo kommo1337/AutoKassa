@@ -1,4 +1,4 @@
-﻿<Application x:Class="AutoKassa.App"
+<Application x:Class="AutoKassa.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
@@ -9,16 +9,31 @@
                 <!-- Стили будут добавлены позже -->
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Основные цвета приложения -->
+            <!-- ========== ЦВЕТОВАЯ СХЕМА ========== -->
+
+            <!-- Старые цвета (совместимость) -->
             <SolidColorBrush x:Key="PrimaryBrush" Color="#2196F3"/>
             <SolidColorBrush x:Key="SuccessBrush" Color="#4CAF50"/>
             <SolidColorBrush x:Key="ErrorBrush" Color="#F44336"/>
             <SolidColorBrush x:Key="WarningBrush" Color="#FF9800"/>
-
-            <SolidColorBrush x:Key="BackgroundBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="BackgroundBrush" Color="#F8F9FB"/>
             <SolidColorBrush x:Key="SurfaceBrush" Color="#F5F5F5"/>
-            <SolidColorBrush x:Key="ForegroundBrush" Color="#212121"/>
-            <SolidColorBrush x:Key="SecondaryTextBrush" Color="#757575"/>
+            <SolidColorBrush x:Key="ForegroundBrush" Color="#1a1d23"/>
+            <SolidColorBrush x:Key="SecondaryTextBrush" Color="#667085"/>
+
+            <!-- Новая схема -->
+            <SolidColorBrush x:Key="SidebarBrush" Color="#1a1d23"/>
+            <SolidColorBrush x:Key="SidebarActiveBrush" Color="#2a2d33"/>
+            <SolidColorBrush x:Key="SidebarTextBrush" Color="#9ca3af"/>
+            <SolidColorBrush x:Key="SidebarActiveTextBrush" Color="#ffffff"/>
+            <SolidColorBrush x:Key="ContentBgBrush" Color="#F8F9FB"/>
+            <SolidColorBrush x:Key="CardBgBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="AccentGreenBrush" Color="#22c55e"/>
+            <SolidColorBrush x:Key="AccentRedBrush" Color="#ef4444"/>
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#667085"/>
+            <SolidColorBrush x:Key="BorderLightBrush" Color="#E8EAED"/>
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1a1d23"/>
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#667085"/>
 
             <!-- Размеры -->
             <System:Double x:Key="FontSizeSmall" xmlns:System="clr-namespace:System;assembly=mscorlib">12</System:Double>
@@ -28,6 +43,7 @@
             <System:Double x:Key="FontSizeH2" xmlns:System="clr-namespace:System;assembly=mscorlib">20</System:Double>
             <System:Double x:Key="FontSizeH3" xmlns:System="clr-namespace:System;assembly=mscorlib">16</System:Double>
 
+            <!-- ========== КОНВЕРТЕРЫ ========== -->
             <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
             <converters:DecimalToStringConverter x:Key="DecimalToStringConverter"/>
@@ -35,10 +51,142 @@
             <converters:OperationTypeToTextConverter x:Key="OperationTypeToTextConverter"/>
             <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
             <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+            <converters:PaymentTypeToIconConverter x:Key="PaymentTypeToIconConverter"/>
+            <converters:PaymentTypeToTextConverter x:Key="PaymentTypeToTextConverter"/>
+            <converters:CategoryColorConverter x:Key="CategoryColorConverter"/>
 
-            <!-- ========== ГЛОБАЛЬНЫЕ СТИЛИ UI ========== -->
+            <!-- ========== СТИЛИ КНОПОК ========== -->
 
-            <!-- Стиль DataGrid с улучшенной читаемостью -->
+            <!-- PillButton — скруглённая кнопка -->
+            <Style x:Key="PillButton" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="20,10"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="20"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="0.88"/>
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter Property="Opacity" Value="0.75"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- PillButton Red -->
+            <Style x:Key="PillButtonRed" TargetType="Button" BasedOn="{StaticResource PillButton}">
+                <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
+            </Style>
+
+            <!-- ChipButton — маленький чип-переключатель -->
+            <Style x:Key="ChipButton" TargetType="Button">
+                <Setter Property="Background" Value="#F1F5F9"/>
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="16"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#E2E8F0"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- ChipButton Active -->
+            <Style x:Key="ChipButtonActive" TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                <Setter Property="Background" Value="#EEF2FF"/>
+                <Setter Property="Foreground" Value="#6366f1"/>
+                <Setter Property="BorderBrush" Value="#6366f1"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </Style>
+
+            <!-- SummaryCard — карточка сводки -->
+            <Style x:Key="SummaryCard" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
+                <Setter Property="CornerRadius" Value="12"/>
+                <Setter Property="Padding" Value="20,20"/>
+                <Setter Property="MinHeight" Value="108"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- FloatingActionButton — кнопка с закруглёнными углами и градиентом -->
+            <Style x:Key="FloatingActionButton" TargetType="Button">
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Width" Value="52"/>
+                <Setter Property="Height" Value="52"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border CornerRadius="14">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#22c55e" Offset="0"/>
+                                        <GradientStop Color="#16a34a" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#16a34a" Opacity="0.35" BlurRadius="14" ShadowDepth="4" Direction="270"/>
+                                </Border.Effect>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="0.9"/>
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter Property="Opacity" Value="0.78"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- FlatListItem — строка списка без рамок -->
+            <Style x:Key="FlatListItem" TargetType="Border">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Padding" Value="12,10"/>
+                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+            </Style>
+
+            <!-- ========== ГЛОБАЛЬНЫЕ СТИЛИ ========== -->
+
             <Style TargetType="DataGrid">
                 <Setter Property="AutoGenerateColumns" Value="False"/>
                 <Setter Property="IsReadOnly" Value="True"/>
@@ -54,7 +202,6 @@
                 <Setter Property="AlternatingRowBackground" Value="#FAFAFA"/>
             </Style>
 
-            <!-- Стиль заголовка колонки DataGrid -->
             <Style TargetType="DataGridColumnHeader">
                 <Setter Property="Background" Value="#F8F9FA"/>
                 <Setter Property="Foreground" Value="#495057"/>
@@ -66,23 +213,20 @@
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
             </Style>
 
-            <!-- Стиль строки DataGrid -->
             <Style TargetType="DataGridRow">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0,0,0,1"/>
                 <Setter Property="BorderBrush" Value="#F1F3F4"/>
-                <Setter Property="Margin" Value="0,0,0,0"/>
                 <Style.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Background" Value="#F8F9FA"/>
                     </Trigger>
                     <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="#E3F2FD"/>
+                        <Setter Property="Background" Value="#EEF2FF"/>
                     </Trigger>
                 </Style.Triggers>
             </Style>
 
-            <!-- Стиль ячейки DataGrid -->
             <Style TargetType="DataGridCell">
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -97,10 +241,9 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Простой стиль ComboBox (без переопределения Template) -->
             <Style TargetType="ComboBox">
                 <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="12,8"/>
                 <Setter Property="FontSize" Value="14"/>
@@ -118,7 +261,6 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- Стиль элемента ComboBox -->
             <Style TargetType="ComboBoxItem">
                 <Setter Property="Padding" Value="12,10"/>
                 <Setter Property="Background" Value="Transparent"/>
@@ -128,15 +270,14 @@
                         <Setter Property="Background" Value="#F8F9FA"/>
                     </Trigger>
                     <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="#E3F2FD"/>
+                        <Setter Property="Background" Value="#EEF2FF"/>
                     </Trigger>
                 </Style.Triggers>
             </Style>
 
-            <!-- Простой стиль DatePicker (без переопределения Template) -->
             <Style TargetType="DatePicker">
                 <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="8,6"/>
                 <Setter Property="FontSize" Value="14"/>

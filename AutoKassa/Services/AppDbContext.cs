@@ -96,6 +96,10 @@ namespace AutoKassa.Services
                 .HasIndex(t => t.IsDeleted)
                 .HasDatabaseName("IX_Transaction_IsDeleted");
 
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => t.PaymentType)
+                .HasDatabaseName("IX_Transaction_PaymentType");
+
             // Составной индекс для частых запросов
             modelBuilder.Entity<Transaction>()
                 .HasIndex(t => new { t.Date, t.IsDeleted })
@@ -121,6 +125,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Income,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#6366f1",
                     CreatedAt = now
                 },
                 new Category
@@ -130,6 +135,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Income,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#f59e0b",
                     CreatedAt = now
                 },
                 new Category
@@ -139,6 +145,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Income,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#14b8a6",
                     CreatedAt = now
                 },
                 new Category
@@ -148,6 +155,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Income,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#94a3b8",
                     CreatedAt = now
                 }
             );
@@ -161,6 +169,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Expense,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#ec4899",
                     CreatedAt = now
                 },
                 new Category
@@ -170,6 +179,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Expense,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#f97316",
                     CreatedAt = now
                 },
                 new Category
@@ -179,6 +189,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Expense,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#8b5cf6",
                     CreatedAt = now
                 },
                 new Category
@@ -188,6 +199,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Expense,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#06b6d4",
                     CreatedAt = now
                 },
                 new Category
@@ -197,6 +209,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Expense,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#84cc16",
                     CreatedAt = now
                 },
                 new Category
@@ -206,6 +219,7 @@ namespace AutoKassa.Services
                     Type = OperationType.Expense,
                     IsActive = true,
                     IsSystem = true,
+                    Color = "#ef4444",
                     CreatedAt = now
                 }
             );
