@@ -16,6 +16,7 @@ namespace AutoKassa.ViewModels
     {
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
+        private readonly IToastNotificationService _toastService;
 
         private ObservableCollection<Category> _incomeCategories;
         private ObservableCollection<Category> _expenseCategories;
@@ -25,10 +26,12 @@ namespace AutoKassa.ViewModels
 
         public CategoriesViewModel(
             ICategoryService categoryService,
-            IDialogService dialogService)
+            IDialogService dialogService,
+            IToastNotificationService toastService)
         {
             _categoryService = categoryService;
             _dialogService = dialogService;
+            _toastService = toastService;
 
             IncomeCategories = new ObservableCollection<Category>();
             ExpenseCategories = new ObservableCollection<Category>();
@@ -231,61 +234,52 @@ namespace AutoKassa.ViewModels
             var category = SelectedCategory;
             if (category == null) return;
 
-            // Проверяем количество операций
             var operationCount = await _categoryService.GetOperationCountAsync(category.Id);
 
             if (operationCount > 0)
             {
-                // Есть операции - предлагаем деактивацию
-                var result = _dialogService.ShowConfirmation(
-                    $"Категория \"{category.Name}\" используется в {operationCount} операциях.\n\n" +
-                    "Удалить категорию нельзя, но можно деактивировать её.\n" +
-                    "Деактивированная категория не будет отображаться в списках выбора.\n\n" +
-                    "Деактивировать категорию?",
-                    "Деактивация категории"
-                );
-
-                if (result)
+                try
                 {
-                    try
-                    {
-                        await _categoryService.DeactivateAsync(category.Id);
-                        _dialogService.ShowInfo("Категория деактивирована");
-                        await LoadCategoriesAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        _dialogService.ShowError($"Ошибка деактивации: {ex.Message}");
-                    }
+                    await _categoryService.DeactivateAsync(category.Id);
+                    await LoadCategoriesAsync();
+                    _toastService.ShowInfo($"Категория «{category.Name}» скрыта из списков выбора");
+                }
+                catch (Exception ex)
+                {
+                    _dialogService.ShowError($"Ошибка деактивации: {ex.Message}");
                 }
             }
             else
             {
-                // Нет операций - можно удалить
-                var result = _dialogService.ShowConfirmation(
-                    $"Вы уверены, что хотите удалить категорию \"{category.Name}\"?",
-                    "Подтверждение удаления"
-                );
-
-                if (result)
+                try
                 {
-                    try
+                    var deleted = await _categoryService.DeleteAsync(category.Id);
+                    if (deleted)
                     {
-                        var deleted = await _categoryService.DeleteAsync(category.Id);
-                        if (deleted)
-                        {
-                            _dialogService.ShowInfo("Категория удалена");
-                            await LoadCategoriesAsync();
-                        }
-                        else
-                        {
-                            _dialogService.ShowError("Не удалось удалить категорию");
-                        }
+                        await LoadCategoriesAsync();
+                        _toastService.ShowDeleteWithUndo(
+                            $"Категория «{category.Name}» удалена",
+                            async () =>
+                            {
+                                var restored = new Category
+                                {
+                                    Name = category.Name,
+                                    Type = category.Type,
+                                    Color = category.Color,
+                                    IsActive = true
+                                };
+                                await _categoryService.AddAsync(restored);
+                                await LoadCategoriesAsync();
+                            });
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+                        _dialogService.ShowError("Не удалось удалить категорию");
                     }
+                }
+                catch (Exception ex)
+                {
+                    _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
                 }
             }
         }

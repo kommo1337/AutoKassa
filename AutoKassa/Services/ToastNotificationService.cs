@@ -1,42 +1,27 @@
-﻿namespace AutoKassa.Services
+using System;
+
+namespace AutoKassa.Services
 {
     /// <summary>
-    /// Базовая реализация сервиса toast-уведомлений
-    /// (Позже заменим на более красивую реализацию с анимациями)
+    /// Реализация сервиса toast-уведомлений на основе событий
     /// </summary>
     public class ToastNotificationService : IToastNotificationService
     {
-        private readonly IDialogService _dialogService;
+        public event EventHandler<ToastItem> ToastRequested;
 
-        public ToastNotificationService(IDialogService dialogService)
-        {
-            _dialogService = dialogService;
-        }
-
-        /// <summary>
-        /// Показать уведомление об успехе
-        /// </summary>
         public void ShowSuccess(string message)
-        {
-            // TODO: Реализовать красивое toast-уведомление
-            // Пока используем простой MessageBox
-            _dialogService.ShowInfo(message, "Успешно");
-        }
+            => Raise(new ToastItem { Message = message, Type = ToastType.Success });
 
-        /// <summary>
-        /// Показать уведомление об ошибке
-        /// </summary>
         public void ShowError(string message)
-        {
-            _dialogService.ShowError(message);
-        }
+            => Raise(new ToastItem { Message = message, Type = ToastType.Error });
 
-        /// <summary>
-        /// Показать информационное уведомление
-        /// </summary>
         public void ShowInfo(string message)
-        {
-            _dialogService.ShowInfo(message);
-        }
+            => Raise(new ToastItem { Message = message, Type = ToastType.Info });
+
+        public void ShowDeleteWithUndo(string message, Action undoAction)
+            => Raise(new ToastItem { Message = message, Type = ToastType.Delete, UndoAction = undoAction });
+
+        private void Raise(ToastItem item)
+            => ToastRequested?.Invoke(this, item);
     }
 }

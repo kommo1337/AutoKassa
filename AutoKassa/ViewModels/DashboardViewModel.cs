@@ -963,24 +963,31 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var result = _dialogService.ShowConfirmation(
-                $"Вы уверены, что хотите удалить операцию?\n\n" +
-                $"Дата: {t.Date:dd.MM.yyyy}\n" +
-                $"Сумма: {t.Amount:N2} ₽\n" +
-                $"Категория: {t.Category?.Name}",
-                "Подтверждение удаления"
-            );
-
-            if (!result) return;
+            var snapshot = new Transaction
+            {
+                Date = t.Date,
+                Amount = t.Amount,
+                Type = t.Type,
+                CategoryId = t.CategoryId,
+                Description = t.Description,
+                PaymentType = t.PaymentType,
+                CreatedAt = t.CreatedAt
+            };
 
             try
             {
                 await _transactionService.DeleteAsync(t.Id);
                 RecentTransactions.Remove(t);
                 HasTransactions = RecentTransactions.Any();
-                _toastService.ShowSuccess("Операция удалена");
 
-                // Обновляем сводку
+                _toastService.ShowDeleteWithUndo(
+                    "Операция удалена",
+                    async () =>
+                    {
+                        await _transactionService.AddAsync(snapshot);
+                        await LoadDataAsync();
+                    });
+
                 await LoadDataAsync();
             }
             catch (Exception ex)

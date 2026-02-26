@@ -24,11 +24,12 @@ namespace AutoKassa.ViewModels
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
+        private readonly IToastNotificationService _toastService;
         private readonly ISettingsService _settingsService;
 
         private ObservableCollection<Transaction> _transactions;
         private ObservableCollection<Category> _categories;
-        private ObservableCollection<DateGroup> _groupedTransactions = new();
+        private ObservableCollection<SelectableDateGroup> _groupedTransactions = new();
         private Transaction _selectedTransaction;
         private bool _isLoading;
         private int _totalCount;
@@ -54,6 +55,10 @@ namespace AutoKassa.ViewModels
         private PeriodPreset _selectedPeriodPreset = PeriodPreset.Month;
         private bool _isPeriodPickerOpen;
 
+        // Category picker
+        private bool _isCategoryPickerOpen;
+        private string _categorySearchText;
+
         // Modal
         private bool _isModalOpen;
         private TransactionEditViewModel _editViewModel;
@@ -70,11 +75,13 @@ namespace AutoKassa.ViewModels
             ITransactionService transactionService,
             ICategoryService categoryService,
             IDialogService dialogService,
+            IToastNotificationService toastService,
             ISettingsService settingsService)
         {
             _transactionService = transactionService;
             _categoryService = categoryService;
             _dialogService = dialogService;
+            _toastService = toastService;
             _settingsService = settingsService;
 
             Transactions = new ObservableCollection<Transaction>();
@@ -99,6 +106,23 @@ namespace AutoKassa.ViewModels
             TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
             SelectPeriodCommand = new RelayCommand(async p => { if (p is string s) await SelectPeriodAsync(s); });
 
+            // Category picker commands
+            ToggleCategoryPickerCommand = new RelayCommand(_ => IsCategoryPickerOpen = !IsCategoryPickerOpen);
+            SelectCategoryCommand = new RelayCommand(async p =>
+            {
+                if (p is Category cat)
+                {
+                    SelectedCategory = cat;
+                    IsCategoryPickerOpen = false;
+                    CategorySearchText = string.Empty;
+                    await LoadDataAsync();
+                }
+            });
+
+            // Bulk selection commands
+            DeleteSelectedCommand = new RelayCommand(async _ => await DeleteSelectedAsync());
+            ClearSelectionCommand = new RelayCommand(_ => ClearSelection());
+
             // Inline add commands
             OpenInlineCommand = new RelayCommand(_ => OpenInline());
             InlineSaveCommand = new RelayCommand(async _ => await InlineSaveAsync());
@@ -116,7 +140,7 @@ namespace AutoKassa.ViewModels
 
         #region Properties — transactions
 
-        public ObservableCollection<DateGroup> GroupedTransactions
+        public ObservableCollection<SelectableDateGroup> GroupedTransactions
         {
             get => _groupedTransactions;
             set => SetProperty(ref _groupedTransactions, value);
@@ -155,7 +179,10 @@ namespace AutoKassa.ViewModels
             set
             {
                 if (SetProperty(ref _categories, value))
+                {
                     OnPropertyChanged(nameof(InlineCategories));
+                    OnPropertyChanged(nameof(FilteredCategories));
+                }
             }
         }
 
@@ -271,6 +298,39 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
+        #region Properties — category picker
+
+        public bool IsCategoryPickerOpen
+        {
+            get => _isCategoryPickerOpen;
+            set => SetProperty(ref _isCategoryPickerOpen, value);
+        }
+
+        public string CategorySearchText
+        {
+            get => _categorySearchText;
+            set
+            {
+                if (SetProperty(ref _categorySearchText, value))
+                    OnPropertyChanged(nameof(FilteredCategories));
+            }
+        }
+
+        public IEnumerable<Category> FilteredCategories =>
+            string.IsNullOrWhiteSpace(_categorySearchText)
+                ? (IEnumerable<Category>)Categories
+                : Categories.Where(c => c.Name.Contains(_categorySearchText, StringComparison.OrdinalIgnoreCase));
+
+        #endregion
+
+        #region Properties — bulk selection
+
+        public int SelectedCount => GroupedTransactions.SelectMany(g => g.Items).Count(i => i.IsSelected);
+        public bool HasSelection => SelectedCount > 0;
+        public string SelectedCountLabel => $"Выбрано: {SelectedCount}";
+
+        #endregion
+
         #region Properties — modal
 
         public bool IsModalOpen
@@ -369,6 +429,10 @@ namespace AutoKassa.ViewModels
         public ICommand ResetTypeFilterCommand { get; }
         public ICommand TogglePeriodPickerCommand { get; }
         public ICommand SelectPeriodCommand { get; }
+        public ICommand ToggleCategoryPickerCommand { get; }
+        public ICommand SelectCategoryCommand { get; }
+        public ICommand DeleteSelectedCommand { get; }
+        public ICommand ClearSelectionCommand { get; }
         public ICommand OpenInlineCommand { get; }
         public ICommand InlineSaveCommand { get; }
         public ICommand InlineCancelCommand { get; }
@@ -399,6 +463,8 @@ namespace AutoKassa.ViewModels
                     Categories.Add(category);
 
                 OnPropertyChanged(nameof(InlineCategories));
+                OnPropertyChanged(nameof(FilteredCategories));
+                SelectedCategory = Categories.FirstOrDefault();
                 InlineCategory = InlineCategories.FirstOrDefault();
             }
             catch (Exception ex)
@@ -511,15 +577,94 @@ namespace AutoKassa.ViewModels
             foreach (var g in grouped)
             {
                 var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
-                GroupedTransactions.Add(new DateGroup
+                var items = new ObservableCollection<SelectableTransaction>(
+                    g.OrderByDescending(t => t.CreatedAt).Select(t =>
+                    {
+                        var st = new SelectableTransaction(t);
+                        st.SelectionChanged = RefreshSelectionState;
+                        return st;
+                    }));
+
+                GroupedTransactions.Add(new SelectableDateGroup
                 {
                     Date = g.Key,
                     DayTotal = dayTotal,
-                    Items = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
+                    Items = items
                 });
             }
 
             OnPropertyChanged(nameof(HasTransactions));
+            RefreshSelectionState();
+        }
+
+        private void RefreshSelectionState()
+        {
+            OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectedCountLabel));
+        }
+
+        private void ClearSelection()
+        {
+            foreach (var item in GroupedTransactions.SelectMany(g => g.Items).ToList())
+            {
+                item.SelectionChanged = null;
+                item.IsSelected = false;
+                item.SelectionChanged = RefreshSelectionState;
+            }
+            RefreshSelectionState();
+        }
+
+        private async Task DeleteSelectedAsync()
+        {
+            var selected = GroupedTransactions
+                .SelectMany(g => g.Items)
+                .Where(i => i.IsSelected)
+                .Select(i => i.Transaction)
+                .ToList();
+
+            if (!selected.Any()) return;
+
+            try
+            {
+                foreach (var t in selected)
+                    await _transactionService.DeleteAsync(t.Id);
+
+                await LoadDataAsync();
+
+                var count = selected.Count;
+                var snapshots = selected.Select(t => new Transaction
+                {
+                    Date = t.Date,
+                    Amount = t.Amount,
+                    Type = t.Type,
+                    CategoryId = t.CategoryId,
+                    Description = t.Description,
+                    PaymentType = t.PaymentType,
+                    CreatedAt = t.CreatedAt
+                }).ToList();
+
+                _toastService.ShowDeleteWithUndo(
+                    $"Удалено {count} {GetCountWord(count)}",
+                    async () =>
+                    {
+                        foreach (var snap in snapshots)
+                            await _transactionService.AddAsync(snap);
+                        await LoadDataAsync();
+                    });
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+            }
+        }
+
+        private static string GetCountWord(int count)
+        {
+            var abs = Math.Abs(count) % 100;
+            var mod10 = abs % 10;
+            if (abs is >= 11 and <= 19) return "записей";
+            return mod10 switch { 1 => "запись", 2 or 3 or 4 => "записи", _ => "записей" };
         }
 
         private async Task ApplyFiltersAsync()
@@ -619,21 +764,32 @@ namespace AutoKassa.ViewModels
         {
             if (SelectedTransaction == null) return;
 
-            var result = _dialogService.ShowConfirmation(
-                $"Вы уверены, что хотите удалить операцию?\n\n" +
-                $"Дата: {SelectedTransaction.Date:dd.MM.yyyy}\n" +
-                $"Сумма: {SelectedTransaction.Amount:N2} ₽\n" +
-                $"Категория: {SelectedTransaction.Category?.Name}",
-                "Подтверждение удаления");
-
-            if (!result) return;
+            var t = SelectedTransaction;
+            var snapshot = new Transaction
+            {
+                Date = t.Date,
+                Amount = t.Amount,
+                Type = t.Type,
+                CategoryId = t.CategoryId,
+                Description = t.Description,
+                PaymentType = t.PaymentType,
+                CreatedAt = t.CreatedAt
+            };
 
             try
             {
-                await _transactionService.DeleteAsync(SelectedTransaction.Id);
-                Transactions.Remove(SelectedTransaction);
+                await _transactionService.DeleteAsync(t.Id);
+                Transactions.Remove(t);
                 TotalCount--;
                 RebuildGroupsAndTotals();
+
+                _toastService.ShowDeleteWithUndo(
+                    "Операция удалена",
+                    async () =>
+                    {
+                        await _transactionService.AddAsync(snapshot);
+                        await LoadDataAsync();
+                    });
             }
             catch (Exception ex)
             {

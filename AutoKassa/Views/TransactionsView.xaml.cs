@@ -18,10 +18,10 @@ namespace AutoKassa.Views
 
         private void Row_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is FrameworkElement el && el.DataContext is Transaction tx &&
+            if (sender is FrameworkElement el && el.DataContext is SelectableTransaction st &&
                 DataContext is TransactionsViewModel vm)
             {
-                vm.SelectedTransaction = tx;
+                vm.SelectedTransaction = st.Transaction;
 
                 if (e.ClickCount == 2 && vm.EditCommand.CanExecute(null))
                     vm.EditCommand.Execute(null);
@@ -32,10 +32,10 @@ namespace AutoKassa.Views
         {
             if (sender is ContextMenu ctx &&
                 ctx.PlacementTarget is FrameworkElement el &&
-                el.DataContext is Transaction tx &&
+                el.DataContext is SelectableTransaction st &&
                 DataContext is TransactionsViewModel vm)
             {
-                vm.SelectedTransaction = tx;
+                vm.SelectedTransaction = st.Transaction;
             }
         }
 

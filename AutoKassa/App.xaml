@@ -179,26 +179,27 @@
                 </Style.Triggers>
             </Style>
 
-            <!-- PeriodPresetButton — кнопка пресета периода в popup -->
+            <!-- PeriodPresetButton — чип-кнопка пресета периода -->
             <Style x:Key="PeriodPresetButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Background" Value="#F8F9FB"/>
                 <Setter Property="Foreground" Value="#344054"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="HorizontalContentAlignment" Value="Left"/>
-                <Setter Property="Padding" Value="8,7"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="Padding" Value="12,6"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                    CornerRadius="8" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="Center"/>
+                                    BorderBrush="#E8EAED" BorderThickness="1"
+                                    CornerRadius="14" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="bg" Property="Background" Value="#F0F2F5"/>
+                                    <Setter TargetName="bg" Property="BorderBrush" Value="#D0D5DD"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
                                     <Setter TargetName="bg" Property="Background" Value="#E2E5EA"/>
@@ -307,38 +308,22 @@
                 </Style.Triggers>
             </Style>
 
-            <Style TargetType="DatePicker">
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Padding" Value="8,6"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="MinHeight" Value="40"/>
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="BorderBrush" Value="#ADB5BD"/>
-                    </Trigger>
-                    <Trigger Property="IsFocused" Value="True">
-                        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
-
             <!-- ========== CALENDAR STYLES ========== -->
+            <!-- Порядок важен: CalendarDayButton/CalendarButton/CalendarItem → Calendar → DatePicker -->
 
-            <Style TargetType="CalendarDayButton">
-                <Setter Property="Width" Value="30"/>
-                <Setter Property="Height" Value="30"/>
-                <Setter Property="FontSize" Value="11"/>
-                <Setter Property="Foreground" Value="#344054"/>
+            <Style x:Key="CalendarDayBtnStyle" TargetType="CalendarDayButton">
+                <Setter Property="Width" Value="32"/>
+                <Setter Property="Height" Value="32"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Foreground" Value="#667085"/>
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="CalendarDayButton">
                             <Border x:Name="bg" Background="{TemplateBinding Background}"
-                                    CornerRadius="6" Width="28" Height="28">
-                                <TextBlock Text="{TemplateBinding Content}" FontSize="11"
+                                    CornerRadius="8" Width="32" Height="32">
+                                <TextBlock x:Name="txt" Text="{TemplateBinding Content}" FontSize="12"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{TemplateBinding Foreground}"/>
                             </Border>
@@ -346,17 +331,29 @@
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="bg" Property="Background" Value="#F0F2F5"/>
                                 </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="bg" Property="Background" Value="#22c55e"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                </Trigger>
-                                <Trigger Property="IsToday" Value="True">
-                                    <Setter TargetName="bg" Property="BorderBrush" Value="#22c55e"/>
-                                    <Setter TargetName="bg" Property="BorderThickness" Value="1.5"/>
-                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                </Trigger>
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsSelected" Value="True"/>
+                                    </MultiTrigger.Conditions>
+                                    <MultiTrigger.Setters>
+                                        <Setter TargetName="bg" Property="Background" Value="#1a1d23"/>
+                                        <Setter TargetName="txt" Property="Foreground" Value="White"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </MultiTrigger.Setters>
+                                </MultiTrigger>
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsToday" Value="True"/>
+                                        <Condition Property="IsSelected" Value="False"/>
+                                    </MultiTrigger.Conditions>
+                                    <MultiTrigger.Setters>
+                                        <Setter TargetName="txt" Property="Foreground" Value="#3b82f6"/>
+                                        <Setter Property="FontWeight" Value="Medium"/>
+                                    </MultiTrigger.Setters>
+                                </MultiTrigger>
+                                <!-- Дни вне текущего месяца — скрываем полностью -->
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Opacity" Value="0.4"/>
+                                    <Setter Property="Opacity" Value="0"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -364,7 +361,7 @@
                 </Setter>
             </Style>
 
-            <Style TargetType="CalendarButton">
+            <Style x:Key="CalendarNavBtnStyle" TargetType="CalendarButton">
                 <Setter Property="FontSize" Value="12"/>
                 <Setter Property="Foreground" Value="#344054"/>
                 <Setter Property="Background" Value="Transparent"/>
@@ -372,7 +369,8 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="CalendarButton">
-                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="8"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                 <TextBlock Text="{TemplateBinding Content}" FontSize="12"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{TemplateBinding Foreground}"/>
@@ -380,6 +378,266 @@
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="bg" Property="Background" Value="#F0F2F5"/>
+                                </Trigger>
+                                <Trigger Property="HasSelectedDays" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#1a1d23"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="CalendarItemStyle" TargetType="CalendarItem">
+                <Setter Property="Margin" Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CalendarItem">
+                            <ControlTemplate.Resources>
+                                <DataTemplate x:Key="{x:Static CalendarItem.DayTitleTemplateResourceKey}">
+                                    <TextBlock Text="{Binding}" FontSize="10" FontWeight="Medium"
+                                               Foreground="#98a2b3"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Width="32" Height="28"/>
+                                </DataTemplate>
+                            </ControlTemplate.Resources>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="2,0,2,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="28"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="PART_PreviousButton" Grid.Column="0"
+                                            FocusVisualStyle="{x:Null}" Focusable="False">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="b" Background="Transparent" CornerRadius="6"
+                                                        Width="28" Height="28">
+                                                    <TextBlock Text="&#8249;" FontSize="20" Foreground="#667085"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="#F0F2F5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button x:Name="PART_HeaderButton" Grid.Column="1"
+                                            FocusVisualStyle="{x:Null}" Cursor="Hand"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <TextBlock x:Name="hdr" Text="{TemplateBinding Content}"
+                                                           FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="#1a1d23"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="hdr" Property="Foreground" Value="#667085"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button x:Name="PART_NextButton" Grid.Column="2"
+                                            FocusVisualStyle="{x:Null}" Focusable="False">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="b" Background="Transparent" CornerRadius="6"
+                                                        Width="28" Height="28">
+                                                    <TextBlock Text="&#8250;" FontSize="20" Foreground="#667085"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="#F0F2F5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </Grid>
+                                <!-- 7 строк: 1 заголовок дней + 6 недель; 7 колонок по дням -->
+                                <Grid x:Name="PART_MonthView" Grid.Row="1" Visibility="Visible">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                </Grid>
+                                <!-- 3 строки x 4 колонки для выбора месяца/года -->
+                                <Grid x:Name="PART_YearView" Grid.Row="1" Visibility="Hidden">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                </Grid>
+                                <Rectangle x:Name="PART_DisabledVisual" Fill="#80FFFFFF"
+                                           Visibility="Collapsed" Grid.RowSpan="2"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="PART_DisabledVisual" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Calendar style: задаём явно стили кнопок, чтобы обойти тему системы -->
+            <Style x:Key="AppCalendarStyle" TargetType="Calendar">
+                <Setter Property="SelectionMode" Value="SingleDate"/>
+                <Setter Property="CalendarDayButtonStyle" Value="{StaticResource CalendarDayBtnStyle}"/>
+                <Setter Property="CalendarButtonStyle" Value="{StaticResource CalendarNavBtnStyle}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Calendar">
+                            <Border Background="White" CornerRadius="14"
+                                    BorderBrush="#E8EAED" BorderThickness="1"
+                                    Padding="14">
+                                <StackPanel x:Name="PART_Root">
+                                    <CalendarItem x:Name="PART_CalendarItem"
+                                                  Style="{StaticResource CalendarItemStyle}"/>
+                                </StackPanel>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- DatePickerTextBox: прозрачный, без рамки — визуал берёт на себя DatePicker border -->
+            <Style TargetType="DatePickerTextBox">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="CaretBrush" Value="#1a1d23"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DatePickerTextBox">
+                            <Grid>
+                                <ContentControl x:Name="PART_Watermark"
+                                                Content="{TemplateBinding Tag}"
+                                                Foreground="#C0C5D0"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Left"
+                                                Padding="{TemplateBinding Padding}"
+                                                IsHitTestVisible="False"
+                                                Visibility="Collapsed"/>
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter TargetName="PART_Watermark" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- DatePicker: полный template — убирает стандартную иконку "15" -->
+            <Style TargetType="DatePicker">
+                <Setter Property="Background" Value="White"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="#1a1d23"/>
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="MinHeight" Value="36"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="CalendarStyle" Value="{StaticResource AppCalendarStyle}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DatePicker">
+                            <Border x:Name="bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <DatePickerTextBox x:Name="PART_TextBox" Grid.Column="0"
+                                                      Focusable="{TemplateBinding Focusable}"
+                                                      Foreground="{TemplateBinding Foreground}"
+                                                      FontFamily="{TemplateBinding FontFamily}"
+                                                      FontSize="{TemplateBinding FontSize}"
+                                                      Padding="8,0"/>
+                                    <Button x:Name="PART_Button" Grid.Column="1"
+                                            Visibility="Collapsed"
+                                            Focusable="False" FocusVisualStyle="{x:Null}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bb" Background="Transparent"
+                                                        Padding="4,0" CornerRadius="0,5,5,0">
+                                                    <Viewbox Width="15" Height="15">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Fill="#98a2b3"
+                                                                  Data="M19,3H18V1H16V3H8V1H6V3H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V5C21,3.9,20.1,3,19,3z M19,19H5V8h14V19z"/>
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bb" Property="Background" Value="#F0F2F5"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Popup x:Name="PART_Popup" AllowsTransparency="True"
+                                           Placement="Bottom" StaysOpen="False"/>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <!-- Показываем иконку только когда дата НЕ выбрана -->
+                                <DataTrigger Binding="{Binding SelectedDate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                                    <Setter TargetName="PART_Button" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#ADB5BD"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

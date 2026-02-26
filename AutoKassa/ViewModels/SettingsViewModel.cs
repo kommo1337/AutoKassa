@@ -452,15 +452,6 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void Cancel()
         {
-            if (HasUnsavedChanges)
-            {
-                var result = _dialogService.ShowConfirmation(
-                    "Отменить все несохраненные изменения?",
-                    "Отмена изменений");
-
-                if (!result) return;
-            }
-
             LoadPropertiesFromSettings(_originalSettings);
             HasUnsavedChanges = false;
         }
@@ -470,12 +461,6 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task ResetToDefaultsAsync()
         {
-            var result = _dialogService.ShowConfirmation(
-                "Сбросить все настройки к значениям по умолчанию?\nПароль будет сохранен.",
-                "Сброс настроек");
-
-            if (!result) return;
-
             try
             {
                 IsLoading = true;
@@ -546,12 +531,6 @@ namespace AutoKassa.ViewModels
             };
 
             if (dialog.ShowDialog() != true) return;
-
-            var confirm = _dialogService.ShowConfirmation(
-                "Импортировать настройки из файла?\nТекущие настройки будут заменены.",
-                "Импорт настроек");
-
-            if (!confirm) return;
 
             try
             {
@@ -678,14 +657,6 @@ namespace AutoKassa.ViewModels
             };
 
             if (dialog.ShowDialog() != true) return;
-
-            var confirm = _dialogService.ShowConfirmation(
-                "Восстановить базу данных из резервной копии?\n\n" +
-                "ВНИМАНИЕ: Все текущие данные будут заменены!\n" +
-                "Приложение будет перезапущено.",
-                "Восстановление из резервной копии");
-
-            if (!confirm) return;
 
             try
             {

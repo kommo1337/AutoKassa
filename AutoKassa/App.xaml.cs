@@ -95,7 +95,8 @@ namespace AutoKassa
             services.AddSingleton<MainWindow>(provider =>
             {
                 var viewModel = provider.GetRequiredService<MainWindowViewModel>();
-                return new MainWindow(viewModel);
+                var toastService = provider.GetRequiredService<IToastNotificationService>();
+                return new MainWindow(viewModel, toastService);
             });
         }
 
