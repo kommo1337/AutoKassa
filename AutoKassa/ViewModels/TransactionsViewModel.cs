@@ -127,9 +127,12 @@ namespace AutoKassa.ViewModels
             OpenInlineCommand = new RelayCommand(_ => OpenInline());
             InlineSaveCommand = new RelayCommand(async _ => await InlineSaveAsync());
             InlineCancelCommand = new RelayCommand(_ => CloseInline());
-            InlineToggleTypeCommand = new RelayCommand(_ => InlineType = InlineType == OperationType.Expense ? OperationType.Income : OperationType.Expense);
+            InlineToggleTypeCommand    = new RelayCommand(_ => InlineType = InlineType == OperationType.Expense ? OperationType.Income : OperationType.Expense);
+            InlineSelectExpenseCommand = new RelayCommand(_ => InlineType = OperationType.Expense);
+            InlineSelectIncomeCommand  = new RelayCommand(_ => InlineType = OperationType.Income);
             InlineSelectCashCommand = new RelayCommand(_ => InlinePaymentType = PaymentType.Cash);
             InlineSelectNonCashCommand = new RelayCommand(_ => InlinePaymentType = PaymentType.NonCash);
+            InlineTogglePaymentTypeCommand = new RelayCommand(_ => InlinePaymentType = InlinePaymentType == PaymentType.Cash ? PaymentType.NonCash : PaymentType.Cash);
 
             // Default period = current month
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
@@ -437,8 +440,11 @@ namespace AutoKassa.ViewModels
         public ICommand InlineSaveCommand { get; }
         public ICommand InlineCancelCommand { get; }
         public ICommand InlineToggleTypeCommand { get; }
+        public ICommand InlineSelectExpenseCommand { get; }
+        public ICommand InlineSelectIncomeCommand { get; }
         public ICommand InlineSelectCashCommand { get; }
         public ICommand InlineSelectNonCashCommand { get; }
+        public ICommand InlineTogglePaymentTypeCommand { get; }
 
         #endregion
 
@@ -585,12 +591,14 @@ namespace AutoKassa.ViewModels
                         return st;
                     }));
 
-                GroupedTransactions.Add(new SelectableDateGroup
+                var group = new SelectableDateGroup
                 {
                     Date = g.Key,
                     DayTotal = dayTotal,
                     Items = items
-                });
+                };
+                group.InitInline(_categories, GroupInlineSaveAsync);
+                GroupedTransactions.Add(group);
             }
 
             OnPropertyChanged(nameof(HasTransactions));
@@ -844,6 +852,45 @@ namespace AutoKassa.ViewModels
 
                 await _transactionService.AddAsync(transaction);
                 CloseInline();
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowError($"Ошибка добавления: {ex.Message}");
+            }
+        }
+
+        private async Task GroupInlineSaveAsync(SelectableDateGroup group)
+        {
+            if (!decimal.TryParse(
+                    group.InlineAmountText?.Replace(',', '.'),
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out decimal amount) || amount <= 0)
+            {
+                _dialogService.ShowError("Введите корректную сумму");
+                return;
+            }
+
+            if (group.GroupInlineCategory == null)
+            {
+                _dialogService.ShowError("Выберите категорию");
+                return;
+            }
+
+            try
+            {
+                var transaction = new Transaction
+                {
+                    Date        = group.Date,
+                    Amount      = amount,
+                    Type        = group.InlineType,
+                    CategoryId  = group.GroupInlineCategory.Id,
+                    Description = group.InlineDescription ?? string.Empty,
+                    PaymentType = group.InlinePaymentType
+                };
+
+                await _transactionService.AddAsync(transaction);
                 await LoadDataAsync();
             }
             catch (Exception ex)

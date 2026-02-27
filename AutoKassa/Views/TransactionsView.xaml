@@ -6,6 +6,127 @@
              Background="#F0F2F5">
 
     <UserControl.Resources>
+        <!-- Стиль ComboBoxItem для инлайн-форм -->
+        <Style x:Key="InlineComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="bd" CornerRadius="7" Padding="8,6" Background="Transparent">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="MouseOver">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bd" Storyboard.TargetProperty="Background">
+                                                <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#F0FDF4"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Selected">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bd" Storyboard.TargetProperty="Background">
+                                                <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#DCFCE7"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="SelectedMouseOver">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bd" Storyboard.TargetProperty="Background">
+                                                <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#DCFCE7"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль ComboBox для инлайн-форм (как фильтр по категории) -->
+        <Style x:Key="InlineComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource InlineComboBoxItemStyle}"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <!-- Toggle button — pill border -->
+                            <ToggleButton x:Name="ToggleButton" Focusable="False" Cursor="Hand"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="bd" Background="#F8F9FB" BorderBrush="#E8EAED"
+                                                BorderThickness="1" CornerRadius="9" Padding="8,5">
+                                            <VisualStateManager.VisualStateGroups>
+                                                <VisualStateGroup x:Name="CommonStates">
+                                                    <VisualState x:Name="Normal"/>
+                                                    <VisualState x:Name="MouseOver">
+                                                        <Storyboard>
+                                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bd" Storyboard.TargetProperty="Background">
+                                                                <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#F0F2F5"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                                            </ObjectAnimationUsingKeyFrames>
+                                                        </Storyboard>
+                                                    </VisualState>
+                                                </VisualStateGroup>
+                                            </VisualStateManager.VisualStateGroups>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <!-- Selected item + arrow (overlaid, non-interactive) -->
+                            <Grid IsHitTestVisible="False" Margin="8,0,28,0">
+                                <ContentPresenter x:Name="ContentSite"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                <TextBlock Text="Категория *" FontSize="12" Foreground="#98A2B3"
+                                           VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                            <TextBlock Text="▾" FontSize="10" Foreground="#98A2B3"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Margin="0,0,8,0" IsHitTestVisible="False"/>
+                            <!-- Dropdown popup -->
+                            <Popup x:Name="Popup" Placement="Bottom" StaysOpen="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True" Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="White" BorderBrush="#E8EAED" BorderThickness="1"
+                                        CornerRadius="10" Padding="4" Margin="0,4,0,0"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#000000" Opacity="0.1" BlurRadius="20" ShadowDepth="6" Direction="270"/>
+                                    </Border.Effect>
+                                    <ScrollViewer SnapsToDevicePixels="True" MaxHeight="200"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Стиль чекбокса выделения строки -->
         <Style x:Key="SelectionCheckBoxStyle" TargetType="CheckBox">
             <Setter Property="Width" Value="18"/>
@@ -172,7 +293,15 @@
                                                         BorderBrush="#E8EAED" BorderThickness="1"
                                                         CornerRadius="9" Padding="8,5">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="📅" FontSize="10" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <Viewbox Width="13" Height="13" Margin="0,0,5,0" VerticalAlignment="Center">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path Stroke="#98A2B3" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"
+                                                                      Data="M 5,4 L 19,4 A 2,2 0 0 1 21,6 L 21,20 A 2,2 0 0 1 19,22 L 5,22 A 2,2 0 0 1 3,20 L 3,6 A 2,2 0 0 1 5,4 Z"/>
+                                                                <Line X1="16" Y1="2" X2="16" Y2="6" Stroke="#98A2B3" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                                <Line X1="8" Y1="2" X2="8" Y2="6" Stroke="#98A2B3" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                                <Line X1="3" Y1="10" X2="21" Y2="10" Stroke="#98A2B3" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                            </Canvas>
+                                                        </Viewbox>
                                                         <TextBlock Text="{Binding PeriodLabel}" FontSize="12" Foreground="#344054" VerticalAlignment="Center"/>
                                                         <TextBlock Text=" ▾" FontSize="10" Foreground="#98A2B3" VerticalAlignment="Center"/>
                                                     </StackPanel>
@@ -655,66 +784,118 @@
                             Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="0,0,0,1"
                             Padding="14,8">
                         <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="170"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="130"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Type toggle ±-->
-                            <Button Grid.Column="0" Command="{Binding InlineToggleTypeCommand}"
-                                    Width="30" Height="30" Cursor="Hand" Margin="0,0,8,0">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="bg" CornerRadius="8">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Background" Value="#ef4444"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsInlineIncome}" Value="True">
-                                                            <Setter Property="Background" Value="#22c55e"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <TextBlock FontSize="16" FontWeight="Bold" Foreground="White"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="−"/>
+                            <!-- Type toggle: vertical [−]/[+], spans both rows -->
+                            <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Width="30" Margin="0,0,8,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <!-- Expense [−] -->
+                                <Button Grid.Row="0" Command="{Binding InlineSelectExpenseCommand}" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="bg" CornerRadius="6,6,0,0">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#FECACA"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsInlineIncome}" Value="True">
-                                                                <Setter Property="Text" Value="+"/>
+                                                            <DataTrigger Binding="{Binding IsInlineExpense}" Value="True">
+                                                                <Setter Property="Background" Value="#ef4444"/>
                                                             </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Opacity" Value="0.85"/>
+                                                            </Trigger>
                                                         </Style.Triggers>
                                                     </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
+                                                </Border.Style>
+                                                <TextBlock Text="−" FontSize="13" FontWeight="Bold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="#ef4444"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsInlineExpense}" Value="True">
+                                                                    <Setter Property="Foreground" Value="White"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Rectangle Grid.Row="1" Fill="White"/>
+                                <!-- Income [+] -->
+                                <Button Grid.Row="2" Command="{Binding InlineSelectIncomeCommand}" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="bg" CornerRadius="0,0,6,6">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#BBF7D0"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsInlineIncome}" Value="True">
+                                                                <Setter Property="Background" Value="#22c55e"/>
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Opacity" Value="0.85"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="+" FontSize="13" FontWeight="Bold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="#22c55e"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsInlineIncome}" Value="True">
+                                                                    <Setter Property="Foreground" Value="White"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </Grid>
 
                             <!-- Category ComboBox -->
-                            <Border Grid.Column="1" Background="White" BorderBrush="#E8EAED" BorderThickness="1"
-                                    CornerRadius="8" Margin="0,0,8,0">
-                                <ComboBox ItemsSource="{Binding InlineCategories}"
-                                          SelectedItem="{Binding InlineCategory}"
-                                          FontSize="12" Background="Transparent"
-                                          BorderThickness="0" MinHeight="0" Padding="6,4">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" FontSize="12"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </Border>
+                            <ComboBox Grid.Row="0" Grid.Column="1"
+                                      ItemsSource="{Binding InlineCategories}"
+                                      SelectedItem="{Binding InlineCategory}"
+                                      Style="{StaticResource InlineComboBoxStyle}"
+                                      Margin="0,0,8,0">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                     Fill="{Binding Color, Converter={StaticResource CategoryColorConverter}}"/>
+                                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="#344054" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
 
                             <!-- Amount TextBox -->
-                            <Border Grid.Column="2" Background="White" BorderBrush="#E8EAED" BorderThickness="1"
+                            <Border Grid.Row="0" Grid.Column="2" Background="White" BorderBrush="#E8EAED" BorderThickness="1"
                                     CornerRadius="8" Margin="0,0,8,0" Padding="8,5">
                                 <TextBox Text="{Binding InlineAmountText, UpdateSourceTrigger=PropertyChanged}"
                                          FontSize="13" FontFamily="Consolas"
@@ -754,81 +935,95 @@
                                 </TextBox>
                             </Border>
 
-                            <!-- Cash / NonCash mini-toggle -->
-                            <Border Grid.Column="3" Background="White" BorderBrush="#E8EAED" BorderThickness="1"
-                                    CornerRadius="8" Padding="2" Margin="0,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Button Command="{Binding InlineSelectCashCommand}" Cursor="Hand"
-                                            Height="24" MinWidth="36">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="bg" CornerRadius="6" Padding="6,0">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="Transparent"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
-                                                                    <Setter Property="Background" Value="#22c55e"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </Border.Style>
-                                                    <TextBlock FontSize="11" VerticalAlignment="Center">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="Нал"/>
-                                                                <Setter Property="Foreground" Value="#667085"/>
+                            <!-- Payment type toggle (single click-to-switch button) -->
+                            <Button Grid.Row="0" Grid.Column="3" Command="{Binding InlineTogglePaymentTypeCommand}"
+                                    Cursor="Hand" Margin="0,0,8,0" ToolTip="Нажмите, чтобы переключить тип оплаты">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="bg" CornerRadius="8" Padding="8,5" BorderThickness="1">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#EFF6FF"/>
+                                                    <Setter Property="BorderBrush" Value="#BFDBFE"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                            <Setter Property="Background" Value="#F0FDF4"/>
+                                                            <Setter Property="BorderBrush" Value="#BBF7D0"/>
+                                                        </DataTrigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Opacity" Value="0.85"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <!-- NonCash icon: credit card (visible when NonCash) -->
+                                                <Viewbox Width="15" Height="15" Margin="0,0,5,0">
+                                                    <Canvas Width="16" Height="16">
+                                                        <Canvas.Style>
+                                                            <Style TargetType="Canvas">
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
-                                                                        <Setter Property="Foreground" Value="White"/>
-                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                    </Button>
-                                    <Button Command="{Binding InlineSelectNonCashCommand}" Cursor="Hand"
-                                            Height="24" MinWidth="44">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="bg" CornerRadius="6" Padding="6,0">
-                                                    <Border.Style>
-                                                        <Style TargetType="Border">
-                                                            <Setter Property="Background" Value="Transparent"/>
+                                                        </Canvas.Style>
+                                                        <!-- Card outline -->
+                                                        <Rectangle Width="15" Height="10" Canvas.Left="0.5" Canvas.Top="3"
+                                                                   RadiusX="2" RadiusY="2" Stroke="#3b82f6" StrokeThickness="1.5" Fill="Transparent"/>
+                                                        <!-- Stripe -->
+                                                        <Rectangle Width="15" Height="2.5" Canvas.Left="0.5" Canvas.Top="5.5" Fill="#3b82f6"/>
+                                                        <!-- Chip dot -->
+                                                        <Rectangle Width="3.5" Height="2.5" Canvas.Left="2" Canvas.Top="9"
+                                                                   RadiusX="0.5" RadiusY="0.5" Fill="#3b82f6"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <!-- Cash icon: banknote (visible when Cash) -->
+                                                <Viewbox Width="15" Height="15" Margin="0,0,5,0">
+                                                    <Canvas Width="16" Height="16">
+                                                        <Canvas.Style>
+                                                            <Style TargetType="Canvas">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Canvas.Style>
+                                                        <!-- Bill outline -->
+                                                        <Rectangle Width="15" Height="9" Canvas.Left="0.5" Canvas.Top="3.5"
+                                                                   RadiusX="2" RadiusY="2" Stroke="#22c55e" StrokeThickness="1.5" Fill="Transparent"/>
+                                                        <!-- Coin circle -->
+                                                        <Ellipse Width="4.5" Height="4.5" Canvas.Left="5.75" Canvas.Top="5.75"
+                                                                 Stroke="#22c55e" StrokeThickness="1.5" Fill="Transparent"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <!-- Label -->
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="Безнал"/>
+                                                            <Setter Property="Foreground" Value="#3b82f6"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding InlineIsNonCash}" Value="True">
-                                                                    <Setter Property="Background" Value="#3b82f6"/>
+                                                                <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                    <Setter Property="Text" Value="Нал"/>
+                                                                    <Setter Property="Foreground" Value="#22c55e"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
-                                                    </Border.Style>
-                                                    <TextBlock FontSize="11" VerticalAlignment="Center">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="Безнал"/>
-                                                                <Setter Property="Foreground" Value="#667085"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding InlineIsNonCash}" Value="True">
-                                                                        <Setter Property="Foreground" Value="White"/>
-                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                    </Button>
-                                </StackPanel>
-                            </Border>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
 
                             <!-- Save button ✓ -->
-                            <Button Grid.Column="4" Command="{Binding InlineSaveCommand}"
+                            <Button Grid.Row="0" Grid.Column="4" Command="{Binding InlineSaveCommand}"
                                     Width="30" Height="30" Cursor="Hand" Margin="0,0,4,0"
                                     ToolTip="Сохранить (Enter)">
                                 <Button.Template>
@@ -860,7 +1055,7 @@
                             </Button>
 
                             <!-- Cancel button ✕ -->
-                            <Button Grid.Column="5" Command="{Binding InlineCancelCommand}"
+                            <Button Grid.Row="0" Grid.Column="5" Command="{Binding InlineCancelCommand}"
                                     Width="30" Height="30" Cursor="Hand" ToolTip="Отмена (Esc)">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
@@ -888,6 +1083,46 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
+
+                            <!-- Description (Row 1) -->
+                            <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5"
+                                    Background="White" BorderBrush="#E8EAED" BorderThickness="1"
+                                    CornerRadius="8" Padding="8,5" Margin="0,5,0,0">
+                                <TextBox Text="{Binding InlineDescription, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="12" Background="Transparent" BorderThickness="0"
+                                         VerticalContentAlignment="Center" Foreground="#344054">
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Key="Enter"  Command="{Binding InlineSaveCommand}"/>
+                                        <KeyBinding Key="Escape" Command="{Binding InlineCancelCommand}"/>
+                                    </TextBox.InputBindings>
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="TextBox">
+                                                        <Grid>
+                                                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="Описание (необязательно)" Foreground="#C0C7D4" FontSize="12"
+                                                                       VerticalAlignment="Center" IsHitTestVisible="False">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </Border>
 
                         </Grid>
                     </Border>
@@ -925,13 +1160,371 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding DateLabel}" FontSize="12"
-                                                               FontWeight="SemiBold" Foreground="#344054"
-                                                               VerticalAlignment="Center"/>
+                                                    <!-- Date label + "+ добавить" button -->
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DateLabel}" FontSize="12"
+                                                                   FontWeight="SemiBold" Foreground="#344054"
+                                                                   VerticalAlignment="Center"/>
+                                                        <Button Command="{Binding OpenGroupInlineCommand}"
+                                                                Cursor="Hand" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="bd" Background="Transparent"
+                                                                            CornerRadius="6" Padding="6,2">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="+" FontSize="12" FontWeight="SemiBold"
+                                                                                       Foreground="#98A2B3" Margin="0,0,3,0"
+                                                                                       VerticalAlignment="Center"/>
+                                                                            <TextBlock Text="добавить" FontSize="12"
+                                                                                       Foreground="#98A2B3" VerticalAlignment="Center"/>
+                                                                        </StackPanel>
+                                                                        <VisualStateManager.VisualStateGroups>
+                                                                            <VisualStateGroup x:Name="CommonStates">
+                                                                                <VisualState x:Name="Normal"/>
+                                                                                <VisualState x:Name="MouseOver">
+                                                                                    <Storyboard>
+                                                                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bd" Storyboard.TargetProperty="Background">
+                                                                                            <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#EAECF0"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                                                                        </ObjectAnimationUsingKeyFrames>
+                                                                                    </Storyboard>
+                                                                                </VisualState>
+                                                                            </VisualStateGroup>
+                                                                        </VisualStateManager.VisualStateGroups>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
+                                                    </StackPanel>
                                                     <TextBlock Grid.Column="1" Text="{Binding DayTotalFormatted}"
                                                                FontSize="11" FontWeight="SemiBold" FontFamily="Consolas"
                                                                Foreground="{Binding DayTotalColor, Converter={StaticResource CategoryColorConverter}}"
                                                                VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Per-group inline add row -->
+                                            <Border Visibility="{Binding IsInlineOpen, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                    Background="#F8FFFE" BorderBrush="#D1FAE5" BorderThickness="0,0,0,1"
+                                                    Padding="14,8,20,8">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="170"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                        <!-- Type toggle: vertical [−]/[+], spans both rows -->
+                                                        <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Width="30" Margin="0,0,8,0">
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="*"/>
+                                                                <RowDefinition Height="1"/>
+                                                                <RowDefinition Height="*"/>
+                                                            </Grid.RowDefinitions>
+                                                            <!-- Expense [−] -->
+                                                            <Button Grid.Row="0" Command="{Binding GroupInlineSelectExpenseCommand}" Cursor="Hand">
+                                                                <Button.Template>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="bg" CornerRadius="6,6,0,0">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="#FECACA"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsInlineIncome}" Value="False">
+                                                                                            <Setter Property="Background" Value="#ef4444"/>
+                                                                                        </DataTrigger>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="Opacity" Value="0.85"/>
+                                                                                        </Trigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="−" FontSize="13" FontWeight="Bold"
+                                                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Foreground" Value="#ef4444"/>
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsInlineIncome}" Value="False">
+                                                                                                <Setter Property="Foreground" Value="White"/>
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Button.Template>
+                                                            </Button>
+                                                            <Rectangle Grid.Row="1" Fill="White"/>
+                                                            <!-- Income [+] -->
+                                                            <Button Grid.Row="2" Command="{Binding GroupInlineSelectIncomeCommand}" Cursor="Hand">
+                                                                <Button.Template>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="bg" CornerRadius="0,0,6,6">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="#BBF7D0"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsInlineIncome}" Value="True">
+                                                                                            <Setter Property="Background" Value="#22c55e"/>
+                                                                                        </DataTrigger>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="Opacity" Value="0.85"/>
+                                                                                        </Trigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="+" FontSize="13" FontWeight="Bold"
+                                                                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Foreground" Value="#22c55e"/>
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsInlineIncome}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="White"/>
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Button.Template>
+                                                            </Button>
+                                                        </Grid>
+
+                                                        <!-- Category (с маркерами) -->
+                                                        <ComboBox Grid.Row="0" Grid.Column="1"
+                                                                  ItemsSource="{Binding GroupInlineCategories}"
+                                                                  SelectedItem="{Binding GroupInlineCategory}"
+                                                                  Style="{StaticResource InlineComboBoxStyle}"
+                                                                  Margin="0,0,8,0">
+                                                            <ComboBox.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                                                 Fill="{Binding Color, Converter={StaticResource CategoryColorConverter}}"/>
+                                                                        <TextBlock Text="{Binding Name}" FontSize="12" Foreground="#344054" VerticalAlignment="Center"/>
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </ComboBox.ItemTemplate>
+                                                        </ComboBox>
+
+                                                        <!-- Amount -->
+                                                        <Border Grid.Row="0" Grid.Column="2" Background="White" BorderBrush="#E8EAED"
+                                                                BorderThickness="1" CornerRadius="8" Margin="0,0,8,0" Padding="8,5">
+                                                            <TextBox Text="{Binding InlineAmountText, UpdateSourceTrigger=PropertyChanged}"
+                                                                     FontSize="13" FontFamily="Consolas"
+                                                                     Background="Transparent" BorderThickness="0"
+                                                                     VerticalContentAlignment="Center" Foreground="#1A1D23">
+                                                                <TextBox.InputBindings>
+                                                                    <KeyBinding Key="Enter"  Command="{Binding GroupInlineSaveCommand}"/>
+                                                                    <KeyBinding Key="Escape" Command="{Binding GroupInlineCancelCommand}"/>
+                                                                </TextBox.InputBindings>
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox">
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="TextBox">
+                                                                                    <Grid>
+                                                                                        <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                                                                        <TextBlock Text="0.00" Foreground="#98A2B3" FontSize="13"
+                                                                                                   FontFamily="Consolas" VerticalAlignment="Center"
+                                                                                                   IsHitTestVisible="False">
+                                                                                            <TextBlock.Style>
+                                                                                                <Style TargetType="TextBlock">
+                                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                                    <Style.Triggers>
+                                                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                                                        </DataTrigger>
+                                                                                                    </Style.Triggers>
+                                                                                                </Style>
+                                                                                            </TextBlock.Style>
+                                                                                        </TextBlock>
+                                                                                    </Grid>
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                        </Border>
+
+                                                        <!-- Payment type toggle -->
+                                                        <Button Grid.Row="0" Grid.Column="3" Command="{Binding GroupInlineTogglePaymentCommand}"
+                                                                Cursor="Hand" Margin="0,0,8,0" ToolTip="Переключить тип оплаты">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="bg" CornerRadius="8" Padding="8,5" BorderThickness="1">
+                                                                        <Border.Style>
+                                                                            <Style TargetType="Border">
+                                                                                <Setter Property="Background" Value="#EFF6FF"/>
+                                                                                <Setter Property="BorderBrush" Value="#BFDBFE"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                                        <Setter Property="Background" Value="#F0FDF4"/>
+                                                                                        <Setter Property="BorderBrush" Value="#BBF7D0"/>
+                                                                                    </DataTrigger>
+                                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                                        <Setter Property="Opacity" Value="0.85"/>
+                                                                                    </Trigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Border.Style>
+                                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                            <!-- NonCash icon -->
+                                                                            <Viewbox Width="15" Height="15" Margin="0,0,5,0">
+                                                                                <Canvas Width="16" Height="16">
+                                                                                    <Canvas.Style>
+                                                                                        <Style TargetType="Canvas">
+                                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Canvas.Style>
+                                                                                    <Rectangle Width="15" Height="10" Canvas.Left="0.5" Canvas.Top="3" RadiusX="2" RadiusY="2" Stroke="#3b82f6" StrokeThickness="1.5" Fill="Transparent"/>
+                                                                                    <Rectangle Width="15" Height="2.5" Canvas.Left="0.5" Canvas.Top="5.5" Fill="#3b82f6"/>
+                                                                                    <Rectangle Width="3.5" Height="2.5" Canvas.Left="2" Canvas.Top="9" RadiusX="0.5" RadiusY="0.5" Fill="#3b82f6"/>
+                                                                                </Canvas>
+                                                                            </Viewbox>
+                                                                            <!-- Cash icon -->
+                                                                            <Viewbox Width="15" Height="15" Margin="0,0,5,0">
+                                                                                <Canvas Width="16" Height="16">
+                                                                                    <Canvas.Style>
+                                                                                        <Style TargetType="Canvas">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Canvas.Style>
+                                                                                    <Rectangle Width="15" Height="9" Canvas.Left="0.5" Canvas.Top="3.5" RadiusX="2" RadiusY="2" Stroke="#22c55e" StrokeThickness="1.5" Fill="Transparent"/>
+                                                                                    <Ellipse Width="4.5" Height="4.5" Canvas.Left="5.75" Canvas.Top="5.75" Stroke="#22c55e" StrokeThickness="1.5" Fill="Transparent"/>
+                                                                                </Canvas>
+                                                                            </Viewbox>
+                                                                            <!-- Label -->
+                                                                            <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Text" Value="Безнал"/>
+                                                                                        <Setter Property="Foreground" Value="#3b82f6"/>
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                                                <Setter Property="Text" Value="Нал"/>
+                                                                                                <Setter Property="Foreground" Value="#22c55e"/>
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
+
+                                                        <!-- Save ✓ -->
+                                                        <Button Grid.Row="0" Grid.Column="4" Command="{Binding GroupInlineSaveCommand}"
+                                                                Width="30" Height="30" Cursor="Hand" Margin="0,0,4,0" ToolTip="Сохранить (Enter)">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="bg" Background="#22c55e" CornerRadius="8">
+                                                                        <TextBlock Text="✓" FontSize="14" FontWeight="Bold" Foreground="White"
+                                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        <VisualStateManager.VisualStateGroups>
+                                                                            <VisualStateGroup x:Name="CommonStates">
+                                                                                <VisualState x:Name="Normal"/>
+                                                                                <VisualState x:Name="MouseOver">
+                                                                                    <Storyboard>
+                                                                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bg" Storyboard.TargetProperty="Background">
+                                                                                            <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#16a34a"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                                                                        </ObjectAnimationUsingKeyFrames>
+                                                                                    </Storyboard>
+                                                                                </VisualState>
+                                                                            </VisualStateGroup>
+                                                                        </VisualStateManager.VisualStateGroups>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
+
+                                                        <!-- Cancel ✕ -->
+                                                        <Button Grid.Row="0" Grid.Column="5" Command="{Binding GroupInlineCancelCommand}"
+                                                                Width="30" Height="30" Cursor="Hand" ToolTip="Отмена (Esc)">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border x:Name="bg" Background="#F0F2F5" CornerRadius="8">
+                                                                        <TextBlock Text="✕" FontSize="13" Foreground="#667085"
+                                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        <VisualStateManager.VisualStateGroups>
+                                                                            <VisualStateGroup x:Name="CommonStates">
+                                                                                <VisualState x:Name="Normal"/>
+                                                                                <VisualState x:Name="MouseOver">
+                                                                                    <Storyboard>
+                                                                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="bg" Storyboard.TargetProperty="Background">
+                                                                                            <DiscreteObjectKeyFrame KeyTime="0"><DiscreteObjectKeyFrame.Value><SolidColorBrush Color="#E2E5EA"/></DiscreteObjectKeyFrame.Value></DiscreteObjectKeyFrame>
+                                                                                        </ObjectAnimationUsingKeyFrames>
+                                                                                    </Storyboard>
+                                                                                </VisualState>
+                                                                            </VisualStateGroup>
+                                                                        </VisualStateManager.VisualStateGroups>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
+
+                                                    <!-- Description (Row 1) -->
+                                                    <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5"
+                                                            Background="White" BorderBrush="#E8EAED"
+                                                            BorderThickness="1" CornerRadius="8" Padding="8,5" Margin="0,5,0,0">
+                                                        <TextBox Text="{Binding InlineDescription, UpdateSourceTrigger=PropertyChanged}"
+                                                                 FontSize="12" Background="Transparent" BorderThickness="0"
+                                                                 VerticalContentAlignment="Center" Foreground="#344054">
+                                                            <TextBox.InputBindings>
+                                                                <KeyBinding Key="Enter"  Command="{Binding GroupInlineSaveCommand}"/>
+                                                                <KeyBinding Key="Escape" Command="{Binding GroupInlineCancelCommand}"/>
+                                                            </TextBox.InputBindings>
+                                                            <TextBox.Style>
+                                                                <Style TargetType="TextBox">
+                                                                    <Setter Property="Template">
+                                                                        <Setter.Value>
+                                                                            <ControlTemplate TargetType="TextBox">
+                                                                                <Grid>
+                                                                                    <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                                                                    <TextBlock Text="Описание (необязательно)" Foreground="#C0C7D4" FontSize="12"
+                                                                                               VerticalAlignment="Center" IsHitTestVisible="False">
+                                                                                        <TextBlock.Style>
+                                                                                            <Style TargetType="TextBlock">
+                                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                                <Style.Triggers>
+                                                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                                    </DataTrigger>
+                                                                                                </Style.Triggers>
+                                                                                            </Style>
+                                                                                        </TextBlock.Style>
+                                                                                    </TextBlock>
+                                                                                </Grid>
+                                                                            </ControlTemplate>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Style>
+                                                            </TextBox.Style>
+                                                        </TextBox>
+                                                    </Border>
                                                 </Grid>
                                             </Border>
 
