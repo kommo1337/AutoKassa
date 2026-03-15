@@ -1759,17 +1759,23 @@
               Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
 
             <!-- Backdrop -->
-            <Rectangle Fill="#80000000"/>
+            <Rectangle Fill="#66000000"/>
 
             <!-- Modal card -->
-            <Border Background="White" CornerRadius="16"
-                    MaxWidth="470" MaxHeight="660"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="40" ShadowDepth="8" Direction="270"/>
-                </Border.Effect>
-                <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
-            </Border>
+            <Grid MaxWidth="470" MaxHeight="750"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  UseLayoutRounding="True" SnapsToDevicePixels="True">
+                <!-- Shadow layer (separate, no children affected) -->
+                <Border Background="White" CornerRadius="20">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="48" ShadowDepth="10" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <!-- Content layer (no Effect — text stays crisp) -->
+                <Border Background="White" CornerRadius="20" ClipToBounds="True">
+                    <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
+                </Border>
+            </Grid>
 
         </Grid>
 

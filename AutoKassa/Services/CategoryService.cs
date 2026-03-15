@@ -23,6 +23,7 @@ namespace AutoKassa.Services
         {
             return await _context.Categories
                 .OrderBy(c => c.Type)
+                .ThenBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
                 .ToListAsync();
         }
@@ -35,6 +36,7 @@ namespace AutoKassa.Services
             return await _context.Categories
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.Type)
+                .ThenBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
                 .ToListAsync();
         }
@@ -52,7 +54,8 @@ namespace AutoKassa.Services
             }
 
             return await query
-                .OrderBy(c => c.Name)
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
                 .ToListAsync();
         }
 
@@ -147,6 +150,19 @@ namespace AutoKassa.Services
             }
 
             return await query.AnyAsync();
+        }
+
+        public async Task ReorderAsync(List<(int Id, int SortOrder)> updates)
+        {
+            foreach (var (id, sortOrder) in updates)
+            {
+                var category = await _context.Categories.FindAsync(id);
+                if (category != null)
+                {
+                    category.SortOrder = sortOrder;
+                }
+            }
+            await _context.SaveChangesAsync();
         }
     }
 }

@@ -1,0 +1,312 @@
+<UserControl x:Class="AutoKassa.Views.CategoryManagerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             xmlns:vm="clr-namespace:AutoKassa.ViewModels">
+
+    <UserControl.Resources>
+        <converters:CategoryColorConverter x:Key="CategoryColorConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+        <!-- Category item style -->
+        <Style x:Key="CategoryListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="AllowDrop" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Delete button style -->
+        <Style x:Key="DeleteItemButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="4">
+                            <Viewbox Width="16" Height="16">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"
+                                          Stroke="#9ca3af" StrokeThickness="2" Fill="Transparent"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FFEBEE"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Add button style -->
+        <Style x:Key="AddCategoryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#6b7280"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#e5e7eb"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#f9fafb"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#d1d5db"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Category item DataTemplate -->
+        <DataTemplate x:Key="CategoryItemTemplate" DataType="{x:Type vm:CategoryItemViewModel}">
+            <Border x:Name="ItemBorder" Background="White" CornerRadius="8" Padding="10,8" Margin="0,2"
+                    BorderBrush="#f3f4f6" BorderThickness="1"
+                    AllowDrop="True"
+                    PreviewMouseLeftButtonDown="Item_PreviewMouseLeftButtonDown"
+                    PreviewMouseMove="Item_PreviewMouseMove"
+                    Drop="Item_Drop"
+                    DragOver="Item_DragOver">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Drag handle -->
+                    <TextBlock Grid.Column="0" Text="&#x2261;" FontSize="20" Foreground="#9ca3af"
+                               Cursor="SizeAll" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <!-- Color dot (click to open picker) -->
+                    <Grid Grid.Column="1" Width="28" Height="28" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <Button Command="{Binding ToggleColorPickerCommand}"
+                                Background="Transparent" BorderThickness="0" Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Ellipse Width="20" Height="20"
+                                             Fill="{Binding Color, Converter={StaticResource CategoryColorConverter}}"/>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <Popup IsOpen="{Binding IsColorPickerOpen}" StaysOpen="False"
+                               Placement="Bottom" AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                            <Border Background="White" CornerRadius="12" Padding="12"
+                                    BorderBrush="#e5e7eb" BorderThickness="1"
+                                    Margin="0,4,0,0">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000" Opacity="0.15" BlurRadius="16" ShadowDepth="4"/>
+                                </Border.Effect>
+                                <ItemsControl ItemsSource="{x:Static vm:CategoryItemViewModel.PresetColors}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="6"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button CommandParameter="{Binding}"
+                                                    Width="32" Height="32" Margin="3"
+                                                    Cursor="Hand" Background="Transparent" BorderThickness="0"
+                                                    Click="ColorSwatch_Click">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Ellipse Width="28" Height="28"
+                                                                 Fill="{Binding Converter={StaticResource CategoryColorConverter}}"/>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </Popup>
+                    </Grid>
+
+                    <!-- Name: TextBlock (normal) / TextBox (renaming) -->
+                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium"
+                                   VerticalAlignment="Center"
+                                   MouseLeftButtonDown="Name_MouseLeftButtonDown">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                 FontSize="14" FontWeight="Medium"
+                                 VerticalAlignment="Center"
+                                 Padding="4,2" BorderBrush="#d1d5db" BorderThickness="1"
+                                 LostFocus="RenameTextBox_LostFocus"
+                                 KeyDown="RenameTextBox_KeyDown"
+                                 IsVisibleChanged="RenameTextBox_IsVisibleChanged">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                    </Grid>
+
+                    <!-- Badges -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                        <Border CornerRadius="10" Padding="8,3" Margin="0,0,4,0" Background="#757575">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsActive}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="Неактивна" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                        </Border>
+                        <Border CornerRadius="10" Padding="8,3" Background="#FF9800">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="Системная" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Delete -->
+                    <Button Grid.Column="4" Style="{StaticResource DeleteItemButtonStyle}"
+                            Command="{Binding DeleteCommand}"/>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="ItemBorder" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="ItemBorder" Property="Background" Value="#f9fafb"/>
+                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#e5e7eb"/>
+                </Trigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Margin="24,20,24,0">
+            <TextBlock Text="Управление категориями" FontSize="20" FontWeight="SemiBold"
+                       VerticalAlignment="Center"/>
+            <Button HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                    Width="36" Height="36">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="8">
+                            <Viewbox Width="20" Height="20">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M18 6L6 18M6 6l12 12" Stroke="#6b7280" StrokeThickness="2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#f3f4f6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </Grid>
+
+        <!-- Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="24,16,24,24">
+            <StackPanel>
+                <!-- Income section -->
+                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#22c55e" Margin="0,0,0,8">
+                    <Run Text="&#x25CF;"/>
+                    <Run Text=" Доходы"/>
+                </TextBlock>
+
+                <ListBox ItemsSource="{Binding IncomeCategories}"
+                         ItemTemplate="{StaticResource CategoryItemTemplate}"
+                         ItemContainerStyle="{StaticResource CategoryListBoxItemStyle}"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         x:Name="IncomeListBox"
+                         Tag="Income"/>
+
+                <Button Content="+ Добавить категорию"
+                        Style="{StaticResource AddCategoryButtonStyle}"
+                        Command="{Binding AddIncomeCategoryCommand}"
+                        Margin="0,6,0,20"/>
+
+                <!-- Expense section -->
+                <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#ef4444" Margin="0,0,0,8">
+                    <Run Text="&#x25CF;"/>
+                    <Run Text=" Расходы"/>
+                </TextBlock>
+
+                <ListBox ItemsSource="{Binding ExpenseCategories}"
+                         ItemTemplate="{StaticResource CategoryItemTemplate}"
+                         ItemContainerStyle="{StaticResource CategoryListBoxItemStyle}"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         x:Name="ExpenseListBox"
+                         Tag="Expense"/>
+
+                <Button Content="+ Добавить категорию"
+                        Style="{StaticResource AddCategoryButtonStyle}"
+                        Command="{Binding AddExpenseCategoryCommand}"
+                        Margin="0,6,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -1,17 +1,12 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
-using AutoKassa.Views;
 using System.Collections.ObjectModel;
-using System.Windows;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    /// <summary>
-    /// ViewModel для экрана управления категориями
-    /// </summary>
     public class CategoriesViewModel : ViewModelBase
     {
         private readonly ICategoryService _categoryService;
@@ -23,6 +18,8 @@ namespace AutoKassa.ViewModels
         private Category _selectedCategory;
         private OperationType? _filterType;
         private bool _isLoading;
+        private bool _isModalOpen;
+        private CategoryManagerViewModel _managerViewModel;
 
         public CategoriesViewModel(
             ICategoryService categoryService,
@@ -36,49 +33,34 @@ namespace AutoKassa.ViewModels
             IncomeCategories = new ObservableCollection<Category>();
             ExpenseCategories = new ObservableCollection<Category>();
 
-            // Команды
             LoadCommand = new RelayCommand(async _ => await LoadCategoriesAsync());
-            AddCommand = new RelayCommand(_ => AddCategory());
-            EditCommand = new RelayCommand(_ => EditCategory(), _ => SelectedCategory != null);
+            OpenManagerCommand = new RelayCommand(_ => OpenManager());
             DeleteCommand = new RelayCommand(async _ => await DeleteCategoryAsync(), _ => SelectedCategory != null);
             FilterCommand = new RelayCommand<string>(type => ApplyFilter(type));
 
-            // Загрузка данных
             _ = LoadCategoriesAsync();
         }
 
-        #region Свойства
+        #region Properties
 
-        /// <summary>
-        /// Категории доходов
-        /// </summary>
         public ObservableCollection<Category> IncomeCategories
         {
             get => _incomeCategories;
             set => SetProperty(ref _incomeCategories, value);
         }
 
-        /// <summary>
-        /// Категории расходов
-        /// </summary>
         public ObservableCollection<Category> ExpenseCategories
         {
             get => _expenseCategories;
             set => SetProperty(ref _expenseCategories, value);
         }
 
-        /// <summary>
-        /// Выбранная категория
-        /// </summary>
         public Category SelectedCategory
         {
             get => _selectedCategory;
             set => SetProperty(ref _selectedCategory, value);
         }
 
-        /// <summary>
-        /// Фильтр по типу
-        /// </summary>
         public OperationType? FilterType
         {
             get => _filterType;
@@ -92,42 +74,40 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Показывать категории доходов
-        /// </summary>
         public bool ShowIncomeCategories => FilterType == null || FilterType == OperationType.Income;
-
-        /// <summary>
-        /// Показывать категории расходов
-        /// </summary>
         public bool ShowExpenseCategories => FilterType == null || FilterType == OperationType.Expense;
 
-        /// <summary>
-        /// Идет загрузка
-        /// </summary>
         public bool IsLoading
         {
             get => _isLoading;
             set => SetProperty(ref _isLoading, value);
         }
 
+        public bool IsModalOpen
+        {
+            get => _isModalOpen;
+            set => SetProperty(ref _isModalOpen, value);
+        }
+
+        public CategoryManagerViewModel ManagerViewModel
+        {
+            get => _managerViewModel;
+            set => SetProperty(ref _managerViewModel, value);
+        }
+
         #endregion
 
-        #region Команды
+        #region Commands
 
         public ICommand LoadCommand { get; }
-        public ICommand AddCommand { get; }
-        public ICommand EditCommand { get; }
+        public ICommand OpenManagerCommand { get; }
         public ICommand DeleteCommand { get; }
         public ICommand FilterCommand { get; }
 
         #endregion
 
-        #region Методы
+        #region Methods
 
-        /// <summary>
-        /// Загрузка категорий
-        /// </summary>
         private async Task LoadCategoriesAsync()
         {
             try
@@ -136,29 +116,16 @@ namespace AutoKassa.ViewModels
 
                 var categories = await _categoryService.GetAllAsync();
 
-                // Группируем по типам
                 var incomeCategories = categories.Where(c => c.Type == OperationType.Income).ToList();
                 var expenseCategories = categories.Where(c => c.Type == OperationType.Expense).ToList();
 
-                // Загружаем количество операций для каждой категории
-                foreach (var category in categories)
-                {
-                    // Сохраняем количество операций в Tag (или создайте отдельное свойство)
-                    var count = await _categoryService.GetOperationCountAsync(category.Id);
-                    // Можно использовать расширенную модель или dynamic свойство
-                }
-
                 IncomeCategories.Clear();
                 foreach (var cat in incomeCategories)
-                {
                     IncomeCategories.Add(cat);
-                }
 
                 ExpenseCategories.Clear();
                 foreach (var cat in expenseCategories)
-                {
                     ExpenseCategories.Add(cat);
-                }
             }
             catch (Exception ex)
             {
@@ -170,9 +137,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Применить фильтр
-        /// </summary>
         private void ApplyFilter(string type)
         {
             FilterType = type switch
@@ -183,53 +147,21 @@ namespace AutoKassa.ViewModels
             };
         }
 
-        /// <summary>
-        /// Добавить категорию
-        /// </summary>
-        private void AddCategory()
+        private void OpenManager()
         {
-            var settingsService = App.GetService<ISettingsService>();
-            var viewModel = new CategoryEditViewModel(_categoryService, _dialogService);
-            viewModel.InitializeForAdd();
-
-            var window = new CategoryEditView(viewModel)
+            var vm = new CategoryManagerViewModel(_categoryService, _toastService);
+            vm.OnClosed = () =>
             {
-                Owner = Application.Current.MainWindow
-            };
-
-            if (window.ShowDialog() == true)
-            {
+                IsModalOpen = false;
+                ManagerViewModel = null;
                 _ = LoadCategoriesAsync();
-            }
+            };
+            ManagerViewModel = vm;
+            IsModalOpen = true;
+            _ = vm.LoadAsync();
         }
 
-        /// <summary>
-        /// Редактировать категорию
-        /// </summary>
-        private void EditCategory()
-        {
-            // Получаем категорию из CommandParameter
-            var category = SelectedCategory;
-            if (category == null) return;
-
-            var viewModel = new CategoryEditViewModel(_categoryService, _dialogService);
-            viewModel.InitializeForEdit(category);
-
-            var window = new CategoryEditView(viewModel)
-            {
-                Owner = Application.Current.MainWindow
-            };
-
-            if (window.ShowDialog() == true)
-            {
-                _ = LoadCategoriesAsync();
-            }
-        }
-
-        /// <summary>
-        /// Удалить или деактивировать категорию
-        /// </summary>
-        private async System.Threading.Tasks.Task DeleteCategoryAsync()
+        private async Task DeleteCategoryAsync()
         {
             var category = SelectedCategory;
             if (category == null) return;
@@ -242,7 +174,7 @@ namespace AutoKassa.ViewModels
                 {
                     await _categoryService.DeactivateAsync(category.Id);
                     await LoadCategoriesAsync();
-                    _toastService.ShowInfo($"Категория «{category.Name}» скрыта из списков выбора");
+                    _toastService.ShowInfo($"Категория \u00ab{category.Name}\u00bb скрыта из списков выбора");
                 }
                 catch (Exception ex)
                 {
@@ -258,7 +190,7 @@ namespace AutoKassa.ViewModels
                     {
                         await LoadCategoriesAsync();
                         _toastService.ShowDeleteWithUndo(
-                            $"Категория «{category.Name}» удалена",
+                            $"Категория \u00ab{category.Name}\u00bb удалена",
                             async () =>
                             {
                                 var restored = new Category

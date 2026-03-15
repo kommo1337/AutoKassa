@@ -4,6 +4,7 @@
              xmlns:oxy="http://oxyplot.org/wpf"
              xmlns:vm="clr-namespace:AutoKassa.ViewModels"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             xmlns:views="clr-namespace:AutoKassa.Views"
              Background="{StaticResource ContentBgBrush}"
              FontFamily="Segoe UI"
              TextOptions.TextFormattingMode="Display">
@@ -135,6 +136,23 @@
     </UserControl.Resources>
 
     <Grid>
+
+        <!-- ===== MAIN CONTENT (blurs when modal open) ===== -->
+        <Grid x:Name="MainContent">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsModalOpen}" Value="True">
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <BlurEffect Radius="6"/>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <!-- Хедер -->
@@ -792,5 +810,32 @@
                            Foreground="{StaticResource MutedTextBrush}"/>
             </StackPanel>
         </Border>
+        </Grid>
+
+        <!-- ===== MODAL OVERLAY ===== -->
+        <Grid Panel.ZIndex="100"
+              Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+
+            <!-- Backdrop -->
+            <Rectangle Fill="#66000000"/>
+
+            <!-- Modal card -->
+            <Grid MaxWidth="470" MaxHeight="750"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  UseLayoutRounding="True" SnapsToDevicePixels="True">
+                <!-- Shadow layer (separate, no children affected) -->
+                <Border Background="White" CornerRadius="20">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="48" ShadowDepth="10" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <!-- Content layer (no Effect — text stays crisp) -->
+                <Border Background="White" CornerRadius="20" ClipToBounds="True">
+                    <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
+                </Border>
+            </Grid>
+
+        </Grid>
+
     </Grid>
 </UserControl>

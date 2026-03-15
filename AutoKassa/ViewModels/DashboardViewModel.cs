@@ -2,12 +2,10 @@ using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
-using AutoKassa.Views;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.ObjectModel;
-using System.Windows;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -70,6 +68,10 @@ namespace AutoKassa.ViewModels
         private decimal _statsAvgIncome;
         private decimal _todayBalance;
         private bool _hasTodayTransactions;
+
+        // Модальное окно
+        private bool _isModalOpen;
+        private TransactionEditViewModel _editViewModel;
 
         #endregion
 
@@ -457,6 +459,18 @@ namespace AutoKassa.ViewModels
         {
             get => _hasTodayTransactions;
             set => SetProperty(ref _hasTodayTransactions, value);
+        }
+
+        public bool IsModalOpen
+        {
+            get => _isModalOpen;
+            set => SetProperty(ref _isModalOpen, value);
+        }
+
+        public TransactionEditViewModel EditViewModel
+        {
+            get => _editViewModel;
+            set => SetProperty(ref _editViewModel, value);
         }
 
         public string TodayBalanceFormatted =>
@@ -911,22 +925,12 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void OpenAddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            bool saved = false;
-            var win = new Window
-            {
-                Title = "Новая операция",
-                Height = 620, Width = 470,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = Application.Current.MainWindow,
-                ResizeMode = ResizeMode.NoResize,
-                Content = new TransactionEditView { DataContext = vm }
-            };
-            vm.OnSaved = () => { saved = true; win.Close(); };
-            vm.OnCancelled = () => { win.Close(); };
-            win.ShowDialog();
-            if (saved) _ = LoadDataAsync();
+            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnCancelled = () => { IsModalOpen = false; };
+            EditViewModel = vm;
+            IsModalOpen = true;
         }
 
         /// <summary>
@@ -937,22 +941,12 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(t);
-            bool saved = false;
-            var win = new Window
-            {
-                Title = "Редактировать операцию",
-                Height = 620, Width = 470,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = Application.Current.MainWindow,
-                ResizeMode = ResizeMode.NoResize,
-                Content = new TransactionEditView { DataContext = vm }
-            };
-            vm.OnSaved = () => { saved = true; win.Close(); };
-            vm.OnCancelled = () => { win.Close(); };
-            win.ShowDialog();
-            if (saved) _ = LoadDataAsync();
+            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnCancelled = () => { IsModalOpen = false; };
+            EditViewModel = vm;
+            IsModalOpen = true;
         }
 
         /// <summary>

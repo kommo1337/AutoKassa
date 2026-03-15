@@ -748,7 +748,7 @@ namespace AutoKassa.ViewModels
 
         private void AddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
             vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
@@ -760,7 +760,7 @@ namespace AutoKassa.ViewModels
         {
             if (SelectedTransaction == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(SelectedTransaction);
             vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
             vm.OnCancelled = () => { IsModalOpen = false; };

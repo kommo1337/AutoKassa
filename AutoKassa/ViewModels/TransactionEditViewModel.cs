@@ -35,17 +35,24 @@ namespace AutoKassa.ViewModels
         private bool _calcWaiting;
 
         private readonly ISettingsService _settingsService;
+        private readonly IToastNotificationService _toastService;
+
+        // Category manager
+        private bool _isCategoryManagerOpen;
+        private CategoryManagerViewModel _categoryManagerViewModel;
 
         public TransactionEditViewModel(
             ITransactionService transactionService,
             ICategoryService categoryService,
             IDialogService dialogService,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IToastNotificationService toastService)
         {
             _transactionService = transactionService;
             _categoryService = categoryService;
             _dialogService = dialogService;
             _settingsService = settingsService;
+            _toastService = toastService;
 
             SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
             CancelCommand = new RelayCommand(_ => Cancel());
@@ -54,6 +61,7 @@ namespace AutoKassa.ViewModels
             SelectExpenseTypeCommand = new RelayCommand(_ => Type = OperationType.Expense);
             SelectIncomeTypeCommand = new RelayCommand(_ => Type = OperationType.Income);
             ToggleShowAllCategoriesCommand = new RelayCommand(_ => ShowAllCategories = !ShowAllCategories);
+            SelectCategoryCommand = new RelayCommand(p => { if (p is Category c) SelectedCategory = c; });
 
             // Calculator commands
             ToggleCalcCommand = new RelayCommand(_ => { IsCalcOpen = !IsCalcOpen; if (IsCalcOpen) CalcClear(); });
@@ -62,6 +70,7 @@ namespace AutoKassa.ViewModels
             CalcEqualsCommand = new RelayCommand(_ => CalcEquals());
             CalcClearCommand = new RelayCommand(_ => CalcClear());
             CalcBackspaceCommand = new RelayCommand(_ => CalcBackspace());
+            OpenCategoryManagerCommand = new RelayCommand(_ => OpenCategoryManager());
 
             Date = DateTime.Now;
             _type = _settingsService.GetDefaultOperationType();
@@ -104,8 +113,14 @@ namespace AutoKassa.ViewModels
         public DateTime Date
         {
             get => _date;
-            set => SetProperty(ref _date, value);
+            set
+            {
+                if (SetProperty(ref _date, value))
+                    OnPropertyChanged(nameof(TodayLabel));
+            }
         }
+
+        public string TodayLabel => Date.Date == DateTime.Today ? "(сегодня)" : "";
 
         public decimal Amount
         {
@@ -178,8 +193,8 @@ namespace AutoKassa.ViewModels
         public bool HasMoreCategories => Categories.Count > 4;
 
         public string ShowMoreLabel => ShowAllCategories
-            ? "Свернуть ▴"
-            : $"Ещё ({Math.Max(0, Categories.Count - 4)}) ▾";
+            ? "Свернуть"
+            : "Ещё ▾";
 
         public string AmountError
         {
@@ -238,6 +253,18 @@ namespace AutoKassa.ViewModels
             set => SetProperty(ref _calcDisplay, value);
         }
 
+        public bool IsCategoryManagerOpen
+        {
+            get => _isCategoryManagerOpen;
+            set => SetProperty(ref _isCategoryManagerOpen, value);
+        }
+
+        public CategoryManagerViewModel CategoryManagerViewModel
+        {
+            get => _categoryManagerViewModel;
+            set => SetProperty(ref _categoryManagerViewModel, value);
+        }
+
         #endregion
 
         #region Commands
@@ -249,12 +276,14 @@ namespace AutoKassa.ViewModels
         public ICommand SelectExpenseTypeCommand { get; }
         public ICommand SelectIncomeTypeCommand { get; }
         public ICommand ToggleShowAllCategoriesCommand { get; }
+        public ICommand SelectCategoryCommand { get; }
         public ICommand ToggleCalcCommand { get; }
         public ICommand CalcDigitCommand { get; }
         public ICommand CalcOpCommand { get; }
         public ICommand CalcEqualsCommand { get; }
         public ICommand CalcClearCommand { get; }
         public ICommand CalcBackspaceCommand { get; }
+        public ICommand OpenCategoryManagerCommand { get; }
 
         #endregion
 
@@ -316,6 +345,20 @@ namespace AutoKassa.ViewModels
                 Categories = new List<Category>();
                 _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
             }
+        }
+
+        private void OpenCategoryManager()
+        {
+            var vm = new CategoryManagerViewModel(_categoryService, _toastService);
+            vm.OnClosed = async () =>
+            {
+                IsCategoryManagerOpen = false;
+                CategoryManagerViewModel = null;
+                await LoadCategoriesAsync();
+            };
+            CategoryManagerViewModel = vm;
+            IsCategoryManagerOpen = true;
+            _ = vm.LoadAsync();
         }
 
         private void ValidateAmount()

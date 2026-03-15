@@ -126,6 +126,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#6366f1",
+                    SortOrder = 1,
                     CreatedAt = now
                 },
                 new Category
@@ -136,6 +137,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#f59e0b",
+                    SortOrder = 2,
                     CreatedAt = now
                 },
                 new Category
@@ -146,6 +148,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#14b8a6",
+                    SortOrder = 3,
                     CreatedAt = now
                 },
                 new Category
@@ -156,6 +159,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#94a3b8",
+                    SortOrder = 4,
                     CreatedAt = now
                 }
             );
@@ -170,6 +174,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#ec4899",
+                    SortOrder = 1,
                     CreatedAt = now
                 },
                 new Category
@@ -180,6 +185,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#f97316",
+                    SortOrder = 2,
                     CreatedAt = now
                 },
                 new Category
@@ -190,6 +196,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#8b5cf6",
+                    SortOrder = 3,
                     CreatedAt = now
                 },
                 new Category
@@ -200,6 +207,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#06b6d4",
+                    SortOrder = 4,
                     CreatedAt = now
                 },
                 new Category
@@ -210,6 +218,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#84cc16",
+                    SortOrder = 5,
                     CreatedAt = now
                 },
                 new Category
@@ -220,6 +229,7 @@ namespace AutoKassa.Services
                     IsActive = true,
                     IsSystem = true,
                     Color = "#ef4444",
+                    SortOrder = 6,
                     CreatedAt = now
                 }
             );

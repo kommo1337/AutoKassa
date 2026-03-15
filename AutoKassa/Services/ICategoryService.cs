@@ -57,5 +57,7 @@ namespace AutoKassa.Services
         /// Проверить существование категории с таким именем и типом
         /// </summary>
         Task<bool> ExistsAsync(string name, OperationType type, int? excludeId = null);
+
+        Task ReorderAsync(List<(int Id, int SortOrder)> updates);
     }
 }

@@ -48,6 +48,11 @@ namespace AutoKassa.Models
         public string Color { get; set; }
 
         /// <summary>
+        /// Порядок сортировки
+        /// </summary>
+        public int SortOrder { get; set; }
+
+        /// <summary>
         /// Дата создания категории
         /// </summary>
         [Required]
