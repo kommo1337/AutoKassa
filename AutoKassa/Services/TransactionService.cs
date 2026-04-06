@@ -137,7 +137,7 @@ namespace AutoKassa.Services
             var rows = await _context.Transactions
                 .Where(t => !t.IsDeleted && t.Date >= from && t.Date <= dateTo)
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount), Count = g.Count() })
+                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount), Count = g.Count() })
                 .ToListAsync(ct);
 
             var incomeRow  = rows.FirstOrDefault(r => r.Type == OperationType.Income);
@@ -161,8 +161,8 @@ namespace AutoKassa.Services
                 .Select(g => new
                 {
                     Date    = g.Key,
-                    Income  = g.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount),
-                    Expense = g.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount)
+                    Income  = (decimal)g.Where(t => t.Type == OperationType.Income).Sum(t => (double)t.Amount),
+                    Expense = (decimal)g.Where(t => t.Type == OperationType.Expense).Sum(t => (double)t.Amount)
                 })
                 .OrderBy(x => x.Date)
                 .ToListAsync(ct);
@@ -185,12 +185,12 @@ namespace AutoKassa.Services
             var rows = await _context.Transactions
                 .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date <= dateTo)
                 .GroupBy(t => t.Category.Name ?? "?")
-                .Select(g => new { Name = g.Key, Total = g.Sum(t => t.Amount) })
+                .Select(g => new { Name = g.Key, Total = g.Sum(t => (double)t.Amount) })
                 .OrderByDescending(x => x.Total)
                 .Take(count)
                 .ToListAsync(ct);
 
-            return rows.Select(r => (r.Name, r.Total)).ToList();
+            return rows.Select(r => (r.Name, (decimal)r.Total)).ToList();
         }
 
         #region Вспомогательные методы

@@ -17,6 +17,7 @@ namespace AutoKassa.ViewModels
         private bool _isEditMode;
         private DateTime _date;
         private decimal _amount;
+        private string _amountText = "";
         private OperationType _type;
         private Category _selectedCategory;
         private string _description = string.Empty;
@@ -121,15 +122,28 @@ namespace AutoKassa.ViewModels
 
         public string TodayLabel => Date.Date == DateTime.Today ? "(сегодня)" : "";
 
-        public decimal Amount
+        public string AmountText
         {
-            get => _amount;
+            get => _amountText;
             set
             {
-                if (SetProperty(ref _amount, value))
-                    ValidateAmount();
+                if (SetProperty(ref _amountText, value))
+                {
+                    var normalized = (value ?? "").Replace(',', '.');
+                    _amount = decimal.TryParse(normalized, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal d) ? d : 0;
+
+                    if (!string.IsNullOrEmpty(value))
+                        ValidateAmount();
+                    else
+                    {
+                        ClearErrors(nameof(Amount));
+                        OnPropertyChanged(nameof(AmountError));
+                    }
+                }
             }
         }
+
+        public decimal Amount => _amount;
 
         public OperationType Type
         {
@@ -292,14 +306,17 @@ namespace AutoKassa.ViewModels
         {
             IsEditMode = false;
             Date = DateTime.Now;
-            Amount = 0;
+            _amount = 0;
+            _amountText = "";
+            OnPropertyChanged(nameof(AmountText));
+            ClearErrors(nameof(Amount));
+            OnPropertyChanged(nameof(AmountError));
             Type = OperationType.Expense;
             Description = string.Empty;
             SelectedPaymentType = PaymentType.Cash;
             ShowAllCategories = false;
             CalcClear();
             IsCalcOpen = false;
-            ValidateAmount();
             ValidateCategory();
         }
 
@@ -309,7 +326,7 @@ namespace AutoKassa.ViewModels
             _transaction = transaction;
 
             Date = transaction.Date;
-            Amount = transaction.Amount;
+            AmountText = transaction.Amount.ToString(CultureInfo.InvariantCulture);
             Type = transaction.Type;
             Description = transaction.Description;
             SelectedPaymentType = transaction.PaymentType;
@@ -366,9 +383,9 @@ namespace AutoKassa.ViewModels
 
         private void ValidateAmount()
         {
-            if (Amount <= 0)
+            if (_amount <= 0)
                 SetErrors(nameof(Amount), new[] { "Сумма должна быть больше 0" });
-            else if (Amount > 999_999_999)
+            else if (_amount > 999_999_999)
                 SetErrors(nameof(Amount), new[] { "Сумма слишком большая" });
             else
                 ClearErrors(nameof(Amount));
@@ -384,7 +401,7 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(SelectedCategory));
         }
 
-        private bool CanSave() => !HasErrors;
+        private bool CanSave() => !HasErrors && !string.IsNullOrEmpty(_amountText);
 
         private async System.Threading.Tasks.Task SaveAsync()
         {
@@ -479,7 +496,7 @@ namespace AutoKassa.ViewModels
                 if (decimal.TryParse(_calcCurrentInput.Replace(',', '.'),
                     NumberStyles.Any, CultureInfo.InvariantCulture, out decimal v))
                 {
-                    Amount = v;
+                    AmountText = v.ToString(CultureInfo.InvariantCulture);
                     IsCalcOpen = false;
                 }
                 return;
@@ -491,7 +508,7 @@ namespace AutoKassa.ViewModels
 
             var result = ComputeCalc(_calcLeft, right, _calcOp);
             CalcDisplay = $"{_calcLeft} {_calcOp} {right} = {result}";
-            Amount = result;
+            AmountText = result.ToString(CultureInfo.InvariantCulture);
             _calcLeft = result;
             _calcOp = null;
             _calcCurrentInput = result.ToString(CultureInfo.InvariantCulture);

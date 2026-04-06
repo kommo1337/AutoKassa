@@ -28,7 +28,9 @@
       "Bash(python3:*)",
       "Bash(xargs cat:*)",
       "Bash(xargs grep:*)",
-      "Bash(grep -E \"Service\\\\.cs$\")"
+      "Bash(grep -E \"Service\\\\.cs$\")",
+      "Bash(grep -r \"xunit\\\\|nunit\\\\|mstest\\\\|Test\\\\|test\" *.sln AutoKassa/*.csproj MigrationHelper/*.csproj)",
+      "Bash(dotnet test:*)"
     ]
   }
 }

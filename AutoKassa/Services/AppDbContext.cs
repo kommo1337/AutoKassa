@@ -9,6 +9,10 @@ namespace AutoKassa.Services
     /// </summary>
     public class AppDbContext : DbContext
     {
+        public AppDbContext() { }
+
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
         /// <summary>
         /// Таблица финансовых операций
         /// </summary>

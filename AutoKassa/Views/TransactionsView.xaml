@@ -1599,6 +1599,7 @@
                                                                     <ColumnDefinition Width="Auto"/>
                                                                     <ColumnDefinition Width="155"/>
                                                                     <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="80"/>
                                                                     <ColumnDefinition Width="24"/>
                                                                     <ColumnDefinition Width="115"/>
                                                                 </Grid.ColumnDefinitions>
@@ -1643,8 +1644,16 @@
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
 
+                                                                <!-- Date/Time -->
+                                                                <TextBlock Grid.Column="4"
+                                                                           Text="{Binding Transaction.Date, StringFormat={}{0:HH:mm}}"
+                                                                           FontSize="11" FontFamily="Consolas"
+                                                                           Foreground="#9CA3AF"
+                                                                           VerticalAlignment="Center"
+                                                                           HorizontalAlignment="Center"/>
+
                                                                 <!-- Payment icon -->
-                                                                <ContentControl Grid.Column="4"
+                                                                <ContentControl Grid.Column="5"
                                                                                 HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                     <ContentControl.Style>
                                                                         <Style TargetType="ContentControl">
@@ -1659,7 +1668,7 @@
                                                                 </ContentControl>
 
                                                                 <!-- Amount -->
-                                                                <TextBlock Grid.Column="5" FontSize="13" FontWeight="SemiBold"
+                                                                <TextBlock Grid.Column="6" FontSize="13" FontWeight="SemiBold"
                                                                            FontFamily="Consolas" TextAlignment="Right"
                                                                            VerticalAlignment="Center"
                                                                            Foreground="{Binding Transaction.Type, Converter={StaticResource OperationTypeToColorConverter}}">

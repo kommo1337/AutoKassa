@@ -1,5 +1,4 @@
 using AutoKassa.ViewModels;
-using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,25 +35,5 @@ namespace AutoKassa.Views
             e.Handled = regex.IsMatch(e.Text);
         }
 
-        private void AmountTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (sender is not TextBox textBox) return;
-            if (DataContext is not TransactionEditViewModel vm) return;
-
-            string text = textBox.Text;
-
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                vm.Amount = 0;
-                return;
-            }
-
-            text = text.Replace('.', ',');
-
-            if (decimal.TryParse(text, NumberStyles.Any, CultureInfo.CurrentCulture, out decimal result))
-            {
-                vm.Amount = result;
-            }
-        }
     }
 }

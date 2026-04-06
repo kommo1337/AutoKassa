@@ -222,19 +222,34 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox x:Name="AmountTextBox"
-                                 Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged}"
+                                 Text="{Binding AmountText, UpdateSourceTrigger=PropertyChanged, ValidatesOnNotifyDataErrors=False}"
                                  FontSize="32" FontWeight="SemiBold" FontFamily="Consolas"
                                  TextAlignment="Center"
                                  Background="Transparent" BorderThickness="0"
                                  HorizontalContentAlignment="Center"
                                  Foreground="#1A1D23"
                                  TabIndex="0"
-                                 PreviewTextInput="AmountTextBox_PreviewTextInput"
-                                 TextChanged="AmountTextBox_TextChanged">
+                                 PreviewTextInput="AmountTextBox_PreviewTextInput">
                             <TextBox.InputBindings>
                                 <KeyBinding Key="Enter" Command="{Binding SaveCommand}"/>
                             </TextBox.InputBindings>
                         </TextBox>
+                        <!-- Placeholder -->
+                        <TextBlock Text="0"
+                                   FontSize="32" FontWeight="SemiBold" FontFamily="Consolas"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="#C8CCCF" IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AmountText}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                         <!-- Calculator toggle button -->
                         <Button x:Name="CalcToggleBtn" Grid.Column="1" Command="{Binding ToggleCalcCommand}"
                                 Cursor="Hand" Width="34" Height="34" ToolTip="Калькулятор">
