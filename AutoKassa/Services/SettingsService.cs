@@ -1,6 +1,8 @@
 ﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 
@@ -327,29 +329,29 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
-        /// Создать резервную копию базы данных
+        /// Создать резервную копию базы данных через VACUUM INTO (консистентная копия без остановки)
         /// </summary>
         public async Task<string?> CreateBackupAsync(string backupPath)
         {
             try
             {
-                // Получаем путь к текущей базе данных
                 var dbPath = _context.Database.GetDbConnection().DataSource;
-
                 if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
                     return null;
 
-                // Создаем директорию если не существует
                 if (!Directory.Exists(backupPath))
                     Directory.CreateDirectory(backupPath);
 
-                // Формируем имя файла резервной копии
                 var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var backupFileName = $"AutoKassa_Backup_{timestamp}.db";
-                var backupFilePath = Path.Combine(backupPath, backupFileName);
+                var backupFilePath = Path.Combine(backupPath, $"AutoKassa_Backup_{timestamp}.db");
 
-                // Копируем файл базы данных
-                await Task.Run(() => File.Copy(dbPath, backupFilePath, overwrite: true));
+                // VACUUM INTO создаёт чистую, полностью записанную копию без закрытия соединений.
+                // В отличие от File.Copy, корректно обрабатывает WAL-файлы SQLite.
+                var escapedPath = backupFilePath.Replace("'", "''");
+                await _context.Database.ExecuteSqlRawAsync($"VACUUM INTO '{escapedPath}'");
+
+                // Удаляем старые бэкапы сверх лимита
+                CleanupOldBackups(backupPath, _cachedSettings.BackupKeepCount);
 
                 return backupFilePath;
             }
@@ -369,22 +371,16 @@ namespace AutoKassa.Services
                 if (!File.Exists(backupFilePath))
                     return false;
 
-                // Получаем путь к текущей базе данных
                 var dbPath = _context.Database.GetDbConnection().DataSource;
-
                 if (string.IsNullOrEmpty(dbPath))
                     return false;
 
-                // Закрываем соединение перед копированием
-                await _context.Database.CloseConnectionAsync();
+                // Сбрасываем пул соединений Microsoft.Data.Sqlite — закрывает все открытые хендлы на файл
+                SqliteConnection.ClearAllPools();
 
-                // Копируем резервную копию на место текущей БД
                 await Task.Run(() => File.Copy(backupFilePath, dbPath, overwrite: true));
 
-                // Переоткрываем соединение
-                await _context.Database.OpenConnectionAsync();
-
-                // Перезагружаем настройки
+                // Перезагружаем настройки из восстановленной БД
                 LoadSettings();
 
                 return true;
@@ -392,6 +388,66 @@ namespace AutoKassa.Services
             catch
             {
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Запустить авто-бэкап, если подошёл срок
+        /// </summary>
+        public async Task RunAutoBackupIfDueAsync()
+        {
+            if (!_cachedSettings.BackupEnabled || string.IsNullOrWhiteSpace(_cachedSettings.BackupPath))
+                return;
+
+            var backupDir = _cachedSettings.BackupPath;
+            var daysSinceLast = GetDaysSinceLastBackup(backupDir);
+
+            if (daysSinceLast >= _cachedSettings.AutoBackupDays)
+                await CreateBackupAsync(backupDir);
+        }
+
+        /// <summary>
+        /// Определяет количество дней с последнего бэкапа по имени файла.
+        /// Возвращает int.MaxValue если бэкапов нет или папки не существует.
+        /// </summary>
+        private static int GetDaysSinceLastBackup(string backupDir)
+        {
+            if (!Directory.Exists(backupDir))
+                return int.MaxValue;
+
+            var latest = Directory
+                .GetFiles(backupDir, "AutoKassa_Backup_*.db")
+                .OrderByDescending(f => f)
+                .FirstOrDefault();
+
+            if (latest == null) return int.MaxValue;
+
+            // Имя вида AutoKassa_Backup_yyyyMMdd_HHmmss.db
+            var name  = Path.GetFileNameWithoutExtension(latest);
+            var parts = name.Split('_');
+            if (parts.Length >= 4 &&
+                DateTime.TryParseExact(parts[2] + "_" + parts[3], "yyyyMMdd_HHmmss",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastDate))
+                return (DateTime.Today - lastDate.Date).Days;
+
+            return int.MaxValue;
+        }
+
+        /// <summary>
+        /// Удаляет старые бэкапы, оставляя не более keepCount последних файлов
+        /// </summary>
+        private static void CleanupOldBackups(string backupDir, int keepCount)
+        {
+            if (keepCount <= 0 || !Directory.Exists(backupDir)) return;
+
+            var toDelete = Directory
+                .GetFiles(backupDir, "AutoKassa_Backup_*.db")
+                .OrderByDescending(f => f)
+                .Skip(keepCount);
+
+            foreach (var file in toDelete)
+            {
+                try { File.Delete(file); } catch { /* не прерываем из-за одного файла */ }
             }
         }
 

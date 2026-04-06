@@ -52,6 +52,9 @@ namespace AutoKassa
             // Показываем главное окно
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
+
+            // Авто-бэкап в фоне (не блокирует запуск)
+            _ = settingsService.RunAutoBackupIfDueAsync();
         }
 
         /// <summary>

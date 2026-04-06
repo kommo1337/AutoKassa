@@ -21,7 +21,14 @@
       "Bash(Select-String error CS|Ошибок::*)",
       "Bash(tail:*)",
       "Bash(findstr error CS:*)",
-      "Bash(start:*)"
+      "Bash(start:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(claude mcp:*)",
+      "Bash(python3:*)",
+      "Bash(xargs cat:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"Service\\\\.cs$\")"
     ]
   }
 }

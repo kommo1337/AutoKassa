@@ -565,21 +565,22 @@
                                                                 Padding="20,8"
                                                                 BorderThickness="0,0,0,1"
                                                                 BorderBrush="{StaticResource BorderLightBrush}"
-                                                                Cursor="Hand">
+                                                                Cursor="Hand"
+                                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                             <Border.ContextMenu>
-                                                                <ContextMenu Style="{StaticResource ModernContextMenuStyle}"
-                                                                             DataContext="{Binding PlacementTarget.DataContext,
-                                                                                          RelativeSource={RelativeSource Self}}">
+                                                                <ContextMenu Style="{StaticResource ModernContextMenuStyle}">
                                                                     <MenuItem Header="Редактировать" Tag="✏️"
                                                                               Style="{StaticResource MenuItemStyle}"
-                                                                              Command="{Binding DataContext.EditTransactionCommand,
-                                                                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                              CommandParameter="{Binding}"/>
+                                                                              Command="{Binding PlacementTarget.Tag.EditTransactionCommand,
+                                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                              CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                     <MenuItem Header="Удалить" Tag="🗑️"
                                                                               Style="{StaticResource DeleteMenuItemStyle}"
-                                                                              Command="{Binding DataContext.DeleteTransactionCommand,
-                                                                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                              CommandParameter="{Binding}"/>
+                                                                              Command="{Binding PlacementTarget.Tag.DeleteTransactionCommand,
+                                                                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                              CommandParameter="{Binding PlacementTarget.DataContext,
+                                                                                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                 </ContextMenu>
                                                             </Border.ContextMenu>
                                                             <Grid>

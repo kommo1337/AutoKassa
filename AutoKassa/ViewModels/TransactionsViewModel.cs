@@ -35,6 +35,7 @@ namespace AutoKassa.ViewModels
         private int _totalCount;
         private int _currentPage;
         private int _pageSize = 100;
+        private CancellationTokenSource _loadCts;
         private decimal _totalIncome;
         private decimal _totalExpense;
         private static readonly CultureInfo RuCulture = new("ru-RU");
@@ -481,14 +482,18 @@ namespace AutoKassa.ViewModels
 
         private async Task LoadDataAsync()
         {
+            _loadCts?.Cancel();
+            _loadCts = new CancellationTokenSource();
+            var ct = _loadCts.Token;
+
             try
             {
                 IsLoading = true;
                 _currentPage = 0;
 
                 var filters = BuildFilterParameters();
-                var transactions = await _transactionService.GetTransactionsAsync(filters);
-                var totalCount = await _transactionService.GetTotalCountAsync(filters);
+                var transactions = await _transactionService.GetTransactionsAsync(filters, ct);
+                var totalCount   = await _transactionService.GetTotalCountAsync(filters, ct);
 
                 Transactions.Clear();
                 foreach (var t in transactions)
@@ -498,6 +503,7 @@ namespace AutoKassa.ViewModels
                 OnPropertyChanged(nameof(CanLoadMore));
                 RebuildGroupsAndTotals();
             }
+            catch (OperationCanceledException) { /* фильтр изменился — игнорируем */ }
             catch (Exception ex)
             {
                 _dialogService.ShowError($"Ошибка загрузки данных: {ex.Message}");
@@ -517,7 +523,7 @@ namespace AutoKassa.ViewModels
                 IsLoading = true;
                 _currentPage++;
 
-                var filters = BuildFilterParameters();
+                var filters  = BuildFilterParameters();
                 filters.Skip = _currentPage * _pageSize;
 
                 var transactions = await _transactionService.GetTransactionsAsync(filters);
@@ -635,29 +641,19 @@ namespace AutoKassa.ViewModels
 
             try
             {
-                foreach (var t in selected)
-                    await _transactionService.DeleteAsync(t.Id);
+                var deletedIds = selected.Select(t => t.Id).ToList();
+                foreach (var id in deletedIds)
+                    await _transactionService.DeleteAsync(id);
 
                 await LoadDataAsync();
 
-                var count = selected.Count;
-                var snapshots = selected.Select(t => new Transaction
-                {
-                    Date = t.Date,
-                    Amount = t.Amount,
-                    Type = t.Type,
-                    CategoryId = t.CategoryId,
-                    Description = t.Description,
-                    PaymentType = t.PaymentType,
-                    CreatedAt = t.CreatedAt
-                }).ToList();
-
+                var count = deletedIds.Count;
                 _toastService.ShowDeleteWithUndo(
                     $"Удалено {count} {GetCountWord(count)}",
                     async () =>
                     {
-                        foreach (var snap in snapshots)
-                            await _transactionService.AddAsync(snap);
+                        foreach (var id in deletedIds)
+                            await _transactionService.RestoreAsync(id);
                         await LoadDataAsync();
                     });
             }
@@ -773,20 +769,11 @@ namespace AutoKassa.ViewModels
             if (SelectedTransaction == null) return;
 
             var t = SelectedTransaction;
-            var snapshot = new Transaction
-            {
-                Date = t.Date,
-                Amount = t.Amount,
-                Type = t.Type,
-                CategoryId = t.CategoryId,
-                Description = t.Description,
-                PaymentType = t.PaymentType,
-                CreatedAt = t.CreatedAt
-            };
+            var deletedId = t.Id;
 
             try
             {
-                await _transactionService.DeleteAsync(t.Id);
+                await _transactionService.DeleteAsync(deletedId);
                 Transactions.Remove(t);
                 TotalCount--;
                 RebuildGroupsAndTotals();
@@ -795,7 +782,7 @@ namespace AutoKassa.ViewModels
                     "Операция удалена",
                     async () =>
                     {
-                        await _transactionService.AddAsync(snapshot);
+                        await _transactionService.RestoreAsync(deletedId);
                         await LoadDataAsync();
                     });
             }

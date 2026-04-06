@@ -1,4 +1,4 @@
-<UserControl x:Class="AutoKassa.Views.TransactionsView"
+﻿<UserControl x:Class="AutoKassa.Views.TransactionsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
@@ -6,6 +6,34 @@
              Background="#F0F2F5">
 
     <UserControl.Resources>
+        <!-- Иконки типа оплаты — Наличные -->
+        <DataTemplate x:Key="CashPaymentIconTemplate">
+            <Border Background="#F1F5F9" CornerRadius="4" Padding="4,2" ToolTip="Наличные">
+                <Viewbox Width="13" Height="13">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="M1 4a2 2 0 012-2h18a2 2 0 012 2v14a2 2 0 01-2 2H3a2 2 0 01-2-2z"
+                              Stroke="#94a3b8" StrokeThickness="2" Fill="Transparent"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <Ellipse Canvas.Left="8" Canvas.Top="8" Width="8" Height="8"
+                                 Stroke="#94a3b8" StrokeThickness="2" Fill="Transparent"/>
+                    </Canvas>
+                </Viewbox>
+            </Border>
+        </DataTemplate>
+
+        <!-- Иконки типа оплаты — Безналичные -->
+        <DataTemplate x:Key="NonCashPaymentIconTemplate">
+            <Border Background="#EFF6FF" CornerRadius="4" Padding="4,2" ToolTip="Безналичные">
+                <Viewbox Width="13" Height="13">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="M1 4a2 2 0 012-2h18a2 2 0 012 2v14a2 2 0 01-2 2H3a2 2 0 01-2-2z M1 10h22"
+                              Stroke="#3b82f6" StrokeThickness="2" Fill="Transparent"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Canvas>
+                </Viewbox>
+            </Border>
+        </DataTemplate>
+
         <!-- Стиль ComboBoxItem для инлайн-форм -->
         <Style x:Key="InlineComboBoxItemStyle" TargetType="ComboBoxItem">
             <Setter Property="Padding" Value="0"/>
@@ -156,6 +184,59 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Стиль контекстного меню -->
+        <Style x:Key="ModernContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="HasDropShadow" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="12" ShadowDepth="4" Opacity="0.12" Direction="270"/>
+                            </Border.Effect>
+                            <StackPanel IsItemsHost="True"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="12,9"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="border" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{TemplateBinding Tag}" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ContentPresenter ContentSource="Header" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F8F9FB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DeleteMenuItemStyle" TargetType="MenuItem" BasedOn="{StaticResource MenuItemStyle}">
+            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
         </Style>
     </UserControl.Resources>
 
@@ -956,67 +1037,18 @@
                                                     </Style.Triggers>
                                                 </Style>
                                             </Border.Style>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <!-- NonCash icon: credit card (visible when NonCash) -->
-                                                <Viewbox Width="15" Height="15" Margin="0,0,5,0">
-                                                    <Canvas Width="16" Height="16">
-                                                        <Canvas.Style>
-                                                            <Style TargetType="Canvas">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Canvas.Style>
-                                                        <!-- Card outline -->
-                                                        <Rectangle Width="15" Height="10" Canvas.Left="0.5" Canvas.Top="3"
-                                                                   RadiusX="2" RadiusY="2" Stroke="#3b82f6" StrokeThickness="1.5" Fill="Transparent"/>
-                                                        <!-- Stripe -->
-                                                        <Rectangle Width="15" Height="2.5" Canvas.Left="0.5" Canvas.Top="5.5" Fill="#3b82f6"/>
-                                                        <!-- Chip dot -->
-                                                        <Rectangle Width="3.5" Height="2.5" Canvas.Left="2" Canvas.Top="9"
-                                                                   RadiusX="0.5" RadiusY="0.5" Fill="#3b82f6"/>
-                                                    </Canvas>
-                                                </Viewbox>
-                                                <!-- Cash icon: banknote (visible when Cash) -->
-                                                <Viewbox Width="15" Height="15" Margin="0,0,5,0">
-                                                    <Canvas Width="16" Height="16">
-                                                        <Canvas.Style>
-                                                            <Style TargetType="Canvas">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Canvas.Style>
-                                                        <!-- Bill outline -->
-                                                        <Rectangle Width="15" Height="9" Canvas.Left="0.5" Canvas.Top="3.5"
-                                                                   RadiusX="2" RadiusY="2" Stroke="#22c55e" StrokeThickness="1.5" Fill="Transparent"/>
-                                                        <!-- Coin circle -->
-                                                        <Ellipse Width="4.5" Height="4.5" Canvas.Left="5.75" Canvas.Top="5.75"
-                                                                 Stroke="#22c55e" StrokeThickness="1.5" Fill="Transparent"/>
-                                                    </Canvas>
-                                                </Viewbox>
-                                                <!-- Label -->
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Text" Value="Безнал"/>
-                                                            <Setter Property="Foreground" Value="#3b82f6"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
-                                                                    <Setter Property="Text" Value="Нал"/>
-                                                                    <Setter Property="Foreground" Value="#22c55e"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </StackPanel>
+                                            <ContentControl VerticalAlignment="Center">
+                                                <ContentControl.Style>
+                                                    <Style TargetType="ContentControl">
+                                                        <Setter Property="ContentTemplate" Value="{StaticResource NonCashPaymentIconTemplate}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding InlineIsCash}" Value="True">
+                                                                <Setter Property="ContentTemplate" Value="{StaticResource CashPaymentIconTemplate}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ContentControl.Style>
+                                            </ContentControl>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
@@ -1550,10 +1582,14 @@
                                                                 </Style>
                                                             </Border.Style>
                                                             <Border.ContextMenu>
-                                                                <ContextMenu Opened="ContextMenu_Opened">
-                                                                    <MenuItem Header="Редактировать (F2)" Click="EditMenuItem_Click"/>
-                                                                    <Separator/>
-                                                                    <MenuItem Header="Удалить" Click="DeleteMenuItem_Click" Foreground="#ef4444"/>
+                                                                <ContextMenu Style="{StaticResource ModernContextMenuStyle}"
+                                                                             Opened="ContextMenu_Opened">
+                                                                    <MenuItem Header="Редактировать (F2)" Tag="✏️"
+                                                                              Style="{StaticResource MenuItemStyle}"
+                                                                              Click="EditMenuItem_Click"/>
+                                                                    <MenuItem Header="Удалить" Tag="🗑️"
+                                                                              Style="{StaticResource DeleteMenuItemStyle}"
+                                                                              Click="DeleteMenuItem_Click"/>
                                                                 </ContextMenu>
                                                             </Border.ContextMenu>
 
@@ -1607,10 +1643,20 @@
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
 
-                                                                <!-- Wallet icon -->
-                                                                <TextBlock Grid.Column="4" FontSize="14"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Text="{Binding Transaction.PaymentType, Converter={StaticResource PaymentTypeToIconConverter}}"/>
+                                                                <!-- Payment icon -->
+                                                                <ContentControl Grid.Column="4"
+                                                                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <ContentControl.Style>
+                                                                        <Style TargetType="ContentControl">
+                                                                            <Setter Property="ContentTemplate" Value="{StaticResource CashPaymentIconTemplate}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Transaction.PaymentType}" Value="NonCash">
+                                                                                    <Setter Property="ContentTemplate" Value="{StaticResource NonCashPaymentIconTemplate}"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </ContentControl.Style>
+                                                                </ContentControl>
 
                                                                 <!-- Amount -->
                                                                 <TextBlock Grid.Column="5" FontSize="13" FontWeight="SemiBold"

@@ -119,6 +119,11 @@ namespace AutoKassa.Services
         /// <returns>true если восстановление успешно</returns>
         Task<bool> RestoreBackupAsync(string backupFilePath);
 
+        /// <summary>
+        /// Запустить авто-бэкап, если подошёл срок (проверяет BackupEnabled и AutoBackupDays)
+        /// </summary>
+        Task RunAutoBackupIfDueAsync();
+
         #endregion
     }
 }

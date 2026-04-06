@@ -1,66 +1,57 @@
-﻿using System.Windows.Input;
+using System.Windows.Input;
 using AutoKassa.Helpers;
 using AutoKassa.Services;
 using AutoKassa.ViewModels.Reports;
 
 namespace AutoKassa.ViewModels
 {
-    /// <summary>
-    /// ViewModel для экрана отчетов
-    /// </summary>
     public class ReportsViewModel : ViewModelBase
     {
         private ViewModelBase _currentReport;
 
         public ReportsViewModel()
         {
-            // Команды навигации между отчетами
-            ShowBalanceReportCommand = new RelayCommand(_ => ShowBalanceReport());
-            ShowCategoryReportCommand = new RelayCommand(_ => ShowCategoryReport());
+            ShowBalanceReportCommand           = new RelayCommand(_ => ShowBalanceReport());
+            ShowCategoryReportCommand          = new RelayCommand(_ => ShowCategoryReport());
             ShowTransactionDetailReportCommand = new RelayCommand(_ => ShowTransactionDetailReport());
+
+            // По умолчанию открываем первую вкладку
+            ShowBalanceReport();
         }
 
-        #region Свойства
-
-        /// <summary>
-        /// Текущий отображаемый отчет
-        /// </summary>
         public ViewModelBase CurrentReport
         {
             get => _currentReport;
-            set => SetProperty(ref _currentReport, value);
+            set
+            {
+                SetProperty(ref _currentReport, value);
+                OnPropertyChanged(nameof(IsBalanceActive));
+                OnPropertyChanged(nameof(IsCategoryActive));
+                OnPropertyChanged(nameof(IsDetailActive));
+            }
         }
 
-        #endregion
+        public bool IsBalanceActive  => CurrentReport is BalanceReportViewModel;
+        public bool IsCategoryActive => CurrentReport is CategoryReportViewModel;
+        public bool IsDetailActive   => CurrentReport is TransactionDetailReportViewModel;
 
-        #region Команды
-
-        public ICommand ShowBalanceReportCommand { get; }
-        public ICommand ShowCategoryReportCommand { get; }
+        public ICommand ShowBalanceReportCommand           { get; }
+        public ICommand ShowCategoryReportCommand          { get; }
         public ICommand ShowTransactionDetailReportCommand { get; }
-
-        #endregion
-
-        #region Методы
 
         private void ShowBalanceReport()
         {
-            var viewModel = App.GetService<BalanceReportViewModel>();
-            CurrentReport = viewModel;
+            CurrentReport = App.GetService<BalanceReportViewModel>();
         }
 
         private void ShowCategoryReport()
         {
-            var viewModel = App.GetService<CategoryReportViewModel>();
-            CurrentReport = viewModel;
+            CurrentReport = App.GetService<CategoryReportViewModel>();
         }
 
         private void ShowTransactionDetailReport()
         {
-            var viewModel = App.GetService<TransactionDetailReportViewModel>();
-            CurrentReport = viewModel;
+            CurrentReport = App.GetService<TransactionDetailReportViewModel>();
         }
-
-        #endregion
     }
 }

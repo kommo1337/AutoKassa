@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -26,6 +27,7 @@ namespace AutoKassa.ViewModels.Reports
         private OperationType _selectedOperationType;
         private CategoryReport _report;
         private PlotModel _plotModel;
+        private ObservableCollection<DonutSliceItem> _donutSlices = new();
 
         public CategoryReportViewModel(
             IReportService reportService,
@@ -127,6 +129,15 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
+        /// Срезы пончика для кастомной диаграммы
+        /// </summary>
+        public ObservableCollection<DonutSliceItem> DonutSlices
+        {
+            get => _donutSlices;
+            set => SetProperty(ref _donutSlices, value);
+        }
+
+        /// <summary>
         /// Список типов операций для ComboBox
         /// </summary>
         public List<OperationTypeItem> OperationTypes { get; } = new List<OperationTypeItem>
@@ -177,47 +188,33 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
-        /// Обновление графика
+        /// Обновление диаграммы
         /// </summary>
         private void UpdateChart()
         {
-            if (Report == null || Report.CategoryItems == null || !Report.CategoryItems.Any())
+            if (Report?.CategoryItems == null || !Report.CategoryItems.Any())
                 return;
 
-            // Создаём новую модель графика
-            var model = new PlotModel
-            {
-                Title = SelectedOperationType == OperationType.Expense
-                    ? "Структура расходов"
-                    : "Структура доходов"
-            };
+            var slices = new ObservableCollection<DonutSliceItem>();
+            double currentAngle = 0;
 
-            // Создаем круговую диаграмму
-            var pieSeries = new PieSeries
-            {
-                StrokeThickness = 2,
-                InsideLabelPosition = 0.5,
-                AngleSpan = 360,
-                StartAngle = 0,
-                InsideLabelFormat = "{1:0.0}%",
-                OutsideLabelFormat = "{0}",
-                TickHorizontalLength = 0,
-                TickRadialLength = 0
-            };
-
-            // Добавляем данные по категориям
             foreach (var item in Report.CategoryItems)
             {
-                pieSeries.Slices.Add(new PieSlice(item.CategoryName, (double)item.Amount)
-                {
-                    Fill = OxyColor.Parse(item.Color),
-                    IsExploded = false
-                });
+                double sweep = Report.TotalAmount > 0
+                    ? (double)item.Amount / (double)Report.TotalAmount * 360.0
+                    : 0;
+
+                if (sweep <= 0) continue;
+
+                slices.Add(DonutSliceItem.Create(
+                    item.CategoryName, item.Color,
+                    item.Percentage, item.Amount, item.TransactionCount,
+                    currentAngle, sweep));
+
+                currentAngle += sweep;
             }
 
-            model.Series.Add(pieSeries);
-
-            PlotModel = model;
+            DonutSlices = slices;
         }
 
         /// <summary>

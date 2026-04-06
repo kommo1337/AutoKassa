@@ -1,4 +1,5 @@
 ﻿using AutoKassa.Models;
+using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace AutoKassa.Services
@@ -18,35 +19,30 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить список операций с фильтрацией
         /// </summary>
-        public async Task<List<Transaction>> GetTransactionsAsync(TransactionFilterParameters filters)
+        public async Task<List<Transaction>> GetTransactionsAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
             var query = _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => !t.IsDeleted); // Только неудаленные
+                .Where(t => !t.IsDeleted);
 
-            // Применяем фильтры
             query = ApplyFilters(query, filters);
-
-            // Сортировка
             query = ApplySorting(query, filters.SortBy, filters.SortDescending);
-
-            // Пагинация
             query = query.Skip(filters.Skip).Take(filters.Take);
 
-            return await query.ToListAsync();
+            return await query.ToListAsync(ct);
         }
 
         /// <summary>
         /// Получить общее количество операций с учетом фильтров
         /// </summary>
-        public async Task<int> GetTotalCountAsync(TransactionFilterParameters filters)
+        public async Task<int> GetTotalCountAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
             var query = _context.Transactions
                 .Where(t => !t.IsDeleted);
 
             query = ApplyFilters(query, filters);
 
-            return await query.CountAsync();
+            return await query.CountAsync(ct);
         }
 
         /// <summary>
@@ -105,6 +101,20 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
+        /// Восстановить ранее удалённую операцию (отмена soft delete)
+        /// </summary>
+        public async Task RestoreAsync(int id)
+        {
+            var transaction = await _context.Transactions.FindAsync(id);
+            if (transaction != null)
+            {
+                transaction.IsDeleted = false;
+                transaction.UpdatedAt = DateTime.Now;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        /// <summary>
         /// Получить последние N операций
         /// </summary>
         public async Task<List<Transaction>> GetRecentAsync(int count = 10)
@@ -116,6 +126,71 @@ namespace AutoKassa.Services
                 .ThenByDescending(t => t.CreatedAt)
                 .Take(count)
                 .ToListAsync();
+        }
+
+        /// <summary>
+        /// Суммарные доходы/расходы за период — SQL GROUP BY, без загрузки всех записей
+        /// </summary>
+        public async Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        {
+            var dateTo = to.Date.AddDays(1).AddTicks(-1);
+            var rows = await _context.Transactions
+                .Where(t => !t.IsDeleted && t.Date >= from && t.Date <= dateTo)
+                .GroupBy(t => t.Type)
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount), Count = g.Count() })
+                .ToListAsync(ct);
+
+            var incomeRow  = rows.FirstOrDefault(r => r.Type == OperationType.Income);
+            var expenseRow = rows.FirstOrDefault(r => r.Type == OperationType.Expense);
+            return (
+                incomeRow?.Total  ?? 0m,
+                expenseRow?.Total ?? 0m,
+                incomeRow?.Count  ?? 0,
+                expenseRow?.Count ?? 0);
+        }
+
+        /// <summary>
+        /// Дневные итоги за период — SQL GROUP BY date, для графиков и группировки
+        /// </summary>
+        public async Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        {
+            var dateTo = to.Date.AddDays(1).AddTicks(-1);
+            var rows = await _context.Transactions
+                .Where(t => !t.IsDeleted && t.Date >= from && t.Date <= dateTo)
+                .GroupBy(t => t.Date.Date)
+                .Select(g => new
+                {
+                    Date    = g.Key,
+                    Income  = g.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount),
+                    Expense = g.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount)
+                })
+                .OrderBy(x => x.Date)
+                .ToListAsync(ct);
+
+            return rows.Select(r => new DailyTotalsItem
+            {
+                Date    = r.Date,
+                Income  = r.Income,
+                Expense = r.Expense
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Топ N категорий по сумме для заданного типа операции
+        /// </summary>
+        public async Task<List<(string Name, decimal Total)>> GetTopCategoriesAsync(
+            DateTime from, DateTime to, OperationType type, int count, CancellationToken ct = default)
+        {
+            var dateTo = to.Date.AddDays(1).AddTicks(-1);
+            var rows = await _context.Transactions
+                .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date <= dateTo)
+                .GroupBy(t => t.Category.Name ?? "?")
+                .Select(g => new { Name = g.Key, Total = g.Sum(t => t.Amount) })
+                .OrderByDescending(x => x.Total)
+                .Take(count)
+                .ToListAsync(ct);
+
+            return rows.Select(r => (r.Name, r.Total)).ToList();
         }
 
         #region Вспомогательные методы

@@ -21,7 +21,6 @@ namespace AutoKassa.ViewModels
         private Category _selectedCategory;
         private string _description = string.Empty;
         private List<Category> _categories = new List<Category>();
-        private string _amountError;
         private bool _isInitialized;
         private PaymentType _selectedPaymentType = PaymentType.Cash;
         private bool _showAllCategories;
@@ -151,7 +150,11 @@ namespace AutoKassa.ViewModels
         public Category SelectedCategory
         {
             get => _selectedCategory;
-            set => SetProperty(ref _selectedCategory, value);
+            set
+            {
+                if (SetProperty(ref _selectedCategory, value))
+                    ValidateCategory();
+            }
         }
 
         public string Description
@@ -196,11 +199,7 @@ namespace AutoKassa.ViewModels
             ? "Свернуть"
             : "Ещё ▾";
 
-        public string AmountError
-        {
-            get => _amountError;
-            set => SetProperty(ref _amountError, value);
-        }
+        public string AmountError => GetFirstError(nameof(Amount));
 
         public bool IsIncome
         {
@@ -300,6 +299,8 @@ namespace AutoKassa.ViewModels
             ShowAllCategories = false;
             CalcClear();
             IsCalcOpen = false;
+            ValidateAmount();
+            ValidateCategory();
         }
 
         public async void InitializeForEdit(Transaction transaction)
@@ -339,6 +340,8 @@ namespace AutoKassa.ViewModels
                     if (SelectedCategory == null && Categories.Count > 0)
                         SelectedCategory = Categories.FirstOrDefault();
                 }
+
+                ValidateCategory();
             }
             catch (Exception ex)
             {
@@ -364,29 +367,31 @@ namespace AutoKassa.ViewModels
         private void ValidateAmount()
         {
             if (Amount <= 0)
-                AmountError = "Сумма должна быть больше 0";
-            else if (Amount > 999999999)
-                AmountError = "Сумма слишком большая";
+                SetErrors(nameof(Amount), new[] { "Сумма должна быть больше 0" });
+            else if (Amount > 999_999_999)
+                SetErrors(nameof(Amount), new[] { "Сумма слишком большая" });
             else
-                AmountError = null;
+                ClearErrors(nameof(Amount));
+
+            OnPropertyChanged(nameof(AmountError));
         }
 
-        private bool CanSave()
+        private void ValidateCategory()
         {
-            return Amount > 0 &&
-                   SelectedCategory != null &&
-                   string.IsNullOrEmpty(AmountError);
+            if (SelectedCategory == null)
+                SetErrors(nameof(SelectedCategory), new[] { "Выберите категорию" });
+            else
+                ClearErrors(nameof(SelectedCategory));
         }
+
+        private bool CanSave() => !HasErrors;
 
         private async System.Threading.Tasks.Task SaveAsync()
         {
             ValidateAmount();
+            ValidateCategory();
 
-            if (!CanSave())
-            {
-                _dialogService.ShowError("Пожалуйста, исправьте ошибки в форме");
-                return;
-            }
+            if (HasErrors) return;
 
             try
             {

@@ -23,6 +23,8 @@ namespace AutoKassa.ViewModels
 
         #region Поля
 
+        private CancellationTokenSource _loadCts;
+
         // Сводка
         private decimal _totalIncome;
         private decimal _totalExpense;
@@ -37,17 +39,6 @@ namespace AutoKassa.ViewModels
         private DateTime _dateFrom;
         private DateTime _dateTo;
         private bool _isCustomPeriodVisible;
-
-        // Быстрое добавление
-        private decimal _quickAmount;
-        private bool _isIncome;
-        private Category _selectedCategory;
-        private ObservableCollection<Category> _filteredCategories;
-        private DateTime _quickDate = DateTime.Today;
-        private string _quickDescription;
-        private bool _isDescriptionVisible;
-        private bool _isDateVisible;
-        private string _quickAmountText;
 
         // Последние операции
         private ObservableCollection<Transaction> _recentTransactions;
@@ -69,6 +60,9 @@ namespace AutoKassa.ViewModels
         private decimal _todayBalance;
         private bool _hasTodayTransactions;
 
+        // Быстрое добавление (субVM)
+        private QuickAddViewModel _quickAdd;
+
         // Модальное окно
         private bool _isModalOpen;
         private TransactionEditViewModel _editViewModel;
@@ -88,22 +82,18 @@ namespace AutoKassa.ViewModels
             _toastService = toastService;
             _settingsService = settingsService;
 
-            FilteredCategories = new ObservableCollection<Category>();
             RecentTransactions = new ObservableCollection<Transaction>();
             GroupedTransactions = new ObservableCollection<DateGroup>();
             TopExpenses = new ObservableCollection<CategorySummaryItem>();
             TopIncomes = new ObservableCollection<CategorySummaryItem>();
 
+            QuickAdd = new QuickAddViewModel(transactionService, categoryService, dialogService, toastService);
+            QuickAdd.OnTransactionAdded = async () => await LoadDataAsync();
+
             // Команды периода
             SelectPeriodCommand = new RelayCommand(period => SelectPeriod((PeriodType)period));
             ApplyCustomPeriodCommand = new RelayCommand(async _ => await LoadDataAsync());
             OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
-
-            // Команды быстрого добавления
-            AddQuickTransactionCommand = new RelayCommand(async _ => await AddQuickTransactionAsync(), _ => CanAddQuickTransaction());
-            ToggleTransactionTypeCommand = new RelayCommand(_ => ToggleTransactionType());
-            ToggleDescriptionCommand = new RelayCommand(_ => IsDescriptionVisible = !IsDescriptionVisible);
-            ToggleDateCommand = new RelayCommand(_ => IsDateVisible = !IsDateVisible);
 
             // Команды операций (параметр = конкретная транзакция или null → используем SelectedTransaction)
             OpenTransactionCommand = new RelayCommand(t => OpenTransaction(t as Transaction ?? SelectedTransaction));
@@ -246,104 +236,12 @@ namespace AutoKassa.ViewModels
         #region Свойства быстрого добавления
 
         /// <summary>
-        /// Сумма операции (текст для валидации)
+        /// СубVM для быстрого добавления операции
         /// </summary>
-        public string QuickAmountText
+        public QuickAddViewModel QuickAdd
         {
-            get => _quickAmountText;
-            set
-            {
-                if (SetProperty(ref _quickAmountText, value))
-                {
-                    // Парсим сумму
-                    if (decimal.TryParse(value?.Replace(" ", "").Replace("₽", ""), out var amount))
-                    {
-                        _quickAmount = amount;
-                    }
-                    else
-                    {
-                        _quickAmount = 0;
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Сумма операции
-        /// </summary>
-        public decimal QuickAmount
-        {
-            get => _quickAmount;
-            set => SetProperty(ref _quickAmount, value);
-        }
-
-        /// <summary>
-        /// Тип операции - доход
-        /// </summary>
-        public bool IsIncome
-        {
-            get => _isIncome;
-            set
-            {
-                if (SetProperty(ref _isIncome, value))
-                {
-                    _ = LoadCategoriesForTypeAsync();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Выбранная категория
-        /// </summary>
-        public Category SelectedCategory
-        {
-            get => _selectedCategory;
-            set => SetProperty(ref _selectedCategory, value);
-        }
-
-        /// <summary>
-        /// Отфильтрованные категории по типу
-        /// </summary>
-        public ObservableCollection<Category> FilteredCategories
-        {
-            get => _filteredCategories;
-            set => SetProperty(ref _filteredCategories, value);
-        }
-
-        /// <summary>
-        /// Дата операции
-        /// </summary>
-        public DateTime QuickDate
-        {
-            get => _quickDate;
-            set => SetProperty(ref _quickDate, value);
-        }
-
-        /// <summary>
-        /// Описание операции
-        /// </summary>
-        public string QuickDescription
-        {
-            get => _quickDescription;
-            set => SetProperty(ref _quickDescription, value);
-        }
-
-        /// <summary>
-        /// Видимость поля описания
-        /// </summary>
-        public bool IsDescriptionVisible
-        {
-            get => _isDescriptionVisible;
-            set => SetProperty(ref _isDescriptionVisible, value);
-        }
-
-        /// <summary>
-        /// Видимость выбора даты
-        /// </summary>
-        public bool IsDateVisible
-        {
-            get => _isDateVisible;
-            set => SetProperty(ref _isDateVisible, value);
+            get => _quickAdd;
+            set => SetProperty(ref _quickAdd, value);
         }
 
         #endregion
@@ -484,10 +382,6 @@ namespace AutoKassa.ViewModels
         public ICommand SelectPeriodCommand { get; }
         public ICommand ApplyCustomPeriodCommand { get; }
         public ICommand OpenAddTransactionCommand { get; }
-        public ICommand AddQuickTransactionCommand { get; }
-        public ICommand ToggleTransactionTypeCommand { get; }
-        public ICommand ToggleDescriptionCommand { get; }
-        public ICommand ToggleDateCommand { get; }
         public ICommand OpenTransactionCommand { get; }
         public ICommand EditTransactionCommand { get; }
         public ICommand DeleteTransactionCommand { get; }
@@ -503,33 +397,8 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task InitializeAsync()
         {
-            await LoadCategoriesForTypeAsync();
+            await QuickAdd.InitializeAsync();
             await LoadDataAsync();
-        }
-
-        /// <summary>
-        /// Загрузка категорий для текущего типа операции
-        /// </summary>
-        private async Task LoadCategoriesForTypeAsync()
-        {
-            try
-            {
-                var type = IsIncome ? OperationType.Income : OperationType.Expense;
-                var categories = await _categoryService.GetByTypeAsync(type);
-
-                FilteredCategories.Clear();
-                foreach (var category in categories)
-                {
-                    FilteredCategories.Add(category);
-                }
-
-                // Выбираем первую категорию
-                SelectedCategory = FilteredCategories.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
-            }
         }
 
         /// <summary>
@@ -537,18 +406,21 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task LoadDataAsync()
         {
+            // Отменяем предыдущую загрузку, если ещё не завершилась
+            _loadCts?.Cancel();
+            _loadCts = new CancellationTokenSource();
+            var ct = _loadCts.Token;
+
             try
             {
                 IsLoading = true;
-
-                // Параллельная загрузка данных
-                var summaryTask = LoadSummaryAsync();
-                var recentTask = LoadRecentTransactionsAsync();
-                var chartTask = LoadChartDataAsync();
-                var todayTask = LoadTodayBalanceAsync();
-
-                await Task.WhenAll(summaryTask, recentTask, chartTask, todayTask);
+                await Task.WhenAll(
+                    LoadSummaryAsync(ct),
+                    LoadRecentTransactionsAsync(ct),
+                    LoadChartDataAsync(ct),
+                    LoadTodayBalanceAsync(ct));
             }
+            catch (OperationCanceledException) { /* пользователь сменил период — игнорируем */ }
             catch (Exception ex)
             {
                 _dialogService.ShowError($"Ошибка загрузки данных: {ex.Message}");
@@ -560,172 +432,114 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Загрузка сводки за период
+        /// Загрузка сводки за период — SQL-агрегация вместо загрузки всех записей
         /// </summary>
-        private async Task LoadSummaryAsync()
+        private async Task LoadSummaryAsync(CancellationToken ct = default)
         {
-            var filters = new TransactionFilterParameters
-            {
-                DateFrom = DateFrom,
-                DateTo = DateTo, // TransactionService уже обрабатывает включение полного дня
-                Take = int.MaxValue // Получаем ВСЕ операции без пагинации для расчета сводки
-            };
-
-            var transactions = await _transactionService.GetTransactionsAsync(filters);
-
-            // Расчет текущего периода
-            TotalIncome = transactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
-            TotalExpense = transactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
-            Profit = TotalIncome - TotalExpense;
-
-            // Рентабельность
-            Profitability = TotalIncome > 0 ? (Profit / TotalIncome) * 100 : 0;
-
-            // Расчет изменений относительно предыдущего периода
-            await CalculateChangesAsync();
+            var (income, expense, _, _) = await _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct);
+            TotalIncome  = income;
+            TotalExpense = expense;
+            Profit       = income - expense;
+            Profitability = income > 0 ? (Profit / income) * 100 : 0;
+            await CalculateChangesAsync(ct);
         }
 
         /// <summary>
         /// Расчет изменений относительно предыдущего периода
         /// </summary>
-        private async Task CalculateChangesAsync()
+        private async Task CalculateChangesAsync(CancellationToken ct = default)
         {
-            // Определяем предыдущий период такой же длины
             var periodLength = (DateTo - DateFrom).Days + 1;
-            var prevDateTo = DateFrom.AddDays(-1);
+            var prevDateTo   = DateFrom.AddDays(-1);
             var prevDateFrom = prevDateTo.AddDays(-periodLength + 1);
 
-            var prevFilters = new TransactionFilterParameters
-            {
-                DateFrom = prevDateFrom,
-                DateTo = prevDateTo, // TransactionService уже обрабатывает включение полного дня
-                Take = int.MaxValue // Получаем ВСЕ операции без пагинации для расчета изменений
-            };
-
-            var prevTransactions = await _transactionService.GetTransactionsAsync(prevFilters);
-
-            var prevIncome = prevTransactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
-            var prevExpense = prevTransactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
+            var (prevIncome, prevExpense, _, _) =
+                await _transactionService.GetPeriodTotalsAsync(prevDateFrom, prevDateTo, ct);
             var prevProfit = prevIncome - prevExpense;
 
-            // Расчет процентных изменений
-            IncomeChangePercent = prevIncome > 0 ? ((TotalIncome - prevIncome) / prevIncome) * 100 : (TotalIncome > 0 ? 100 : 0);
-            ExpenseChangePercent = prevExpense > 0 ? ((TotalExpense - prevExpense) / prevExpense) * 100 : (TotalExpense > 0 ? 100 : 0);
-            ProfitChangePercent = prevProfit != 0 ? ((Profit - prevProfit) / Math.Abs(prevProfit)) * 100 : (Profit != 0 ? 100 : 0);
+            IncomeChangePercent  = prevIncome  > 0 ? ((TotalIncome  - prevIncome)  / prevIncome)             * 100 : (TotalIncome  > 0 ? 100 : 0);
+            ExpenseChangePercent = prevExpense > 0 ? ((TotalExpense - prevExpense) / prevExpense)             * 100 : (TotalExpense > 0 ? 100 : 0);
+            ProfitChangePercent  = prevProfit != 0 ? ((Profit       - prevProfit)  / Math.Abs(prevProfit))   * 100 : (Profit       != 0 ? 100 : 0);
         }
 
         /// <summary>
-        /// Загрузка последних операций
+        /// Загрузка последних операций — список (Take=100) + агрегация для статистики и топ-категорий
         /// </summary>
-        private async Task LoadRecentTransactionsAsync()
+        private async Task LoadRecentTransactionsAsync(CancellationToken ct = default)
         {
+            // Последние 100 записей для ленты и группировки
             var filters = new TransactionFilterParameters
             {
                 DateFrom = DateFrom,
-                DateTo = DateTo,
-                Take = int.MaxValue
+                DateTo   = DateTo,
+                Take     = 100
             };
-            var transactions = await _transactionService.GetTransactionsAsync(filters);
-            var list = transactions.OrderByDescending(t => t.Date).ToList();
+            var list = await _transactionService.GetTransactionsAsync(filters, ct);
 
             RecentTransactions.Clear();
-            foreach (var t in list.Take(50))
+            foreach (var t in list)
                 RecentTransactions.Add(t);
-
             HasTransactions = RecentTransactions.Any();
 
-            // Группировка по дням
+            // Группировка по дням из загруженных записей
             GroupedTransactions.Clear();
             var grouped = list
                 .GroupBy(t => t.Date.Date)
-                .OrderByDescending(g => g.Key)
-                .Take(30);
+                .OrderByDescending(g => g.Key);
 
             foreach (var g in grouped)
             {
                 var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
                 GroupedTransactions.Add(new DateGroup
                 {
-                    Date = g.Key,
+                    Date     = g.Key,
                     DayTotal = dayTotal,
-                    Items = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
+                    Items    = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
                 });
             }
 
-            // Статистика
-            StatsCount = list.Count;
-            var expList = list.Where(t => t.Type == OperationType.Expense).ToList();
-            var incList = list.Where(t => t.Type == OperationType.Income).ToList();
-            StatsAvgExpense = expList.Any() ? expList.Average(t => t.Amount) : 0;
-            StatsAvgIncome = incList.Any() ? incList.Average(t => t.Amount) : 0;
-            StatsDays = grouped.Count();
+            // Статистика — SQL-агрегация вместо in-memory по всем записям
+            var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct);
+            var dailyTask    = _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct);
+            var topExpTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Expense, 5, ct);
+            var topIncTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Income,  5, ct);
 
-            // Топ расходов
-            var topExp = list
-                .Where(t => t.Type == OperationType.Expense)
-                .GroupBy(t => t.Category?.Name ?? "?")
-                .Select(g => new CategorySummaryItem { Name = g.Key, Total = g.Sum(t => t.Amount) })
-                .OrderByDescending(x => x.Total)
-                .Take(5);
+            await Task.WhenAll(totalsTask, dailyTask, topExpTask, topIncTask);
+
+            var (_, _, incCount, expCount) = totalsTask.Result;
+            var dailyGroups = dailyTask.Result;
+
+            StatsCount      = await _transactionService.GetTotalCountAsync(new TransactionFilterParameters { DateFrom = DateFrom, DateTo = DateTo, Take = 1 }, ct);
+            StatsDays       = dailyGroups.Count;
+            StatsAvgExpense = expCount > 0 ? TotalExpense / expCount : 0;
+            StatsAvgIncome  = incCount > 0 ? TotalIncome  / incCount : 0;
 
             TopExpenses.Clear();
-            foreach (var item in topExp) TopExpenses.Add(item);
-
-            // Топ доходов
-            var topInc = list
-                .Where(t => t.Type == OperationType.Income)
-                .GroupBy(t => t.Category?.Name ?? "?")
-                .Select(g => new CategorySummaryItem { Name = g.Key, Total = g.Sum(t => t.Amount) })
-                .OrderByDescending(x => x.Total)
-                .Take(5);
+            foreach (var (name, total) in topExpTask.Result)
+                TopExpenses.Add(new CategorySummaryItem { Name = name, Total = total });
 
             TopIncomes.Clear();
-            foreach (var item in topInc) TopIncomes.Add(item);
+            foreach (var (name, total) in topIncTask.Result)
+                TopIncomes.Add(new CategorySummaryItem { Name = name, Total = total });
         }
 
         /// <summary>
-        /// Загрузка баланса за сегодня (всегда DateTime.Today, независимо от выбранного периода)
+        /// Загрузка баланса за сегодня — SQL-агрегация
         /// </summary>
-        private async Task LoadTodayBalanceAsync()
+        private async Task LoadTodayBalanceAsync(CancellationToken ct = default)
         {
-            var filters = new TransactionFilterParameters
-            {
-                DateFrom = DateTime.Today,
-                DateTo = DateTime.Today,
-                Take = int.MaxValue
-            };
-            var todayTransactions = await _transactionService.GetTransactionsAsync(filters);
-            HasTodayTransactions = todayTransactions.Any();
-            var todayIncome = todayTransactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
-            var todayExpense = todayTransactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
-            TodayBalance = todayIncome - todayExpense;
+            var (income, expense, incCount, expCount) =
+                await _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, ct);
+            HasTodayTransactions = (incCount + expCount) > 0;
+            TodayBalance = income - expense;
         }
 
         /// <summary>
-        /// Загрузка данных для графика
+        /// Загрузка данных для графика — SQL-агрегация по дням
         /// </summary>
-        private async Task LoadChartDataAsync()
+        private async Task LoadChartDataAsync(CancellationToken ct = default)
         {
-            var filters = new TransactionFilterParameters
-            {
-                DateFrom = DateFrom,
-                DateTo = DateTo, // TransactionService уже обрабатывает включение полного дня
-                Take = int.MaxValue // Получаем ВСЕ операции без пагинации для графика
-            };
-
-            var transactions = await _transactionService.GetTransactionsAsync(filters);
-
-            // Группировка по дням
-            var groupedData = transactions
-                .GroupBy(t => t.Date.Date)
-                .OrderBy(g => g.Key)
-                .Select(g => new
-                {
-                    Date = g.Key,
-                    Income = g.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount),
-                    Expense = g.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount)
-                })
-                .ToList();
+            var groupedData = await _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct);
 
             // Создание модели графика
             var model = new PlotModel
@@ -857,70 +671,6 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Переключение типа операции
-        /// </summary>
-        private void ToggleTransactionType()
-        {
-            IsIncome = !IsIncome;
-        }
-
-        /// <summary>
-        /// Можно ли добавить операцию
-        /// </summary>
-        private bool CanAddQuickTransaction()
-        {
-            return _quickAmount > 0 && SelectedCategory != null;
-        }
-
-        /// <summary>
-        /// Быстрое добавление операции
-        /// </summary>
-        private async Task AddQuickTransactionAsync()
-        {
-            try
-            {
-                var transaction = new Transaction
-                {
-                    Amount = _quickAmount,
-                    Type = IsIncome ? OperationType.Income : OperationType.Expense,
-                    CategoryId = SelectedCategory.Id,
-                    Date = QuickDate,
-                    Description = QuickDescription ?? string.Empty,
-                    CreatedAt = DateTime.Now,
-                    IsDeleted = false
-                };
-
-                await _transactionService.AddAsync(transaction);
-
-                // Показываем уведомление
-                _toastService.ShowSuccess("Операция добавлена успешно");
-
-                // Очищаем форму
-                ClearQuickForm();
-
-                // Обновляем данные
-                await LoadDataAsync();
-            }
-            catch (Exception ex)
-            {
-                _toastService.ShowError($"Ошибка: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Очистка формы быстрого добавления
-        /// </summary>
-        private void ClearQuickForm()
-        {
-            QuickAmountText = string.Empty;
-            QuickAmount = 0;
-            QuickDescription = string.Empty;
-            QuickDate = DateTime.Today;
-            IsDescriptionVisible = false;
-            IsDateVisible = false;
-        }
-
-        /// <summary>
         /// Открыть диалог добавления новой операции
         /// </summary>
         private void OpenAddTransaction()
@@ -957,20 +707,11 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var snapshot = new Transaction
-            {
-                Date = t.Date,
-                Amount = t.Amount,
-                Type = t.Type,
-                CategoryId = t.CategoryId,
-                Description = t.Description,
-                PaymentType = t.PaymentType,
-                CreatedAt = t.CreatedAt
-            };
+            var deletedId = t.Id;
 
             try
             {
-                await _transactionService.DeleteAsync(t.Id);
+                await _transactionService.DeleteAsync(deletedId);
                 RecentTransactions.Remove(t);
                 HasTransactions = RecentTransactions.Any();
 
@@ -978,7 +719,7 @@ namespace AutoKassa.ViewModels
                     "Операция удалена",
                     async () =>
                     {
-                        await _transactionService.AddAsync(snapshot);
+                        await _transactionService.RestoreAsync(deletedId);
                         await LoadDataAsync();
                     });
 
