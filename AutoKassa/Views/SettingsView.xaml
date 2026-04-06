@@ -264,6 +264,25 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Финансы -->
+                    <Border Style="{StaticResource SettingsSectionStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Финансовые настройки" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Начальный баланс (₽)" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Сумма на кассе до первой операции в программе"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding InitialBalance, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Right"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Операции -->
                     <Border Style="{StaticResource SettingsSectionStyle}">
                         <StackPanel>

@@ -20,8 +20,8 @@ namespace AutoKassa.Services
         {
             _context = context;
 
-            // Создаем таблицы если их нет
-            _context.Database.EnsureCreated();
+            // Применяем все pending миграции (создаёт таблицы если их нет)
+            _context.Database.Migrate();
 
             LoadSettings();
         }
@@ -233,6 +233,7 @@ namespace AutoKassa.Services
             _cachedSettings.DefaultOperationType = (int)OperationType.Expense;
             _cachedSettings.DefaultIncomeCategoryId = null;
             _cachedSettings.DefaultExpenseCategoryId = null;
+            _cachedSettings.InitialBalance = 0m;
 
             // Восстанавливаем пароль
             _cachedSettings.PasswordHash = currentPassword;
@@ -272,6 +273,7 @@ namespace AutoKassa.Services
                     WindowWidth = _cachedSettings.WindowWidth,
                     WindowHeight = _cachedSettings.WindowHeight,
                     DefaultOperationType = _cachedSettings.DefaultOperationType,
+                    InitialBalance = _cachedSettings.InitialBalance,
                     ExportDate = DateTime.Now
                 };
 
@@ -318,6 +320,7 @@ namespace AutoKassa.Services
                 _cachedSettings.WindowWidth = importData.WindowWidth;
                 _cachedSettings.WindowHeight = importData.WindowHeight;
                 _cachedSettings.DefaultOperationType = importData.DefaultOperationType;
+                _cachedSettings.InitialBalance = importData.InitialBalance;
 
                 await SaveSettingsAsync(_cachedSettings);
                 return true;
@@ -513,6 +516,7 @@ namespace AutoKassa.Services
         public double WindowWidth { get; set; }
         public double WindowHeight { get; set; }
         public int DefaultOperationType { get; set; }
+        public decimal InitialBalance { get; set; }
         public DateTime ExportDate { get; set; }
     }
 }

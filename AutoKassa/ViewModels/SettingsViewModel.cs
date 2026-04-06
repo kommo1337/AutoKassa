@@ -50,6 +50,9 @@ namespace AutoKassa.ViewModels
         private bool _requirePasswordOnStartup;
         private int _passwordExpireDays;
 
+        // Финансы
+        private decimal _initialBalance;
+
         // Интерфейс
         private string _selectedLanguage;
         private double _windowWidth;
@@ -239,6 +242,16 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
+        #region Финансовые настройки
+
+        public decimal InitialBalance
+        {
+            get => _initialBalance;
+            set { if (SetProperty(ref _initialBalance, value)) MarkAsChanged(); }
+        }
+
+        #endregion
+
         #region Интерфейс
 
         public string SelectedLanguage
@@ -330,6 +343,8 @@ namespace AutoKassa.ViewModels
             _requirePasswordOnStartup = settings.RequirePasswordOnStartup;
             _passwordExpireDays = settings.PasswordExpireDays;
 
+            _initialBalance = settings.InitialBalance;
+
             _selectedLanguage = settings.Language;
             _windowWidth = settings.WindowWidth;
             _windowHeight = settings.WindowHeight;
@@ -349,6 +364,7 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(BackupPath));
             OnPropertyChanged(nameof(RequirePasswordOnStartup));
             OnPropertyChanged(nameof(PasswordExpireDays));
+            OnPropertyChanged(nameof(InitialBalance));
             OnPropertyChanged(nameof(SelectedLanguage));
             OnPropertyChanged(nameof(WindowWidth));
             OnPropertyChanged(nameof(WindowHeight));
@@ -409,6 +425,8 @@ namespace AutoKassa.ViewModels
 
             settings.RequirePasswordOnStartup = RequirePasswordOnStartup;
             settings.PasswordExpireDays = PasswordExpireDays;
+
+            settings.InitialBalance = InitialBalance;
 
             settings.Language = SelectedLanguage;
             settings.WindowWidth = WindowWidth;
@@ -729,7 +747,8 @@ namespace AutoKassa.ViewModels
                 WindowHeight = source.WindowHeight,
                 DefaultOperationType = source.DefaultOperationType,
                 DefaultIncomeCategoryId = source.DefaultIncomeCategoryId,
-                DefaultExpenseCategoryId = source.DefaultExpenseCategoryId
+                DefaultExpenseCategoryId = source.DefaultExpenseCategoryId,
+                InitialBalance = source.InitialBalance
             };
         }
 

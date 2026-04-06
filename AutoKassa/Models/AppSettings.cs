@@ -175,6 +175,16 @@ namespace AutoKassa.Models
 
         #endregion
 
+        #region Финансовые настройки
+
+        /// <summary>
+        /// Начальный баланс (сумма на кассе до первой транзакции)
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal InitialBalance { get; set; } = 0;
+
+        #endregion
+
         #region Настройки интерфейса
 
         /// <summary>

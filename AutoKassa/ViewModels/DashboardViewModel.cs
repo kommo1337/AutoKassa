@@ -59,6 +59,7 @@ namespace AutoKassa.ViewModels
         private decimal _statsAvgIncome;
         private decimal _todayBalance;
         private bool _hasTodayTransactions;
+        private decimal _currentCashBalance;
 
         // Быстрое добавление (субVM)
         private QuickAddViewModel _quickAdd;
@@ -359,6 +360,15 @@ namespace AutoKassa.ViewModels
             set => SetProperty(ref _hasTodayTransactions, value);
         }
 
+        /// <summary>
+        /// Текущий остаток в кассе: начальный баланс + все доходы за всё время - все расходы за всё время
+        /// </summary>
+        public decimal CurrentCashBalance
+        {
+            get => _currentCashBalance;
+            set => SetProperty(ref _currentCashBalance, value);
+        }
+
         public bool IsModalOpen
         {
             get => _isModalOpen;
@@ -418,7 +428,8 @@ namespace AutoKassa.ViewModels
                     LoadSummaryAsync(ct),
                     LoadRecentTransactionsAsync(ct),
                     LoadChartDataAsync(ct),
-                    LoadTodayBalanceAsync(ct));
+                    LoadTodayBalanceAsync(ct),
+                    LoadCashBalanceAsync(ct));
             }
             catch (OperationCanceledException) { /* пользователь сменил период — игнорируем */ }
             catch (Exception ex)
@@ -440,7 +451,7 @@ namespace AutoKassa.ViewModels
             TotalIncome  = income;
             TotalExpense = expense;
             Profit       = income - expense;
-            Profitability = income > 0 ? (Profit / income) * 100 : 0;
+            Profitability = income > 0 ? ((income - expense) / income) * 100 : 0;
             await CalculateChangesAsync(ct);
         }
 
@@ -535,6 +546,17 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
+        /// Загрузка актуального остатка в кассе — начальный баланс + все доходы - все расходы за всё время
+        /// </summary>
+        private async Task LoadCashBalanceAsync(CancellationToken ct = default)
+        {
+            var settings = await _settingsService.GetSettingsAsync();
+            var (allIncome, allExpense, _, _) = await _transactionService.GetPeriodTotalsAsync(
+                new DateTime(2000, 1, 1), DateTime.Today, ct);
+            CurrentCashBalance = settings.InitialBalance + allIncome - allExpense;
+        }
+
+        /// <summary>
         /// Загрузка данных для графика — SQL-агрегация по дням
         /// </summary>
         private async Task LoadChartDataAsync(CancellationToken ct = default)
@@ -597,14 +619,16 @@ namespace AutoKassa.ViewModels
             };
 
             // Накопительный баланс
+            var chartSettings = await _settingsService.GetSettingsAsync();
             decimal runningIncome = 0;
             decimal runningExpense = 0;
+            decimal initialBalance = chartSettings.InitialBalance;
 
             foreach (var data in groupedData)
             {
                 runningIncome += data.Income;
                 runningExpense += data.Expense;
-                var runningProfit = runningIncome - runningExpense;
+                var runningProfit = initialBalance + runningIncome - runningExpense;
 
                 var dateValue = DateTimeAxis.ToDouble(data.Date);
                 incomeSeries.Points.Add(new DataPoint(dateValue, (double)runningIncome));

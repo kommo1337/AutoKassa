@@ -337,7 +337,7 @@
                             </Setter.Value>
                         </Setter>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                            <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
                                 <Setter Property="BorderBrush" Value="#fca5a5"/>
                                 <Setter Property="Background">
                                     <Setter.Value>
@@ -358,7 +358,7 @@
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                    <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
                                         <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -369,14 +369,14 @@
                     <TextBlock FontSize="30" FontWeight="Bold">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}{0:N0} ₽">
-                                <Binding Path="Profit"/>
+                                <Binding Path="CurrentCashBalance"/>
                             </MultiBinding>
                         </TextBlock.Text>
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                    <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
                                         <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>

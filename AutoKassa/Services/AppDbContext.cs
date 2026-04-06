@@ -266,7 +266,8 @@ namespace AutoKassa.Services
                     Language = "ru-RU",
                     WindowWidth = 1200,
                     WindowHeight = 700,
-                    DefaultOperationType = 2
+                    DefaultOperationType = 2,
+                    InitialBalance = 0m
                 }
             );
         }
