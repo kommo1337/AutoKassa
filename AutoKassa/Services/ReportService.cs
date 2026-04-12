@@ -170,7 +170,8 @@ namespace AutoKassa.Services
                 {
                     Category = g.Key,
                     Amount = g.Sum(t => t.Amount),
-                    Count = g.Count()
+                    Count = g.Count(),
+                    Transactions = g.OrderByDescending(t => t.Date).ToList()
                 })
                 .OrderByDescending(x => x.Amount)
                 .ToList();
@@ -198,7 +199,8 @@ namespace AutoKassa.Services
                     Amount = group.Amount,
                     Percentage = Math.Round(percentage, 1),
                     TransactionCount = group.Count,
-                    Color = colors[colorIndex % colors.Length]
+                    Color = colors[colorIndex % colors.Length],
+                    Transactions = group.Transactions
                 });
 
                 colorIndex++;

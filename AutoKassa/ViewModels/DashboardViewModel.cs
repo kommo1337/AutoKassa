@@ -68,6 +68,9 @@ namespace AutoKassa.ViewModels
         private decimal _nonCashIncome;
         private decimal _cashExpense;
         private decimal _nonCashExpense;
+        private decimal _cashProfit;
+        private decimal _nonCashProfit;
+        private string _periodLabel = "ЗА МЕСЯЦ";
 
         // Быстрое добавление (субVM)
         private QuickAddViewModel _quickAdd;
@@ -107,10 +110,10 @@ namespace AutoKassa.ViewModels
             // Команды операций (параметр = конкретная транзакция или null → используем SelectedTransaction)
             OpenTransactionCommand = new RelayCommand(
                 t => OpenTransaction(t as Transaction ?? SelectedTransaction),
-                _ => SelectedTransaction != null);
+                t => (t as Transaction ?? SelectedTransaction) != null);
             EditTransactionCommand = new RelayCommand(
                 t => OpenTransaction(t as Transaction ?? SelectedTransaction),
-                _ => SelectedTransaction != null);
+                t => (t as Transaction ?? SelectedTransaction) != null);
             DeleteTransactionCommand = new RelayCommand(async t => await DeleteTransactionAsync(t as Transaction ?? SelectedTransaction));
             NavigateToAllTransactionsCommand = new RelayCommand(_ => NavigateToAllTransactions());
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
@@ -222,6 +225,24 @@ namespace AutoKassa.ViewModels
         {
             get => _nonCashExpense;
             set => SetProperty(ref _nonCashExpense, value);
+        }
+
+        public decimal CashProfit
+        {
+            get => _cashProfit;
+            set => SetProperty(ref _cashProfit, value);
+        }
+
+        public decimal NonCashProfit
+        {
+            get => _nonCashProfit;
+            set => SetProperty(ref _nonCashProfit, value);
+        }
+
+        public string PeriodLabel
+        {
+            get => _periodLabel;
+            set => SetProperty(ref _periodLabel, value);
         }
 
         #endregion
@@ -510,8 +531,10 @@ namespace AutoKassa.ViewModels
 
             var (ci, ce, _, _) = cashTask.Result;
             CashIncome = ci; CashExpense = ce;
+            CashProfit = ci - ce;
             var (ni, ne, _, _) = cardTask.Result;
             NonCashIncome = ni; NonCashExpense = ne;
+            NonCashProfit = ni - ne;
 
             await CalculateChangesAsync(ct);
         }
@@ -742,6 +765,7 @@ namespace AutoKassa.ViewModels
                 case PeriodType.Today:
                     DateFrom = today;
                     DateTo = today;
+                    PeriodLabel = "ЗА СЕГОДНЯ";
                     break;
 
                 case PeriodType.Week:
@@ -749,20 +773,23 @@ namespace AutoKassa.ViewModels
                     var daysFromMonday = ((int)today.DayOfWeek + 6) % 7;
                     DateFrom = today.AddDays(-daysFromMonday);
                     DateTo = today;
+                    PeriodLabel = "ЗА НЕДЕЛЮ";
                     break;
 
                 case PeriodType.Month:
                     DateFrom = new DateTime(today.Year, today.Month, 1);
                     DateTo = today;
+                    PeriodLabel = "ЗА МЕСЯЦ";
                     break;
 
                 case PeriodType.Year:
                     DateFrom = new DateTime(today.Year, 1, 1);
                     DateTo = today;
+                    PeriodLabel = "ЗА ГОД";
                     break;
 
                 case PeriodType.Custom:
-                    // Даты не меняем
+                    PeriodLabel = "ЗА ПЕРИОД";
                     break;
             }
         }

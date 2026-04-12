@@ -32,7 +32,8 @@ namespace AutoKassa.ViewModels.Reports
             IReportService reportService,
             ICategoryService categoryService,
             IExportService exportService,
-            IDialogService dialogService) : base(dialogService)
+            IDialogService dialogService,
+            IToastNotificationService toastService) : base(dialogService, toastService)
         {
             _reportService   = reportService;
             _categoryService = categoryService;
@@ -46,11 +47,16 @@ namespace AutoKassa.ViewModels.Reports
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand   = new RelayCommand(_ => SetOperationType(OperationType.Income));
 
-            SetPaymentAllCommand     = new RelayCommand(_ => { SelectedPaymentType = null; _ = GenerateReportAsync(); });
-            SetPaymentCashCommand    = new RelayCommand(_ => { SelectedPaymentType = PaymentType.Cash; _ = GenerateReportAsync(); });
-            SetPaymentNonCashCommand = new RelayCommand(_ => { SelectedPaymentType = PaymentType.NonCash; _ = GenerateReportAsync(); });
+            SetPaymentAllCommand     = new RelayCommand(_ => SelectedPaymentType = null);
+            SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
+            SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
 
-            RunAsync(LoadCategoriesAsync);
+            RunAsync(async () =>
+            {
+                await LoadCategoriesAsync();
+                MarkInitialized();
+                await GenerateReportAsync();
+            });
         }
 
         public override string ReportName => "Детализация операций";
@@ -58,13 +64,13 @@ namespace AutoKassa.ViewModels.Reports
         public DateTime DateFrom
         {
             get => _dateFrom;
-            set { if (SetProperty(ref _dateFrom, value)) ValidateDateRange(); }
+            set { if (SetProperty(ref _dateFrom, value)) { ValidateDateRange(); AutoRefresh(); } }
         }
 
         public DateTime DateTo
         {
             get => _dateTo;
-            set { if (SetProperty(ref _dateTo, value)) ValidateDateRange(); }
+            set { if (SetProperty(ref _dateTo, value)) { ValidateDateRange(); AutoRefresh(); } }
         }
 
         public OperationType? SelectedOperationType
@@ -88,7 +94,7 @@ namespace AutoKassa.ViewModels.Reports
         public Category SelectedCategory
         {
             get => _selectedCategory;
-            set => SetProperty(ref _selectedCategory, value);
+            set { if (SetProperty(ref _selectedCategory, value)) AutoRefresh(); }
         }
 
         public List<Category> Categories
@@ -124,6 +130,7 @@ namespace AutoKassa.ViewModels.Reports
                     OnPropertyChanged(nameof(IsPaymentAll));
                     OnPropertyChanged(nameof(IsPaymentCash));
                     OnPropertyChanged(nameof(IsPaymentNonCash));
+                    AutoRefresh();
                 }
             }
         }
@@ -153,13 +160,14 @@ namespace AutoKassa.ViewModels.Reports
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
+                _toastService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
             }
         }
 
         private void SetOperationType(OperationType? type)
         {
             SelectedOperationType = type;
+            AutoRefresh();
         }
 
         protected override async Task LoadDataAsync()
@@ -209,47 +217,50 @@ namespace AutoKassa.ViewModels.Reports
 
         public void SetPeriod(string period)
         {
-            var now = DateTime.Now;
-            switch (period)
+            BatchUpdate(() =>
             {
-                case "Today":
-                    DateFrom = now.Date;
-                    DateTo   = now.Date;
-                    break;
-                case "Week":
-                    DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
-                    DateTo   = now.Date;
-                    break;
-                case "Month":
-                    DateFrom = new DateTime(now.Year, now.Month, 1);
-                    DateTo   = now.Date;
-                    break;
-                case "Quarter":
-                    var q    = (now.Month - 1) / 3;
-                    DateFrom = new DateTime(now.Year, q * 3 + 1, 1);
-                    DateTo   = now.Date;
-                    break;
-                case "Year":
-                    DateFrom = new DateTime(now.Year, 1, 1);
-                    DateTo   = now.Date;
-                    break;
-            }
+                var now = DateTime.Now;
+                switch (period)
+                {
+                    case "Today":
+                        DateFrom = now.Date;
+                        DateTo   = now.Date;
+                        break;
+                    case "Week":
+                        DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
+                        DateTo   = now.Date;
+                        break;
+                    case "Month":
+                        DateFrom = new DateTime(now.Year, now.Month, 1);
+                        DateTo   = now.Date;
+                        break;
+                    case "Quarter":
+                        var q    = (now.Month - 1) / 3;
+                        DateFrom = new DateTime(now.Year, q * 3 + 1, 1);
+                        DateTo   = now.Date;
+                        break;
+                    case "Year":
+                        DateFrom = new DateTime(now.Year, 1, 1);
+                        DateTo   = now.Date;
+                        break;
+                }
+            });
         }
 
         protected override async Task ExportToPdfAsync()
         {
-            if (Report == null) { _dialogService.ShowWarning("Сначала сформируйте отчет"); return; }
+            if (Report == null) { _toastService.ShowInfo("Сначала сформируйте отчет"); return; }
             var path = await _exportService.ExportTransactionDetailReportToPdfAsync(Report);
-            _dialogService.ShowInfo($"Отчет сохранен:\n{path}");
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }));
         }
 
         protected override async Task ExportToExcelAsync()
         {
-            if (Report == null) { _dialogService.ShowWarning("Сначала сформируйте отчет"); return; }
+            if (Report == null) { _toastService.ShowInfo("Сначала сформируйте отчет"); return; }
             var path = await _exportService.ExportTransactionDetailReportToExcelAsync(Report);
-            _dialogService.ShowInfo($"Отчет сохранен:\n{path}");
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }));
         }
     }
 }

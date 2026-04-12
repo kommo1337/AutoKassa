@@ -21,6 +21,9 @@ namespace AutoKassa.Services
         public void ShowDeleteWithUndo(string message, Action undoAction)
             => Raise(new ToastItem { Message = message, Type = ToastType.Delete, UndoAction = undoAction });
 
+        public void ShowWithAction(string message, string actionText, Action action, ToastType type = ToastType.Success)
+            => Raise(new ToastItem { Message = message, Type = type, ActionCallback = action, ActionText = actionText });
+
         private void Raise(ToastItem item)
             => ToastRequested?.Invoke(this, item);
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Models.Reports
@@ -79,5 +80,10 @@ namespace AutoKassa.Models.Reports
         /// Цвет для диаграммы (HEX)
         /// </summary>
         public string Color { get; set; }
+
+        /// <summary>
+        /// Операции в данной категории
+        /// </summary>
+        public List<Transaction> Transactions { get; set; } = new();
     }
 }

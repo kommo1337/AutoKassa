@@ -11,5 +11,12 @@ namespace AutoKassa.Services
         public ToastType Type { get; set; } = ToastType.Info;
         public Action? UndoAction { get; set; }
         public bool HasUndo => UndoAction != null;
+
+        /// <summary>
+        /// Кнопка действия (например «Открыть»)
+        /// </summary>
+        public Action? ActionCallback { get; set; }
+        public string? ActionText { get; set; }
+        public bool HasAction => ActionCallback != null;
     }
 }

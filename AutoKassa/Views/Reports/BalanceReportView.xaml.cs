@@ -15,14 +15,7 @@ namespace AutoKassa.Views.Reports
         {
             if (sender is Button button && button.Tag is string period)
             {
-                var viewModel = DataContext as BalanceReportViewModel;
-                viewModel?.SetPeriod(period);
-
-                // Автоматически формируем отчет
-                if (viewModel?.GenerateCommand.CanExecute(null) == true)
-                {
-                    viewModel.GenerateCommand.Execute(null);
-                }
+                (DataContext as BalanceReportViewModel)?.SetPeriod(period);
             }
         }
     }

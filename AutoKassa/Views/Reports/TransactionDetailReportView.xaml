@@ -259,10 +259,6 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
 
-                        <Button Content="Сформировать"
-                                Command="{Binding GenerateCommand}"
-                                Style="{StaticResource PillButton}"
-                                Padding="20,8"/>
                     </StackPanel>
 
                     <!-- Фильтр типа оплаты -->
@@ -497,7 +493,7 @@
                            Foreground="{StaticResource BorderLightBrush}"
                            HorizontalAlignment="Center"
                            FontWeight="SemiBold"/>
-                <TextBlock Text="Настройте фильтры и нажмите «Сформировать»"
+                <TextBlock Text="Нет операций за выбранный период"
                            FontSize="15"
                            Foreground="{StaticResource MutedTextBrush}"
                            TextAlignment="Center"

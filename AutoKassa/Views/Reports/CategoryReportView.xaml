@@ -1,9 +1,26 @@
 <UserControl x:Class="AutoKassa.Views.Reports.CategoryReportView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:AutoKassa.Views"
              Background="{StaticResource BackgroundBrush}">
 
     <Grid>
+        <!-- Main content (blurs when modal open) -->
+        <Grid x:Name="MainContent">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsModalOpen}" Value="True">
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <BlurEffect Radius="6"/>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -83,10 +100,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Button Content="Сформировать"
-                                Command="{Binding GenerateCommand}"
-                                Style="{StaticResource PillButton}"
-                                Padding="20,8"/>
                     </StackPanel>
 
                     <!-- Экспорт -->
@@ -307,7 +320,7 @@
                 </Grid>
             </Border>
 
-            <!-- ТАБЛИЦА КАТЕГОРИЙ -->
+            <!-- ТАБЛИЦА КАТЕГОРИЙ (раскрываемая) -->
             <Border Grid.Column="1"
                     Background="{StaticResource CardBgBrush}"
                     CornerRadius="12"
@@ -328,47 +341,227 @@
                                Margin="0,0,0,12"/>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding Report.CategoryItems}">
+                        <ItemsControl ItemsSource="{Binding ExpandableItems}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="4,10"
-                                            BorderBrush="{StaticResource BorderLightBrush}"
-                                            BorderThickness="0,0,0,1">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="14"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <!-- Заголовок категории (клик = развернуть/свернуть) -->
+                                        <Border Padding="4,10"
+                                                BorderBrush="{StaticResource BorderLightBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Cursor="Hand"
+                                                Background="Transparent"
+                                                MouseLeftButtonDown="CategoryHeader_Click">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="14"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
 
-                                            <Ellipse Grid.Column="0"
-                                                     Width="10" Height="10"
-                                                     VerticalAlignment="Center">
-                                                <Ellipse.Fill>
-                                                    <SolidColorBrush Color="{Binding Color}"/>
-                                                </Ellipse.Fill>
-                                            </Ellipse>
-
-                                            <StackPanel Grid.Column="1" Margin="10,0">
-                                                <TextBlock Text="{Binding CategoryName}"
-                                                           FontSize="13"
-                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                <TextBlock FontSize="11"
-                                                           Foreground="{StaticResource MutedTextBrush}">
-                                                    <Run Text="{Binding Percentage, StringFormat={}{0:0.0}%}"/>
-                                                    <Run Text=" · "/>
-                                                    <Run Text="{Binding TransactionCount}"/>
-                                                    <Run Text=" опер."/>
+                                                <!-- Стрелка раскрытия -->
+                                                <TextBlock Grid.Column="0"
+                                                           FontSize="10"
+                                                           Foreground="{StaticResource MutedTextBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,6,0"
+                                                           RenderTransformOrigin="0.5,0.5">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="▶"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                                    <Setter Property="Text" Value="▼"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
                                                 </TextBlock>
-                                            </StackPanel>
 
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding Amount, Converter={StaticResource DecimalToStringConverter}}"
-                                                       FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </Border>
+                                                <Ellipse Grid.Column="1"
+                                                         Width="10" Height="10"
+                                                         VerticalAlignment="Center"
+                                                         Fill="{Binding Color, Converter={StaticResource CategoryColorConverter}}"/>
+
+                                                <StackPanel Grid.Column="2" Margin="10,0">
+                                                    <TextBlock Text="{Binding CategoryName}"
+                                                               FontSize="13"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <TextBlock FontSize="11"
+                                                               Foreground="{StaticResource MutedTextBrush}">
+                                                        <Run Text="{Binding Percentage, StringFormat={}{0:0.0}%, Mode=OneWay}"/>
+                                                        <Run Text=" · "/>
+                                                        <Run Text="{Binding TransactionCount, Mode=OneWay}"/>
+                                                        <Run Text=" опер."/>
+                                                    </TextBlock>
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding Amount, Converter={StaticResource DecimalToStringConverter}}"
+                                                           FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Список операций (раскрытый) -->
+                                        <ItemsControl ItemsSource="{Binding Transactions}"
+                                                      Margin="28,0,0,0">
+                                            <ItemsControl.Style>
+                                                <Style TargetType="ItemsControl">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ItemsControl.Style>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Padding="6,8"
+                                                            BorderBrush="#F1F3F5"
+                                                            BorderThickness="0,0,0,1"
+                                                            Background="Transparent"
+                                                            Cursor="Hand">
+                                                        <Border.ContextMenu>
+                                                            <ContextMenu Opened="TransactionContextMenu_Opened">
+                                                                <ContextMenu.Style>
+                                                                    <Style TargetType="ContextMenu">
+                                                                        <Setter Property="Background" Value="White"/>
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource BorderLightBrush}"/>
+                                                                        <Setter Property="BorderThickness" Value="1"/>
+                                                                        <Setter Property="Padding" Value="4"/>
+                                                                        <Setter Property="HasDropShadow" Value="True"/>
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="ContextMenu">
+                                                                                    <Border Background="{TemplateBinding Background}"
+                                                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                                                            CornerRadius="8"
+                                                                                            Padding="{TemplateBinding Padding}">
+                                                                                        <Border.Effect>
+                                                                                            <DropShadowEffect Color="#000000" Opacity="0.12" BlurRadius="12" ShadowDepth="2"/>
+                                                                                        </Border.Effect>
+                                                                                        <StackPanel IsItemsHost="True"/>
+                                                                                    </Border>
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                    </Style>
+                                                                </ContextMenu.Style>
+                                                                <MenuItem Header="Редактировать"
+                                                                          Click="EditMenuItem_Click">
+                                                                    <MenuItem.Style>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                                            <Setter Property="FontSize" Value="13"/>
+                                                                            <Setter Property="Padding" Value="8,6"/>
+                                                                            <Setter Property="Template">
+                                                                                <Setter.Value>
+                                                                                    <ControlTemplate TargetType="MenuItem">
+                                                                                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                                                            <TextBlock Text="{TemplateBinding Header}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"/>
+                                                                                        </Border>
+                                                                                        <ControlTemplate.Triggers>
+                                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                                <Setter TargetName="Bd" Property="Background" Value="#F1F3F5"/>
+                                                                                            </Trigger>
+                                                                                        </ControlTemplate.Triggers>
+                                                                                    </ControlTemplate>
+                                                                                </Setter.Value>
+                                                                            </Setter>
+                                                                        </Style>
+                                                                    </MenuItem.Style>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Удалить"
+                                                                          Click="DeleteMenuItem_Click">
+                                                                    <MenuItem.Style>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                                                            <Setter Property="FontSize" Value="13"/>
+                                                                            <Setter Property="Padding" Value="8,6"/>
+                                                                            <Setter Property="Template">
+                                                                                <Setter.Value>
+                                                                                    <ControlTemplate TargetType="MenuItem">
+                                                                                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                                                            <TextBlock Text="{TemplateBinding Header}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}"/>
+                                                                                        </Border>
+                                                                                        <ControlTemplate.Triggers>
+                                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                                <Setter TargetName="Bd" Property="Background" Value="#fef2f2"/>
+                                                                                            </Trigger>
+                                                                                        </ControlTemplate.Triggers>
+                                                                                    </ControlTemplate>
+                                                                                </Setter.Value>
+                                                                            </Setter>
+                                                                        </Style>
+                                                                    </MenuItem.Style>
+                                                                </MenuItem>
+                                                            </ContextMenu>
+                                                        </Border.ContextMenu>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Text" Value="{Binding Description}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Description}" Value="">
+                                                                                    <Setter Property="Text" Value="Без описания"/>
+                                                                                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+                                                                                    <Setter Property="FontStyle" Value="Italic"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                                                                                    <Setter Property="Text" Value="Без описания"/>
+                                                                                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+                                                                                    <Setter Property="FontStyle" Value="Italic"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                    <TextBlock Text="{Binding Date, StringFormat=d MMM yyyy}"
+                                                                               FontSize="11"
+                                                                               Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock Text=" · "
+                                                                               FontSize="11"
+                                                                               Foreground="{StaticResource MutedTextBrush}"/>
+                                                                    <TextBlock FontSize="11"
+                                                                               Foreground="{StaticResource MutedTextBrush}">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Text" Value="Наличные"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding PaymentType}" Value="NonCash">
+                                                                                        <Setter Property="Text" Value="Безналичные"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </StackPanel>
+
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding Amount, Converter={StaticResource DecimalToStringConverter}}"
+                                                                       FontSize="12" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -389,12 +582,31 @@
                            Foreground="{StaticResource BorderLightBrush}"
                            HorizontalAlignment="Center"
                            FontWeight="SemiBold"/>
-                <TextBlock Text="Выберите период, тип операций и нажмите «Сформировать»"
+                <TextBlock Text="Нет операций за выбранный период"
                            FontSize="15"
                            Foreground="{StaticResource MutedTextBrush}"
                            TextAlignment="Center"
                            Margin="0,12,0,0"/>
             </StackPanel>
         </Border>
+        </Grid>
+
+        <!-- ===== MODAL OVERLAY (редактирование операции) ===== -->
+        <Grid Panel.ZIndex="100"
+              Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Rectangle Fill="#66000000"/>
+            <Grid MaxWidth="470" MaxHeight="750"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  UseLayoutRounding="True" SnapsToDevicePixels="True">
+                <Border Background="White" CornerRadius="20">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="48" ShadowDepth="10" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="White" CornerRadius="20" ClipToBounds="True">
+                    <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
+                </Border>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

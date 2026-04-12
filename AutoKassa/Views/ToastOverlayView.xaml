@@ -21,18 +21,48 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Иконка корзины -->
+                <!-- Иконка -->
                 <Viewbox Grid.Column="0" Width="15" Height="15"
                          VerticalAlignment="Center" Margin="0,0,10,0">
                     <Canvas Width="24" Height="24">
-                        <Path Stroke="#ef4444" StrokeThickness="2.2"
+                        <!-- Иконка корзины (Delete) -->
+                        <Path x:Name="IconDelete"
+                              Stroke="#ef4444" StrokeThickness="2.2"
                               StrokeLineJoin="Round"
                               StrokeStartLineCap="Round"
                               StrokeEndLineCap="Round"
                               Fill="Transparent"
                               Data="M3,6 L5,6 L21,6 M19,6 V20 a2,2 0 0,1 -2,2 H7 a2,2 0 0,1 -2,-2 V6 M8,6 V4 a2,2 0 0,1 2,-2 h4 a2,2 0 0,1 2,2 V6"/>
+                        <!-- Иконка галочки (Success) -->
+                        <Path x:Name="IconSuccess"
+                              Stroke="#22c55e" StrokeThickness="2.2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Fill="Transparent"
+                              Data="M20,6 L9,17 L4,12"
+                              Visibility="Collapsed"/>
+                        <!-- Иконка ошибки (Error) -->
+                        <Path x:Name="IconError"
+                              Stroke="#ef4444" StrokeThickness="2.2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Fill="Transparent"
+                              Data="M12,2 L12,14 M12,18 L12,22"
+                              Visibility="Collapsed"/>
+                        <!-- Иконка инфо (Info) -->
+                        <Path x:Name="IconInfo"
+                              Stroke="#3b82f6" StrokeThickness="2.2"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Fill="Transparent"
+                              Data="M12,16 L12,12 M12,8 L12.01,8"
+                              Visibility="Collapsed"/>
                     </Canvas>
                 </Viewbox>
 
@@ -44,8 +74,35 @@
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"/>
 
-                <!-- Кнопка «Отменить» -->
+                <!-- Кнопка действия (Открыть и т.д.) -->
                 <Button Grid.Column="2"
+                        x:Name="ActionButton"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Margin="14,0,0,0"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        Visibility="Collapsed"
+                        Click="ActionButton_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <TextBlock x:Name="txt"
+                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Foreground="#22c55e"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="txt" Property="TextDecorations" Value="Underline"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Кнопка «Отменить» -->
+                <Button Grid.Column="3"
                         x:Name="UndoButton"
                         Background="Transparent"
                         BorderThickness="0"
@@ -72,7 +129,7 @@
             </Grid>
 
             <!-- Полоса обратного отсчёта: ScaleTransform от правого края -->
-            <Border Height="3" Background="#fecaca">
+            <Border Height="3" x:Name="ProgressBackground" Background="#fecaca">
                 <Border x:Name="ProgressFill"
                         Background="#ef4444"
                         Height="3"

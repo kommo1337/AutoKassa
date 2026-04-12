@@ -12,25 +12,60 @@ namespace AutoKassa.ViewModels.Reports
     public abstract class BaseReportViewModel : ViewModelBase
     {
         protected readonly IDialogService _dialogService;
+        protected readonly IToastNotificationService _toastService;
         private bool _isLoading;
         private bool _hasData;
+        private bool _initialized;
+        private bool _suppressRefresh;
 
-        protected BaseReportViewModel(IDialogService dialogService)
+        protected BaseReportViewModel(IDialogService dialogService, IToastNotificationService toastService)
         {
             _dialogService = dialogService;
+            _toastService = toastService;
 
             // Команды
             GenerateCommand = new RelayCommand(async _ => await GenerateReportAsync());
             ExportToPdfCommand = new RelayCommand(async _ =>
             {
                 try { await ExportToPdfAsync(); }
-                catch (Exception ex) { _dialogService.ShowError($"Ошибка экспорта в PDF: {ex.Message}"); }
+                catch (Exception ex) { _toastService.ShowError($"Ошибка экспорта в PDF: {ex.Message}"); }
             }, _ => HasData);
             ExportToExcelCommand = new RelayCommand(async _ =>
             {
                 try { await ExportToExcelAsync(); }
-                catch (Exception ex) { _dialogService.ShowError($"Ошибка экспорта в Excel: {ex.Message}"); }
+                catch (Exception ex) { _toastService.ShowError($"Ошибка экспорта в Excel: {ex.Message}"); }
             }, _ => HasData);
+        }
+
+        /// <summary>
+        /// Помечает VM как инициализированную и запускает первый отчёт.
+        /// Вызывать в конце конструктора наследника.
+        /// </summary>
+        protected void MarkInitialized()
+        {
+            _initialized = true;
+            RunAsync(GenerateReportAsync);
+        }
+
+        /// <summary>
+        /// Автоматически перегенерировать отчёт при изменении фильтра.
+        /// Не срабатывает до вызова MarkInitialized() или внутри BatchUpdate.
+        /// </summary>
+        protected void AutoRefresh()
+        {
+            if (_initialized && !_suppressRefresh)
+                RunAsync(GenerateReportAsync);
+        }
+
+        /// <summary>
+        /// Выполнить несколько изменений фильтров с одной перегенерацией в конце.
+        /// </summary>
+        protected void BatchUpdate(Action changes)
+        {
+            _suppressRefresh = true;
+            try { changes(); }
+            finally { _suppressRefresh = false; }
+            AutoRefresh();
         }
 
         #region Свойства
@@ -86,7 +121,7 @@ namespace AutoKassa.ViewModels.Reports
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка формирования отчета: {ex.Message}");
+                _toastService.ShowError($"Ошибка формирования отчета: {ex.Message}");
                 HasData = false;
             }
             finally
@@ -105,7 +140,7 @@ namespace AutoKassa.ViewModels.Reports
         /// </summary>
         protected virtual Task ExportToPdfAsync()
         {
-            _dialogService.ShowInfo("Экспорт в PDF будет реализован в следующем этапе");
+            _toastService.ShowInfo("Экспорт в PDF будет реализован в следующем этапе");
             return Task.CompletedTask;
         }
 
@@ -114,7 +149,7 @@ namespace AutoKassa.ViewModels.Reports
         /// </summary>
         protected virtual Task ExportToExcelAsync()
         {
-            _dialogService.ShowInfo("Экспорт в Excel будет реализован в следующем этапе");
+            _toastService.ShowInfo("Экспорт в Excel будет реализован в следующем этапе");
             return Task.CompletedTask;
         }
 

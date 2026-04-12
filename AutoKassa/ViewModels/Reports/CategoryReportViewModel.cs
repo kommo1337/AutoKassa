@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using AutoKassa.Helpers;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 using AutoKassa.Services;
@@ -14,13 +15,13 @@ using OxyPlot.Series;
 
 namespace AutoKassa.ViewModels.Reports
 {
-    /// <summary>
-    /// ViewModel для отчета "Структура по категориям"
-    /// </summary>
     public class CategoryReportViewModel : BaseReportViewModel
     {
         private readonly IReportService _reportService;
         private readonly IExportService _exportService;
+        private readonly ITransactionService _transactionService;
+        private readonly ICategoryService _categoryService;
+        private readonly ISettingsService _settingsService;
 
         private DateTime _dateFrom;
         private DateTime _dateTo;
@@ -29,40 +30,64 @@ namespace AutoKassa.ViewModels.Reports
         private PlotModel _plotModel;
         private ObservableCollection<DonutSliceItem> _donutSlices = new();
         private PaymentType? _selectedPaymentType;
+        private ObservableCollection<ExpandableCategoryItem> _expandableItems = new();
+
+        // Modal edit
+        private bool _isModalOpen;
+        private TransactionEditViewModel _editViewModel;
 
         public CategoryReportViewModel(
             IReportService reportService,
             IExportService exportService,
-            IDialogService dialogService) : base(dialogService)
+            IDialogService dialogService,
+            IToastNotificationService toastService,
+            ITransactionService transactionService,
+            ICategoryService categoryService,
+            ISettingsService settingsService) : base(dialogService, toastService)
         {
             _reportService = reportService;
             _exportService = exportService;
+            _transactionService = transactionService;
+            _categoryService = categoryService;
+            _settingsService = settingsService;
 
-            // По умолчанию - текущий месяц, расходы
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now.Date;
             _selectedOperationType = OperationType.Expense;
-
-            // Инициализация пустой модели графика
             _plotModel = new PlotModel();
 
-            // Команды для переключения типа операций
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand = new RelayCommand(_ => SetOperationType(OperationType.Income));
 
-            // Команды фильтра типа оплаты
-            SetPaymentAllCommand     = new RelayCommand(_ => { SelectedPaymentType = null; _ = GenerateReportAsync(); });
-            SetPaymentCashCommand    = new RelayCommand(_ => { SelectedPaymentType = PaymentType.Cash; _ = GenerateReportAsync(); });
-            SetPaymentNonCashCommand = new RelayCommand(_ => { SelectedPaymentType = PaymentType.NonCash; _ = GenerateReportAsync(); });
+            SetPaymentAllCommand     = new RelayCommand(_ => SelectedPaymentType = null);
+            SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
+            SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+
+            ToggleCategoryCommand = new RelayCommand(param =>
+            {
+                if (param is ExpandableCategoryItem item)
+                    item.IsExpanded = !item.IsExpanded;
+            });
+
+            EditTransactionCommand = new RelayCommand(param =>
+            {
+                if (param is Transaction t)
+                    EditTransaction(t);
+            });
+
+            DeleteTransactionCommand = new RelayCommand(async param =>
+            {
+                if (param is Transaction t)
+                    await DeleteTransactionAsync(t);
+            });
+
+            MarkInitialized();
         }
 
-        #region Свойства
+        #region Properties
 
         public override string ReportName => "Структура по категориям";
 
-        /// <summary>
-        /// Дата начала периода
-        /// </summary>
         public DateTime DateFrom
         {
             get => _dateFrom;
@@ -71,13 +96,11 @@ namespace AutoKassa.ViewModels.Reports
                 if (SetProperty(ref _dateFrom, value))
                 {
                     ValidateDateRange();
+                    AutoRefresh();
                 }
             }
         }
 
-        /// <summary>
-        /// Дата окончания периода
-        /// </summary>
         public DateTime DateTo
         {
             get => _dateTo;
@@ -86,13 +109,11 @@ namespace AutoKassa.ViewModels.Reports
                 if (SetProperty(ref _dateTo, value))
                 {
                     ValidateDateRange();
+                    AutoRefresh();
                 }
             }
         }
 
-        /// <summary>
-        /// Выбранный тип операций
-        /// </summary>
         public OperationType SelectedOperationType
         {
             get => _selectedOperationType;
@@ -106,46 +127,45 @@ namespace AutoKassa.ViewModels.Reports
             }
         }
 
-        /// <summary>
-        /// Выбраны расходы
-        /// </summary>
         public bool IsExpenseSelected => SelectedOperationType == OperationType.Expense;
-
-        /// <summary>
-        /// Выбраны доходы
-        /// </summary>
         public bool IsIncomeSelected => SelectedOperationType == OperationType.Income;
 
-        /// <summary>
-        /// Данные отчета
-        /// </summary>
         public CategoryReport Report
         {
             get => _report;
             set => SetProperty(ref _report, value);
         }
 
-        /// <summary>
-        /// Модель графика OxyPlot
-        /// </summary>
         public PlotModel PlotModel
         {
             get => _plotModel;
             set => SetProperty(ref _plotModel, value);
         }
 
-        /// <summary>
-        /// Срезы пончика для кастомной диаграммы
-        /// </summary>
         public ObservableCollection<DonutSliceItem> DonutSlices
         {
             get => _donutSlices;
             set => SetProperty(ref _donutSlices, value);
         }
 
-        /// <summary>
-        /// Список типов операций для ComboBox
-        /// </summary>
+        public ObservableCollection<ExpandableCategoryItem> ExpandableItems
+        {
+            get => _expandableItems;
+            set => SetProperty(ref _expandableItems, value);
+        }
+
+        public bool IsModalOpen
+        {
+            get => _isModalOpen;
+            set => SetProperty(ref _isModalOpen, value);
+        }
+
+        public TransactionEditViewModel EditViewModel
+        {
+            get => _editViewModel;
+            set => SetProperty(ref _editViewModel, value);
+        }
+
         public List<OperationTypeItem> OperationTypes { get; } = new List<OperationTypeItem>
         {
             new OperationTypeItem { Type = OperationType.Expense, Name = "Расходы" },
@@ -154,12 +174,11 @@ namespace AutoKassa.ViewModels.Reports
 
         #endregion
 
-        #region Команды
+        #region Commands
 
         public ICommand ShowExpensesCommand { get; }
         public ICommand ShowIncomeCommand { get; }
 
-        // Фильтр типа оплаты
         public PaymentType? SelectedPaymentType
         {
             get => _selectedPaymentType;
@@ -170,6 +189,7 @@ namespace AutoKassa.ViewModels.Reports
                     OnPropertyChanged(nameof(IsPaymentAll));
                     OnPropertyChanged(nameof(IsPaymentCash));
                     OnPropertyChanged(nameof(IsPaymentNonCash));
+                    AutoRefresh();
                 }
             }
         }
@@ -182,43 +202,46 @@ namespace AutoKassa.ViewModels.Reports
         public ICommand SetPaymentCashCommand    { get; }
         public ICommand SetPaymentNonCashCommand { get; }
 
+        public ICommand ToggleCategoryCommand { get; }
+        public ICommand EditTransactionCommand { get; }
+        public ICommand DeleteTransactionCommand { get; }
+
         #endregion
 
-        #region Методы
+        #region Methods
 
-        /// <summary>
-        /// Валидация диапазона дат
-        /// </summary>
         private void ValidateDateRange()
         {
             if (DateFrom > DateTo)
-            {
                 DateTo = DateFrom;
-            }
         }
 
-        /// <summary>
-        /// Установить тип операций
-        /// </summary>
         private void SetOperationType(OperationType type)
         {
             SelectedOperationType = type;
+            AutoRefresh();
         }
 
-        /// <summary>
-        /// Загрузка данных отчета
-        /// </summary>
         protected override async Task LoadDataAsync()
         {
             Report = await _reportService.GenerateCategoryReportAsync(DateFrom, DateTo, SelectedOperationType, SelectedPaymentType);
-
-            // Обновляем график
             UpdateChart();
+            BuildExpandableItems();
         }
 
-        /// <summary>
-        /// Обновление диаграммы
-        /// </summary>
+        private void BuildExpandableItems()
+        {
+            var items = new ObservableCollection<ExpandableCategoryItem>();
+            if (Report?.CategoryItems != null)
+            {
+                foreach (var ci in Report.CategoryItems)
+                {
+                    items.Add(new ExpandableCategoryItem(ci));
+                }
+            }
+            ExpandableItems = items;
+        }
+
         private void UpdateChart()
         {
             if (Report?.CategoryItems == null || !Report.CategoryItems.Any())
@@ -246,81 +269,127 @@ namespace AutoKassa.ViewModels.Reports
             DonutSlices = slices;
         }
 
-        /// <summary>
-        /// Быстрые фильтры периодов
-        /// </summary>
         public void SetPeriod(string period)
         {
-            var now = DateTime.Now;
-
-            switch (period)
+            BatchUpdate(() =>
             {
-                case "Today":
-                    DateFrom = now.Date;
-                    DateTo = now.Date;
-                    break;
+                var now = DateTime.Now;
+                switch (period)
+                {
+                    case "Today":
+                        DateFrom = now.Date;
+                        DateTo = now.Date;
+                        break;
+                    case "Week":
+                        DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
+                        DateTo = now.Date;
+                        break;
+                    case "Month":
+                        DateFrom = new DateTime(now.Year, now.Month, 1);
+                        DateTo = now.Date;
+                        break;
+                    case "Quarter":
+                        var quarter = (now.Month - 1) / 3;
+                        DateFrom = new DateTime(now.Year, quarter * 3 + 1, 1);
+                        DateTo = now.Date;
+                        break;
+                    case "Year":
+                        DateFrom = new DateTime(now.Year, 1, 1);
+                        DateTo = now.Date;
+                        break;
+                }
+            });
+        }
 
-                case "Week":
-                    DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
-                    DateTo = now.Date;
-                    break;
+        private void EditTransaction(Transaction transaction)
+        {
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
+            vm.InitializeForEdit(transaction);
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(GenerateReportAsync); };
+            vm.OnCancelled = () => { IsModalOpen = false; };
+            EditViewModel = vm;
+            IsModalOpen = true;
+        }
 
-                case "Month":
-                    DateFrom = new DateTime(now.Year, now.Month, 1);
-                    DateTo = now.Date;
-                    break;
+        private async Task DeleteTransactionAsync(Transaction transaction)
+        {
+            var deletedId = transaction.Id;
+            try
+            {
+                await _transactionService.DeleteAsync(deletedId);
+                await GenerateReportAsync();
 
-                case "Quarter":
-                    var quarter = (now.Month - 1) / 3;
-                    DateFrom = new DateTime(now.Year, quarter * 3 + 1, 1);
-                    DateTo = now.Date;
-                    break;
-
-                case "Year":
-                    DateFrom = new DateTime(now.Year, 1, 1);
-                    DateTo = now.Date;
-                    break;
+                _toastService.ShowDeleteWithUndo(
+                    "Операция удалена",
+                    async () =>
+                    {
+                        await _transactionService.RestoreAsync(deletedId);
+                        await GenerateReportAsync();
+                    });
+            }
+            catch (Exception ex)
+            {
+                _toastService.ShowError($"Ошибка удаления: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// Экспорт в PDF
-        /// </summary>
         protected override async Task ExportToPdfAsync()
         {
             if (Report == null)
             {
-                _dialogService.ShowWarning("Сначала сформируйте отчет");
+                _toastService.ShowInfo("Сначала сформируйте отчет");
                 return;
             }
 
             var filePath = await _exportService.ExportCategoryReportToPdfAsync(Report);
-            _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+            _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
+                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
         }
 
-        /// <summary>
-        /// Экспорт в Excel
-        /// </summary>
         protected override async Task ExportToExcelAsync()
         {
             if (Report == null)
             {
-                _dialogService.ShowWarning("Сначала сформируйте отчет");
+                _toastService.ShowInfo("Сначала сформируйте отчет");
                 return;
             }
 
             var filePath = await _exportService.ExportCategoryReportToExcelAsync(Report);
-            _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+            _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
+                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
         }
 
         #endregion
     }
 
     /// <summary>
-    /// Элемент для списка типов операций
+    /// Обёртка над CategoryReportItem для поддержки раскрытия/свёртывания
     /// </summary>
+    public class ExpandableCategoryItem : ViewModelBase
+    {
+        private bool _isExpanded;
+
+        public ExpandableCategoryItem(CategoryReportItem item)
+        {
+            Item = item;
+        }
+
+        public CategoryReportItem Item { get; }
+
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set => SetProperty(ref _isExpanded, value);
+        }
+
+        public string CategoryName => Item.CategoryName;
+        public string Color => Item.Color;
+        public decimal Amount => Item.Amount;
+        public double Percentage => Item.Percentage;
+        public int TransactionCount => Item.TransactionCount;
+        public List<Transaction> Transactions => Item.Transactions;
+    }
+
     public class OperationTypeItem
     {
         public OperationType Type { get; set; }

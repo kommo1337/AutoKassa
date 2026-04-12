@@ -31,5 +31,10 @@ namespace AutoKassa.Services
         /// Показать уведомление об удалении с кнопкой «Отменить»
         /// </summary>
         void ShowDeleteWithUndo(string message, Action undoAction);
+
+        /// <summary>
+        /// Показать уведомление с кнопкой действия (например «Открыть»)
+        /// </summary>
+        void ShowWithAction(string message, string actionText, Action action, ToastType type = ToastType.Success);
     }
 }

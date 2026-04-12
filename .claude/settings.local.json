@@ -33,7 +33,9 @@
       "Bash(dotnet test:*)",
       "Bash(where dotnet:*)",
       "Bash(C:/Program Files/dotnet/dotnet.exe build:*)",
-      "Bash(/c/Program Files/dotnet/dotnet.exe build:*)"
+      "Bash(/c/Program Files/dotnet/dotnet.exe build:*)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build AutoKassa/AutoKassa.csproj)",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build \"/c/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/AutoKassa/AutoKassa.csproj\")"
     ]
   }
 }

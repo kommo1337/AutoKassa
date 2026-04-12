@@ -32,7 +32,8 @@ namespace AutoKassa.ViewModels.Reports
         public BalanceReportViewModel(
             IReportService reportService,
             IExportService exportService,
-            IDialogService dialogService) : base(dialogService)
+            IDialogService dialogService,
+            IToastNotificationService toastService) : base(dialogService, toastService)
         {
             _reportService = reportService;
             _exportService = exportService;
@@ -45,9 +46,11 @@ namespace AutoKassa.ViewModels.Reports
             _plotModel = new PlotModel();
 
             // Команды фильтра типа оплаты
-            SetPaymentAllCommand     = new RelayCommand(_ => { SelectedPaymentType = null; _ = GenerateReportAsync(); });
-            SetPaymentCashCommand    = new RelayCommand(_ => { SelectedPaymentType = PaymentType.Cash; _ = GenerateReportAsync(); });
-            SetPaymentNonCashCommand = new RelayCommand(_ => { SelectedPaymentType = PaymentType.NonCash; _ = GenerateReportAsync(); });
+            SetPaymentAllCommand     = new RelayCommand(_ => SelectedPaymentType = null);
+            SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
+            SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+
+            MarkInitialized();
         }
 
         #region Свойства
@@ -65,6 +68,7 @@ namespace AutoKassa.ViewModels.Reports
                 if (SetProperty(ref _dateFrom, value))
                 {
                     ValidateDateRange();
+                    AutoRefresh();
                 }
             }
         }
@@ -80,6 +84,7 @@ namespace AutoKassa.ViewModels.Reports
                 if (SetProperty(ref _dateTo, value))
                 {
                     ValidateDateRange();
+                    AutoRefresh();
                 }
             }
         }
@@ -113,6 +118,7 @@ namespace AutoKassa.ViewModels.Reports
                     OnPropertyChanged(nameof(IsPaymentAll));
                     OnPropertyChanged(nameof(IsPaymentCash));
                     OnPropertyChanged(nameof(IsPaymentNonCash));
+                    AutoRefresh();
                 }
             }
         }
@@ -251,36 +257,34 @@ namespace AutoKassa.ViewModels.Reports
         /// </summary>
         public void SetPeriod(string period)
         {
-            var now = DateTime.Now;
-
-            switch (period)
+            BatchUpdate(() =>
             {
-                case "Today":
-                    DateFrom = now.Date;
-                    DateTo = now.Date;
-                    break;
-
-                case "Week":
-                    DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
-                    DateTo = now.Date;
-                    break;
-
-                case "Month":
-                    DateFrom = new DateTime(now.Year, now.Month, 1);
-                    DateTo = now.Date;
-                    break;
-
-                case "Quarter":
-                    var quarter = (now.Month - 1) / 3;
-                    DateFrom = new DateTime(now.Year, quarter * 3 + 1, 1);
-                    DateTo = now.Date;
-                    break;
-
-                case "Year":
-                    DateFrom = new DateTime(now.Year, 1, 1);
-                    DateTo = now.Date;
-                    break;
-            }
+                var now = DateTime.Now;
+                switch (period)
+                {
+                    case "Today":
+                        DateFrom = now.Date;
+                        DateTo = now.Date;
+                        break;
+                    case "Week":
+                        DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
+                        DateTo = now.Date;
+                        break;
+                    case "Month":
+                        DateFrom = new DateTime(now.Year, now.Month, 1);
+                        DateTo = now.Date;
+                        break;
+                    case "Quarter":
+                        var quarter = (now.Month - 1) / 3;
+                        DateFrom = new DateTime(now.Year, quarter * 3 + 1, 1);
+                        DateTo = now.Date;
+                        break;
+                    case "Year":
+                        DateFrom = new DateTime(now.Year, 1, 1);
+                        DateTo = now.Date;
+                        break;
+                }
+            });
         }
 
         /// <summary>
@@ -290,13 +294,13 @@ namespace AutoKassa.ViewModels.Reports
         {
             if (Report == null)
             {
-                _dialogService.ShowWarning("Сначала сформируйте отчет");
+                _toastService.ShowInfo("Сначала сформируйте отчет");
                 return;
             }
 
             var filePath = await _exportService.ExportBalanceReportToPdfAsync(Report);
-            _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+            _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
+                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
         }
 
         /// <summary>
@@ -306,13 +310,13 @@ namespace AutoKassa.ViewModels.Reports
         {
             if (Report == null)
             {
-                _dialogService.ShowWarning("Сначала сформируйте отчет");
+                _toastService.ShowInfo("Сначала сформируйте отчет");
                 return;
             }
 
             var filePath = await _exportService.ExportBalanceReportToExcelAsync(Report);
-            _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
-            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+            _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
+                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
         }
 
         #endregion
