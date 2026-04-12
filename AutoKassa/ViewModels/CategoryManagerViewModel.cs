@@ -95,7 +95,12 @@ namespace AutoKassa.ViewModels
             await _categoryService.ReorderAsync(updates);
         }
 
-        private async void RemoveCategory(CategoryItemViewModel item)
+        private void RemoveCategory(CategoryItemViewModel item)
+        {
+            RunAsync(() => RemoveCategoryAsync(item));
+        }
+
+        private async Task RemoveCategoryAsync(CategoryItemViewModel item)
         {
             var collection = item.Model.Type == OperationType.Income ? IncomeCategories : ExpenseCategories;
             var operationCount = await _categoryService.GetOperationCountAsync(item.Model.Id);

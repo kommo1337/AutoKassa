@@ -63,7 +63,10 @@ var colors = new Dictionary<int, string>
 
 foreach (var (id, color) in colors)
 {
-    ExecuteNonQuery(conn, $"UPDATE Categories SET Color = '{color}' WHERE Id = {id};");
+    using var cmd = new SqliteCommand("UPDATE Categories SET Color = @color WHERE Id = @id;", conn);
+    cmd.Parameters.AddWithValue("@color", color);
+    cmd.Parameters.AddWithValue("@id", id);
+    cmd.ExecuteNonQuery();
 }
 
 // Создаём индекс
@@ -89,11 +92,15 @@ void TryExecute(SqliteConnection c, string sql)
 
 void InsertMigrationIfNotExists(SqliteConnection c, string migrationId, string version)
 {
-    var count = (long)new SqliteCommand(
-        $"SELECT COUNT(*) FROM __EFMigrationsHistory WHERE MigrationId = '{migrationId}'", c).ExecuteScalar()!;
+    using var selectCmd = new SqliteCommand("SELECT COUNT(*) FROM __EFMigrationsHistory WHERE MigrationId = @id", c);
+    selectCmd.Parameters.AddWithValue("@id", migrationId);
+    var count = (long)selectCmd.ExecuteScalar()!;
     if (count == 0)
     {
-        ExecuteNonQuery(c, $"INSERT INTO __EFMigrationsHistory VALUES ('{migrationId}', '{version}');");
+        using var insertCmd = new SqliteCommand("INSERT INTO __EFMigrationsHistory VALUES (@id, @version);", c);
+        insertCmd.Parameters.AddWithValue("@id", migrationId);
+        insertCmd.Parameters.AddWithValue("@version", version);
+        insertCmd.ExecuteNonQuery();
         Console.WriteLine($"  Inserted migration history: {migrationId}");
     }
     else

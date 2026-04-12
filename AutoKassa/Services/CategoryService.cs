@@ -1,6 +1,7 @@
 ﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace AutoKassa.Services
 {
@@ -9,6 +10,8 @@ namespace AutoKassa.Services
     /// </summary>
     public class CategoryService : ICategoryService
     {
+        private static readonly ILogger _log = Log.ForContext<CategoryService>();
+
         private readonly AppDbContext _context;
 
         public CategoryService(AppDbContext context)
@@ -22,6 +25,7 @@ namespace AutoKassa.Services
         public async Task<List<Category>> GetAllAsync()
         {
             return await _context.Categories
+                .AsNoTracking()
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
@@ -34,6 +38,7 @@ namespace AutoKassa.Services
         public async Task<List<Category>> GetActiveAsync()
         {
             return await _context.Categories
+                .AsNoTracking()
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
@@ -46,7 +51,7 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetByTypeAsync(OperationType type, bool activeOnly = true)
         {
-            var query = _context.Categories.Where(c => c.Type == type);
+            var query = _context.Categories.AsNoTracking().Where(c => c.Type == type);
 
             if (activeOnly)
             {
@@ -72,12 +77,19 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<Category> AddAsync(Category category)
         {
+            if (string.IsNullOrWhiteSpace(category.Name))
+                throw new ArgumentException("Название категории не может быть пустым", nameof(category));
+
+            if (await ExistsAsync(category.Name, category.Type))
+                throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
+
             category.CreatedAt = DateTime.Now;
             category.IsActive = true;
 
             _context.Categories.Add(category);
             await _context.SaveChangesAsync();
 
+            _log.Information("Добавлена категория ID={Id}, название={Name}, тип={Type}", category.Id, category.Name, category.Type);
             return category;
         }
 
@@ -86,8 +98,13 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task UpdateAsync(Category category)
         {
+            if (string.IsNullOrWhiteSpace(category.Name))
+                throw new ArgumentException("Название категории не может быть пустым", nameof(category));
+
             _context.Entry(category).State = EntityState.Modified;
             await _context.SaveChangesAsync();
+
+            _log.Information("Обновлена категория ID={Id}, название={Name}", category.Id, category.Name);
         }
 
         /// <summary>
@@ -104,12 +121,14 @@ namespace AutoKassa.Services
 
             if (hasTransactions)
             {
-                return false; // Нельзя удалить категорию с операциями
+                _log.Warning("Попытка удалить категорию ID={Id} с привязанными операциями — отклонено", id);
+                return false;
             }
 
             _context.Categories.Remove(category);
             await _context.SaveChangesAsync();
 
+            _log.Information("Удалена категория ID={Id}", id);
             return true;
         }
 

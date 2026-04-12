@@ -21,6 +21,12 @@ namespace AutoKassa.Views
 
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TickIntervalMs) };
             _timer.Tick += OnTick;
+
+            Unloaded += (_, _) =>
+            {
+                _timer.Stop();
+                _timer.Tick -= OnTick;
+            };
         }
 
         public void ShowToast(ToastItem item)

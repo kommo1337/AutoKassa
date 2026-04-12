@@ -139,7 +139,7 @@ namespace AutoKassa.ViewModels
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now;
 
-            _ = InitializeAsync();
+            RunAsync(InitializeAsync);
         }
 
         #region Properties — transactions
@@ -483,6 +483,7 @@ namespace AutoKassa.ViewModels
         private async Task LoadDataAsync()
         {
             _loadCts?.Cancel();
+            _loadCts?.Dispose();
             _loadCts = new CancellationTokenSource();
             var ct = _loadCts.Token;
 
@@ -746,7 +747,7 @@ namespace AutoKassa.ViewModels
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -758,7 +759,7 @@ namespace AutoKassa.ViewModels
 
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(SelectedTransaction);
-            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;

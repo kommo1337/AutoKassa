@@ -38,7 +38,7 @@ namespace AutoKassa.ViewModels
             DeleteCommand = new RelayCommand(async _ => await DeleteCategoryAsync(), _ => SelectedCategory != null);
             FilterCommand = new RelayCommand<string>(type => ApplyFilter(type));
 
-            _ = LoadCategoriesAsync();
+            RunAsync(LoadCategoriesAsync);
         }
 
         #region Properties
@@ -154,11 +154,11 @@ namespace AutoKassa.ViewModels
             {
                 IsModalOpen = false;
                 ManagerViewModel = null;
-                _ = LoadCategoriesAsync();
+                RunAsync(LoadCategoriesAsync);
             };
             ManagerViewModel = vm;
             IsModalOpen = true;
-            _ = vm.LoadAsync();
+            RunAsync(vm.LoadAsync);
         }
 
         private async Task DeleteCategoryAsync()

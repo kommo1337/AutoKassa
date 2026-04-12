@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using Serilog;
+using System.Collections;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -6,6 +7,24 @@ namespace AutoKassa.Helpers
 {
     public abstract class ViewModelBase : INotifyPropertyChanged, INotifyDataErrorInfo
     {
+        private static readonly ILogger _log = Log.ForContext<ViewModelBase>();
+
+        /// <summary>
+        /// Запускает асинхронную операцию без блокировки конструктора/UI.
+        /// Перехватывает и логирует исключения вместо silent fail.
+        /// </summary>
+        protected void RunAsync(Func<Task> action)
+        {
+            action().ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    Log.ForContext(GetType()).Error(
+                        t.Exception?.GetBaseException(),
+                        "Необработанная ошибка в асинхронной операции [{ViewModel}]",
+                        GetType().Name);
+            }, System.Threading.Tasks.TaskScheduler.Default);
+        }
+
         #region INotifyPropertyChanged
 
         public event PropertyChangedEventHandler PropertyChanged;

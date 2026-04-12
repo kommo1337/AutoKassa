@@ -1,6 +1,7 @@
 ﻿using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace AutoKassa.Services
 {
@@ -9,6 +10,8 @@ namespace AutoKassa.Services
     /// </summary>
     public class TransactionService : ITransactionService
     {
+        private static readonly ILogger _log = Log.ForContext<TransactionService>();
+
         private readonly AppDbContext _context;
 
         public TransactionService(AppDbContext context)
@@ -60,6 +63,14 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<Transaction> AddAsync(Transaction transaction)
         {
+            if (transaction.Amount <= 0)
+                throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
+
+            var categoryExists = await _context.Categories
+                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive);
+            if (!categoryExists)
+                throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
+
             transaction.CreatedAt = DateTime.Now;
             transaction.IsDeleted = false;
 
@@ -69,6 +80,7 @@ namespace AutoKassa.Services
             // Загружаем категорию
             await _context.Entry(transaction).Reference(t => t.Category).LoadAsync();
 
+            _log.Information("Добавлена операция ID={Id}, тип={Type}, сумма={Amount}", transaction.Id, transaction.Type, transaction.Amount);
             return transaction;
         }
 
@@ -77,6 +89,14 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task UpdateAsync(Transaction transaction)
         {
+            if (transaction.Amount <= 0)
+                throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
+
+            var categoryExists = await _context.Categories
+                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive);
+            if (!categoryExists)
+                throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
+
             transaction.UpdatedAt = DateTime.Now;
 
             _context.Entry(transaction).State = EntityState.Modified;
@@ -84,6 +104,8 @@ namespace AutoKassa.Services
 
             // Обновляем категорию
             await _context.Entry(transaction).Reference(t => t.Category).LoadAsync();
+
+            _log.Information("Обновлена операция ID={Id}, сумма={Amount}", transaction.Id, transaction.Amount);
         }
 
         /// <summary>
@@ -97,6 +119,7 @@ namespace AutoKassa.Services
                 transaction.IsDeleted = true;
                 transaction.UpdatedAt = DateTime.Now;
                 await _context.SaveChangesAsync();
+                _log.Information("Удалена операция ID={Id}", id);
             }
         }
 
@@ -111,6 +134,7 @@ namespace AutoKassa.Services
                 transaction.IsDeleted = false;
                 transaction.UpdatedAt = DateTime.Now;
                 await _context.SaveChangesAsync();
+                _log.Information("Восстановлена операция ID={Id}", id);
             }
         }
 
@@ -183,6 +207,7 @@ namespace AutoKassa.Services
         {
             var dateTo = to.Date.AddDays(1).AddTicks(-1);
             var rows = await _context.Transactions
+                .Include(t => t.Category)
                 .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date <= dateTo)
                 .GroupBy(t => t.Category.Name ?? "?")
                 .Select(g => new { Name = g.Key, Total = g.Sum(t => (double)t.Amount) })

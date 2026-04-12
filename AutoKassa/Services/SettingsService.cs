@@ -2,6 +2,7 @@
 using AutoKassa.Models.Enums;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -13,15 +14,20 @@ namespace AutoKassa.Services
     /// </summary>
     public class SettingsService : ISettingsService
     {
-        private readonly AppDbContext _context;
+        private static readonly ILogger _log = Log.ForContext<SettingsService>();
+
+        private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private AppSettings _cachedSettings;
 
-        public SettingsService(AppDbContext context)
+        public SettingsService(IDbContextFactory<AppDbContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
 
             // Применяем все pending миграции (создаёт таблицы если их нет)
-            _context.Database.Migrate();
+            using (var context = _contextFactory.CreateDbContext())
+            {
+                context.Database.Migrate();
+            }
 
             LoadSettings();
         }
@@ -31,7 +37,8 @@ namespace AutoKassa.Services
         /// </summary>
         private void LoadSettings()
         {
-            _cachedSettings = _context.AppSettings.FirstOrDefault();
+            using var context = _contextFactory.CreateDbContext();
+            _cachedSettings = context.AppSettings.FirstOrDefault();
 
             // Если настроек нет (не должно быть, т.к. есть seed data), создаем
             if (_cachedSettings == null)
@@ -47,8 +54,8 @@ namespace AutoKassa.Services
                     BackupFrequency = "Weekly",
                     BackupKeepCount = 10
                 };
-                _context.AppSettings.Add(_cachedSettings);
-                _context.SaveChanges();
+                context.AppSettings.Add(_cachedSettings);
+                context.SaveChanges();
             }
         }
 
@@ -65,8 +72,10 @@ namespace AutoKassa.Services
         /// </summary>
         public void SaveSettings(AppSettings settings)
         {
-            _context.Entry(settings).State = EntityState.Modified;
-            _context.SaveChanges();
+            using var context = _contextFactory.CreateDbContext();
+            context.Attach(settings);
+            context.Entry(settings).State = EntityState.Modified;
+            context.SaveChanges();
             _cachedSettings = settings;
         }
 
@@ -185,7 +194,8 @@ namespace AutoKassa.Services
         {
             if (_cachedSettings == null)
             {
-                _cachedSettings = await _context.AppSettings.FirstOrDefaultAsync() ?? CreateDefaultSettings();
+                using var context = _contextFactory.CreateDbContext();
+                _cachedSettings = await context.AppSettings.FirstOrDefaultAsync() ?? CreateDefaultSettings();
             }
             return _cachedSettings;
         }
@@ -195,8 +205,10 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task SaveSettingsAsync(AppSettings settings)
         {
-            _context.Entry(settings).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            using var context = _contextFactory.CreateDbContext();
+            context.Attach(settings);
+            context.Entry(settings).State = EntityState.Modified;
+            await context.SaveChangesAsync();
             _cachedSettings = settings;
         }
 
@@ -282,8 +294,9 @@ namespace AutoKassa.Services
                 await File.WriteAllTextAsync(filePath, json);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                _log.Error(ex, "Ошибка экспорта настроек в {FilePath}", filePath);
                 return false;
             }
         }
@@ -323,43 +336,62 @@ namespace AutoKassa.Services
                 _cachedSettings.InitialBalance = importData.InitialBalance;
 
                 await SaveSettingsAsync(_cachedSettings);
+                _log.Information("Настройки импортированы из {FilePath}", filePath);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                _log.Error(ex, "Ошибка импорта настроек из {FilePath}", filePath);
                 return false;
             }
         }
 
         /// <summary>
-        /// Создать резервную копию базы данных через VACUUM INTO (консистентная копия без остановки)
+        /// Создать резервную копию базы данных через SQLite Online Backup API.
+        /// Корректно обрабатывает WAL-режим без закрытия соединений и без SQL-инъекций.
         /// </summary>
         public async Task<string?> CreateBackupAsync(string backupPath)
         {
             try
             {
-                var dbPath = _context.Database.GetDbConnection().DataSource;
+                string dbPath;
+                string sourceConnectionString;
+                using (var context = _contextFactory.CreateDbContext())
+                {
+                    dbPath = context.Database.GetDbConnection().DataSource;
+                    sourceConnectionString = context.Database.GetDbConnection().ConnectionString;
+                }
+
                 if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
+                {
+                    _log.Warning("CreateBackupAsync: файл БД не найден по пути {DbPath}", dbPath);
                     return null;
+                }
 
                 if (!Directory.Exists(backupPath))
                     Directory.CreateDirectory(backupPath);
 
                 var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 var backupFilePath = Path.Combine(backupPath, $"AutoKassa_Backup_{timestamp}.db");
+                await Task.Run(() =>
+                {
+                    using var source = new SqliteConnection(sourceConnectionString);
+                    using var dest = new SqliteConnection($"Data Source={backupFilePath}");
+                    source.Open();
+                    dest.Open();
+                    source.BackupDatabase(dest);
+                });
 
-                // VACUUM INTO создаёт чистую, полностью записанную копию без закрытия соединений.
-                // В отличие от File.Copy, корректно обрабатывает WAL-файлы SQLite.
-                var escapedPath = backupFilePath.Replace("'", "''");
-                await _context.Database.ExecuteSqlRawAsync($"VACUUM INTO '{escapedPath}'");
+                _log.Information("Бэкап создан: {BackupFile}", backupFilePath);
 
                 // Удаляем старые бэкапы сверх лимита
                 CleanupOldBackups(backupPath, _cachedSettings.BackupKeepCount);
 
                 return backupFilePath;
             }
-            catch
+            catch (Exception ex)
             {
+                _log.Error(ex, "Ошибка создания резервной копии в {BackupPath}", backupPath);
                 return null;
             }
         }
@@ -372,9 +404,17 @@ namespace AutoKassa.Services
             try
             {
                 if (!File.Exists(backupFilePath))
+                {
+                    _log.Warning("RestoreBackupAsync: файл бэкапа не найден {BackupFile}", backupFilePath);
                     return false;
+                }
 
-                var dbPath = _context.Database.GetDbConnection().DataSource;
+                string dbPath;
+                using (var context = _contextFactory.CreateDbContext())
+                {
+                    dbPath = context.Database.GetDbConnection().DataSource;
+                }
+
                 if (string.IsNullOrEmpty(dbPath))
                     return false;
 
@@ -386,10 +426,12 @@ namespace AutoKassa.Services
                 // Перезагружаем настройки из восстановленной БД
                 LoadSettings();
 
+                _log.Information("БД восстановлена из бэкапа: {BackupFile}", backupFilePath);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                _log.Error(ex, "Ошибка восстановления из бэкапа {BackupFile}", backupFilePath);
                 return false;
             }
         }
@@ -450,7 +492,8 @@ namespace AutoKassa.Services
 
             foreach (var file in toDelete)
             {
-                try { File.Delete(file); } catch { /* не прерываем из-за одного файла */ }
+                try { File.Delete(file); }
+                catch (Exception ex) { Log.Warning(ex, "Не удалось удалить старый бэкап {File}", file); }
             }
         }
 
@@ -483,8 +526,9 @@ namespace AutoKassa.Services
                 WindowHeight = 700,
                 DefaultOperationType = (int)OperationType.Expense
             };
-            _context.AppSettings.Add(settings);
-            _context.SaveChanges();
+            using var context = _contextFactory.CreateDbContext();
+            context.AppSettings.Add(settings);
+            context.SaveChanges();
             return settings;
         }
 

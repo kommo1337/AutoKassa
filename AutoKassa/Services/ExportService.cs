@@ -1,3 +1,4 @@
+using Serilog;
 using System;
 using System.IO;
 using System.Linq;
@@ -16,6 +17,8 @@ namespace AutoKassa.Services
     /// </summary>
     public class ExportService : IExportService
     {
+        private static readonly ILogger _log = Log.ForContext<ExportService>();
+
         private readonly string _exportFolder;
 
         public ExportService()
@@ -46,33 +49,36 @@ namespace AutoKassa.Services
         {
             return Task.Run(() =>
             {
-                var fileName = $"Баланс_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
-                var filePath = Path.Combine(_exportFolder, fileName);
-
-                Document.Create(container =>
+                try
                 {
-                    container.Page(page =>
+                    var fileName = $"Баланс_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    var filePath = Path.Combine(_exportFolder, fileName);
+
+                    Document.Create(container =>
                     {
-                        page.Size(PageSizes.A4);
-                        page.Margin(30);
-                        page.DefaultTextStyle(x => x.FontSize(10));
-
-                        // Заголовок
-                        page.Header().Element(c => ComposeBalanceHeader(c, report));
-
-                        // Содержимое
-                        page.Content().Element(c => ComposeBalanceContent(c, report));
-
-                        // Подвал
-                        page.Footer().AlignCenter().Text(text =>
+                        container.Page(page =>
                         {
-                            text.Span("AutoKassa | Сформировано: ");
-                            text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            page.Size(PageSizes.A4);
+                            page.Margin(30);
+                            page.DefaultTextStyle(x => x.FontSize(10));
+                            page.Header().Element(c => ComposeBalanceHeader(c, report));
+                            page.Content().Element(c => ComposeBalanceContent(c, report));
+                            page.Footer().AlignCenter().Text(text =>
+                            {
+                                text.Span("AutoKassa | Сформировано: ");
+                                text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            });
                         });
-                    });
-                }).GeneratePdf(filePath);
+                    }).GeneratePdf(filePath);
 
-                return filePath;
+                    _log.Information("Экспорт PDF (баланс): {FilePath}", filePath);
+                    return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта отчёта баланса в PDF");
+                    throw;
+                }
             });
         }
 
@@ -173,6 +179,8 @@ namespace AutoKassa.Services
         {
             return Task.Run(() =>
             {
+                try
+                {
                 var fileName = $"Баланс_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
                 var filePath = Path.Combine(_exportFolder, fileName);
 
@@ -256,7 +264,14 @@ namespace AutoKassa.Services
                 worksheet.Columns().AdjustToContents();
 
                 workbook.SaveAs(filePath);
+                _log.Information("Экспорт Excel (баланс): {FilePath}", filePath);
                 return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта отчёта баланса в Excel");
+                    throw;
+                }
             });
         }
 
@@ -271,34 +286,37 @@ namespace AutoKassa.Services
         {
             return Task.Run(() =>
             {
-                var typeText = report.OperationType == OperationType.Expense ? "Расходы" : "Доходы";
-                var fileName = $"Категории_{typeText}_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
-                var filePath = Path.Combine(_exportFolder, fileName);
-
-                Document.Create(container =>
+                try
                 {
-                    container.Page(page =>
+                    var typeText = report.OperationType == OperationType.Expense ? "Расходы" : "Доходы";
+                    var fileName = $"Категории_{typeText}_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    var filePath = Path.Combine(_exportFolder, fileName);
+
+                    Document.Create(container =>
                     {
-                        page.Size(PageSizes.A4);
-                        page.Margin(30);
-                        page.DefaultTextStyle(x => x.FontSize(10));
-
-                        // Заголовок
-                        page.Header().Element(c => ComposeCategoryHeader(c, report));
-
-                        // Содержимое
-                        page.Content().Element(c => ComposeCategoryContent(c, report));
-
-                        // Подвал
-                        page.Footer().AlignCenter().Text(text =>
+                        container.Page(page =>
                         {
-                            text.Span("AutoKassa | Сформировано: ");
-                            text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            page.Size(PageSizes.A4);
+                            page.Margin(30);
+                            page.DefaultTextStyle(x => x.FontSize(10));
+                            page.Header().Element(c => ComposeCategoryHeader(c, report));
+                            page.Content().Element(c => ComposeCategoryContent(c, report));
+                            page.Footer().AlignCenter().Text(text =>
+                            {
+                                text.Span("AutoKassa | Сформировано: ");
+                                text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            });
                         });
-                    });
-                }).GeneratePdf(filePath);
+                    }).GeneratePdf(filePath);
 
-                return filePath;
+                    _log.Information("Экспорт PDF (категории): {FilePath}", filePath);
+                    return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта отчёта по категориям в PDF");
+                    throw;
+                }
             });
         }
 
@@ -404,6 +422,8 @@ namespace AutoKassa.Services
         {
             return Task.Run(() =>
             {
+                try
+                {
                 var typeText = report.OperationType == OperationType.Expense ? "Расходы" : "Доходы";
                 var fileName = $"Категории_{typeText}_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
                 var filePath = Path.Combine(_exportFolder, fileName);
@@ -496,7 +516,14 @@ namespace AutoKassa.Services
                 worksheet.Columns().AdjustToContents();
 
                 workbook.SaveAs(filePath);
+                _log.Information("Экспорт Excel (категории): {FilePath}", filePath);
                 return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта отчёта по категориям в Excel");
+                    throw;
+                }
             });
         }
 
@@ -511,33 +538,36 @@ namespace AutoKassa.Services
         {
             return Task.Run(() =>
             {
-                var fileName = $"Детализация_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
-                var filePath = Path.Combine(_exportFolder, fileName);
-
-                Document.Create(container =>
+                try
                 {
-                    container.Page(page =>
+                    var fileName = $"Детализация_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    var filePath = Path.Combine(_exportFolder, fileName);
+
+                    Document.Create(container =>
                     {
-                        page.Size(PageSizes.A4.Landscape()); // Альбомная ориентация для таблицы
-                        page.Margin(30);
-                        page.DefaultTextStyle(x => x.FontSize(10));
-
-                        // Заголовок
-                        page.Header().Element(c => ComposeTransactionDetailHeader(c, report));
-
-                        // Содержимое
-                        page.Content().Element(c => ComposeTransactionDetailContent(c, report));
-
-                        // Подвал
-                        page.Footer().AlignCenter().Text(text =>
+                        container.Page(page =>
                         {
-                            text.Span("AutoKassa | Сформировано: ");
-                            text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            page.Size(PageSizes.A4.Landscape());
+                            page.Margin(30);
+                            page.DefaultTextStyle(x => x.FontSize(10));
+                            page.Header().Element(c => ComposeTransactionDetailHeader(c, report));
+                            page.Content().Element(c => ComposeTransactionDetailContent(c, report));
+                            page.Footer().AlignCenter().Text(text =>
+                            {
+                                text.Span("AutoKassa | Сформировано: ");
+                                text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            });
                         });
-                    });
-                }).GeneratePdf(filePath);
+                    }).GeneratePdf(filePath);
 
-                return filePath;
+                    _log.Information("Экспорт PDF (детализация): {FilePath}", filePath);
+                    return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта детализации операций в PDF");
+                    throw;
+                }
             });
         }
 
@@ -656,6 +686,8 @@ namespace AutoKassa.Services
         {
             return Task.Run(() =>
             {
+                try
+                {
                 var fileName = $"Детализация_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
                 var filePath = Path.Combine(_exportFolder, fileName);
 
@@ -743,7 +775,14 @@ namespace AutoKassa.Services
                 worksheet.Columns().AdjustToContents();
 
                 workbook.SaveAs(filePath);
+                _log.Information("Экспорт Excel (детализация): {FilePath}", filePath);
                 return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта детализации операций в Excel");
+                    throw;
+                }
             });
         }
 

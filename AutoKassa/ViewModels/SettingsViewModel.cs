@@ -106,7 +106,7 @@ namespace AutoKassa.ViewModels
             RestoreBackupCommand = new RelayCommand(async _ => await RestoreBackupAsync());
 
             // Загрузка данных
-            _ = LoadSettingsAsync();
+            RunAsync(LoadSettingsAsync);
         }
 
         #region Свойства

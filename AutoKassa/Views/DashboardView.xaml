@@ -157,6 +157,8 @@
             <RowDefinition Height="Auto"/>
             <!-- Хедер -->
             <RowDefinition Height="Auto"/>
+            <!-- Произвольный период -->
+            <RowDefinition Height="Auto"/>
             <!-- Карточки -->
             <RowDefinition Height="*"/>
             <!-- Контент -->
@@ -254,7 +256,7 @@
             </StackPanel>
 
             <!-- Переключатель периода -->
-            <Border Grid.Column="2"
+            <Border x:Name="PeriodChipsPanel" Grid.Column="2"
                     Background="White"
                     CornerRadius="12"
                     Padding="4">
@@ -287,21 +289,24 @@
         </Grid>
 
         <!-- Произвольный период -->
-        <Border Grid.Row="0" Margin="28,70,28,0" HorizontalAlignment="Right"
+        <Border Grid.Row="1" Margin="28,0,28,12" HorizontalAlignment="Right"
                 Visibility="{Binding IsCustomPeriodVisible, Converter={StaticResource BoolToVisibilityConverter}}"
                 Background="White" CornerRadius="8" Padding="12,8">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+            </Border.Effect>
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="С:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <DatePicker SelectedDate="{Binding DateFrom}" Width="110"/>
+                <DatePicker SelectedDate="{Binding DateFrom}" Width="130"/>
                 <TextBlock Text="По:" VerticalAlignment="Center" Margin="12,0,8,0"/>
-                <DatePicker SelectedDate="{Binding DateTo}" Width="110"/>
+                <DatePicker SelectedDate="{Binding DateTo}" Width="130"/>
                 <Button Content="Применить" Command="{Binding ApplyCustomPeriodCommand}"
-                        Margin="12,0,0,0" Padding="12,6" Background="{StaticResource SidebarBrush}"
+                        Margin="12,0,0,0" Padding="16,6" Background="{StaticResource SidebarBrush}"
                         Foreground="White" BorderThickness="0" Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center"/>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                         </ControlTemplate>
                     </Button.Template>
@@ -310,7 +315,7 @@
         </Border>
 
         <!-- ==================== КАРТОЧКИ СВОДКИ ==================== -->
-        <Grid Grid.Row="1" Margin="28,0,28,20">
+        <Grid Grid.Row="2" Margin="28,0,28,20">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
@@ -488,7 +493,7 @@
         </Grid>
 
         <!-- ==================== ОСНОВНОЙ КОНТЕНТ ==================== -->
-        <Grid Grid.Row="2" Margin="28,0,28,0">
+        <Grid Grid.Row="3" Margin="28,0,28,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <!-- Лента операций -->
@@ -800,7 +805,7 @@
         </Grid>
 
         <!-- ==================== FAB кнопка ==================== -->
-        <Button Grid.Row="2"
+        <Button Grid.Row="3"
                 Style="{StaticResource FloatingActionButton}"
                 Command="{Binding OpenAddTransactionCommand}"
                 HorizontalAlignment="Right"

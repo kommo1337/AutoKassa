@@ -75,7 +75,7 @@ namespace AutoKassa.ViewModels
             Date = DateTime.Now;
             _type = _settingsService.GetDefaultOperationType();
 
-            _ = InitializeAsync();
+            RunAsync(InitializeAsync);
         }
 
         private async System.Threading.Tasks.Task InitializeAsync()
@@ -153,7 +153,7 @@ namespace AutoKassa.ViewModels
                 if (SetProperty(ref _type, value))
                 {
                     if (_isInitialized)
-                        _ = LoadCategoriesAsync();
+                        RunAsync(LoadCategoriesAsync);
                     OnPropertyChanged(nameof(IsIncome));
                     OnPropertyChanged(nameof(IsExpense));
                     OnPropertyChanged(nameof(SaveButtonText));
@@ -320,7 +320,7 @@ namespace AutoKassa.ViewModels
             ValidateCategory();
         }
 
-        public async void InitializeForEdit(Transaction transaction)
+        public void InitializeForEdit(Transaction transaction)
         {
             IsEditMode = true;
             _transaction = transaction;
@@ -334,10 +334,13 @@ namespace AutoKassa.ViewModels
             CalcClear();
             IsCalcOpen = false;
 
-            await LoadCategoriesAsync();
+            RunAsync(async () =>
+            {
+                await LoadCategoriesAsync();
 
-            if (Categories != null && Categories.Count > 0)
-                SelectedCategory = Categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+                if (Categories != null && Categories.Count > 0)
+                    SelectedCategory = Categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+            });
         }
 
         private async System.Threading.Tasks.Task LoadCategoriesAsync()
@@ -378,7 +381,7 @@ namespace AutoKassa.ViewModels
             };
             CategoryManagerViewModel = vm;
             IsCategoryManagerOpen = true;
-            _ = vm.LoadAsync();
+            RunAsync(vm.LoadAsync);
         }
 
         private void ValidateAmount()

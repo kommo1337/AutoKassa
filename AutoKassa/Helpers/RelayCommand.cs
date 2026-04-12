@@ -74,12 +74,19 @@ namespace AutoKassa.Helpers
 
         public bool CanExecute(object parameter)
         {
-            return _canExecute == null || _canExecute((T)parameter);
+            if (parameter == null && default(T) == null)
+                return _canExecute == null || _canExecute(default);
+            if (parameter is T typed)
+                return _canExecute == null || _canExecute(typed);
+            return _canExecute == null;
         }
 
         public void Execute(object parameter)
         {
-            _execute((T)parameter);
+            if (parameter is T typed)
+                _execute(typed);
+            else if (parameter == null && default(T) == null)
+                _execute(default);
         }
 
         public void RaiseCanExecuteChanged()

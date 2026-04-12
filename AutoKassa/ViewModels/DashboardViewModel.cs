@@ -107,7 +107,7 @@ namespace AutoKassa.ViewModels
             SetPeriodDates(PeriodType.Month);
 
             // Загрузка данных
-            _ = InitializeAsync();
+            RunAsync(InitializeAsync);
         }
 
         #region Свойства сводки
@@ -418,6 +418,7 @@ namespace AutoKassa.ViewModels
         {
             // Отменяем предыдущую загрузку, если ещё не завершилась
             _loadCts?.Cancel();
+            _loadCts?.Dispose();
             _loadCts = new CancellationTokenSource();
             var ct = _loadCts.Token;
 
@@ -653,7 +654,7 @@ namespace AutoKassa.ViewModels
 
             if (period != PeriodType.Custom)
             {
-                _ = LoadDataAsync();
+                RunAsync(LoadDataAsync);
             }
         }
 
@@ -701,7 +702,7 @@ namespace AutoKassa.ViewModels
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -717,7 +718,7 @@ namespace AutoKassa.ViewModels
 
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(t);
-            vm.OnSaved = () => { IsModalOpen = false; _ = LoadDataAsync(); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;

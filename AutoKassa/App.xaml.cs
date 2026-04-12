@@ -3,6 +3,7 @@ using AutoKassa.ViewModels;
 using AutoKassa.ViewModels.Reports;
 using AutoKassa.Views;
 using Microsoft.Extensions.DependencyInjection;
+using Serilog;
 using System.Windows;
 
 namespace AutoKassa
@@ -19,7 +20,54 @@ namespace AutoKassa
         /// </summary>
         protected override void OnStartup(StartupEventArgs e)
         {
-            base.OnStartup(e);
+            // Инициализируем Serilog ДО всего остального, чтобы ловить ошибки старта
+            var logPath = System.IO.Path.Combine(
+                System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)!,
+                "logs", "autokassa-.log");
+
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Information()
+                .WriteTo.File(
+                    logPath,
+                    rollingInterval: RollingInterval.Day,
+                    retainedFileCountLimit: 30,
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .CreateLogger();
+
+            // Глобальные обработчики необработанных исключений
+            DispatcherUnhandledException += (_, args) =>
+            {
+                Log.Fatal(args.Exception, "Необработанное исключение UI (Dispatcher)");
+                ShowFatalError(args.Exception);
+                args.Handled = true;
+            };
+
+            AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            {
+                Log.Fatal(args.ExceptionObject as Exception, "Необработанное исключение домена приложения");
+                Log.CloseAndFlush();
+            };
+
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, args) =>
+            {
+                Log.Error(args.Exception, "Необработанное исключение в Task");
+                args.SetObserved();
+            };
+
+            Log.Information("=== AutoKassa запуск, версия {Version} ===",
+                System.Reflection.Assembly.GetExecutingAssembly().GetName().Version);
+
+            try
+            {
+                base.OnStartup(e);
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Критическая ошибка при OnStartup(base)");
+                ShowFatalError(ex);
+                Shutdown(1);
+                return;
+            }
 
             // Создаем коллекцию сервисов
             var services = new ServiceCollection();
@@ -28,10 +76,31 @@ namespace AutoKassa
             ConfigureServices(services);
 
             // Создаем провайдер сервисов
-            _serviceProvider = services.BuildServiceProvider();
+            try
+            {
+                _serviceProvider = services.BuildServiceProvider();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Ошибка построения DI контейнера");
+                ShowFatalError(ex);
+                Shutdown(1);
+                return;
+            }
 
             // Проверяем, установлен ли пароль
-            var settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
+            ISettingsService settingsService;
+            try
+            {
+                settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Ошибка инициализации SettingsService (миграция БД?)");
+                ShowFatalError(ex);
+                Shutdown(1);
+                return;
+            }
 
             if (!settingsService.IsPasswordSet())
             {
@@ -44,6 +113,7 @@ namespace AutoKassa
                 if (result != true)
                 {
                     // Пользователь закрыл окно настройки - закрываем приложение
+                    Log.Information("Пользователь закрыл начальную настройку — завершение");
                     Shutdown();
                     return;
                 }
@@ -52,9 +122,19 @@ namespace AutoKassa
             // Показываем главное окно
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
+            Log.Information("Главное окно открыто");
 
             // Авто-бэкап в фоне (не блокирует запуск)
             _ = settingsService.RunAutoBackupIfDueAsync();
+        }
+
+        private static void ShowFatalError(Exception ex)
+        {
+            MessageBox.Show(
+                $"Критическая ошибка:\n\n{ex.Message}\n\nПодробности записаны в журнал logs/autokassa-*.log",
+                "AutoKassa — Ошибка",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
 
         /// <summary>
@@ -62,8 +142,9 @@ namespace AutoKassa
         /// </summary>
         private void ConfigureServices(IServiceCollection services)
         {
-            // Регистрация DbContext
+            // Регистрация DbContext + фабрика для Singleton-сервисов
             services.AddDbContext<AppDbContext>();
+            services.AddDbContextFactory<AppDbContext>();
 
             // Регистрация базовых сервисов
             services.AddSingleton<INavigationService, AutoKassa.Services.NavigationService>();
@@ -108,6 +189,8 @@ namespace AutoKassa
         /// </summary>
         protected override void OnExit(ExitEventArgs e)
         {
+            Log.Information("=== AutoKassa завершение ===");
+            Log.CloseAndFlush();
             _serviceProvider?.Dispose();
             base.OnExit(e);
         }

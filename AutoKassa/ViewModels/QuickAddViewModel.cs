@@ -79,7 +79,7 @@ namespace AutoKassa.ViewModels
             set
             {
                 if (SetProperty(ref _isIncome, value))
-                    _ = LoadCategoriesAsync();
+                    RunAsync(LoadCategoriesAsync);
             }
         }
 

@@ -45,7 +45,7 @@ namespace AutoKassa.ViewModels.Reports
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand   = new RelayCommand(_ => SetOperationType(OperationType.Income));
 
-            _ = LoadCategoriesAsync();
+            RunAsync(LoadCategoriesAsync);
         }
 
         public override string ReportName => "Детализация операций";
