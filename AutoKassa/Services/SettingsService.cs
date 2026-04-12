@@ -22,14 +22,16 @@ namespace AutoKassa.Services
         public SettingsService(IDbContextFactory<AppDbContext> contextFactory)
         {
             _contextFactory = contextFactory;
-
-            // Применяем все pending миграции (создаёт таблицы если их нет)
-            using (var context = _contextFactory.CreateDbContext())
-            {
-                context.Database.Migrate();
-            }
-
             LoadSettings();
+        }
+
+        /// <summary>
+        /// Применить все pending миграции. Вызывать из App.OnStartup() ДО создания остальных сервисов.
+        /// </summary>
+        public static async Task MigrateAsync(IDbContextFactory<AppDbContext> contextFactory)
+        {
+            await using var context = contextFactory.CreateDbContext();
+            await context.Database.MigrateAsync();
         }
 
         /// <summary>

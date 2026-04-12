@@ -26,6 +26,7 @@ namespace AutoKassa.ViewModels.Reports
         private TransactionDetailReport _report;
         private List<Category> _categories;
         private List<TransactionDetailGroup> _groupedTransactions = new();
+        private PaymentType? _selectedPaymentType;
 
         public TransactionDetailReportViewModel(
             IReportService reportService,
@@ -44,6 +45,10 @@ namespace AutoKassa.ViewModels.Reports
             ShowAllCommand      = new RelayCommand(_ => SetOperationType(null));
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand   = new RelayCommand(_ => SetOperationType(OperationType.Income));
+
+            SetPaymentAllCommand     = new RelayCommand(_ => { SelectedPaymentType = null; _ = GenerateReportAsync(); });
+            SetPaymentCashCommand    = new RelayCommand(_ => { SelectedPaymentType = PaymentType.Cash; _ = GenerateReportAsync(); });
+            SetPaymentNonCashCommand = new RelayCommand(_ => { SelectedPaymentType = PaymentType.NonCash; _ = GenerateReportAsync(); });
 
             RunAsync(LoadCategoriesAsync);
         }
@@ -108,6 +113,29 @@ namespace AutoKassa.ViewModels.Reports
         public ICommand ShowExpensesCommand { get; }
         public ICommand ShowIncomeCommand   { get; }
 
+        // Фильтр типа оплаты
+        public PaymentType? SelectedPaymentType
+        {
+            get => _selectedPaymentType;
+            set
+            {
+                if (SetProperty(ref _selectedPaymentType, value))
+                {
+                    OnPropertyChanged(nameof(IsPaymentAll));
+                    OnPropertyChanged(nameof(IsPaymentCash));
+                    OnPropertyChanged(nameof(IsPaymentNonCash));
+                }
+            }
+        }
+
+        public bool IsPaymentAll     => !SelectedPaymentType.HasValue;
+        public bool IsPaymentCash    => SelectedPaymentType == PaymentType.Cash;
+        public bool IsPaymentNonCash => SelectedPaymentType == PaymentType.NonCash;
+
+        public ICommand SetPaymentAllCommand     { get; }
+        public ICommand SetPaymentCashCommand    { get; }
+        public ICommand SetPaymentNonCashCommand { get; }
+
         private void ValidateDateRange()
         {
             if (DateFrom > DateTo) DateTo = DateFrom;
@@ -138,7 +166,7 @@ namespace AutoKassa.ViewModels.Reports
         {
             var categoryId = SelectedCategory?.Id > 0 ? SelectedCategory.Id : (int?)null;
             Report = await _reportService.GenerateTransactionDetailReportAsync(
-                DateFrom, DateTo, SelectedOperationType, categoryId);
+                DateFrom, DateTo, SelectedOperationType, categoryId, SelectedPaymentType);
             BuildGroups();
         }
 
@@ -208,28 +236,20 @@ namespace AutoKassa.ViewModels.Reports
             }
         }
 
-        protected override async void ExportToPdf()
+        protected override async Task ExportToPdfAsync()
         {
             if (Report == null) { _dialogService.ShowWarning("Сначала сформируйте отчет"); return; }
-            try
-            {
-                var path = await _exportService.ExportTransactionDetailReportToPdfAsync(Report);
-                _dialogService.ShowInfo($"Отчет сохранен:\n{path}");
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            }
-            catch (Exception ex) { _dialogService.ShowError($"Ошибка экспорта: {ex.Message}"); }
+            var path = await _exportService.ExportTransactionDetailReportToPdfAsync(Report);
+            _dialogService.ShowInfo($"Отчет сохранен:\n{path}");
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }
 
-        protected override async void ExportToExcel()
+        protected override async Task ExportToExcelAsync()
         {
             if (Report == null) { _dialogService.ShowWarning("Сначала сформируйте отчет"); return; }
-            try
-            {
-                var path = await _exportService.ExportTransactionDetailReportToExcelAsync(Report);
-                _dialogService.ShowInfo($"Отчет сохранен:\n{path}");
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            }
-            catch (Exception ex) { _dialogService.ShowError($"Ошибка экспорта: {ex.Message}"); }
+            var path = await _exportService.ExportTransactionDetailReportToExcelAsync(Report);
+            _dialogService.ShowInfo($"Отчет сохранен:\n{path}");
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }
     }
 }

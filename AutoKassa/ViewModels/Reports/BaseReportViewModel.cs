@@ -21,8 +21,16 @@ namespace AutoKassa.ViewModels.Reports
 
             // Команды
             GenerateCommand = new RelayCommand(async _ => await GenerateReportAsync());
-            ExportToPdfCommand = new RelayCommand(_ => ExportToPdf(), _ => HasData);
-            ExportToExcelCommand = new RelayCommand(_ => ExportToExcel(), _ => HasData);
+            ExportToPdfCommand = new RelayCommand(async _ =>
+            {
+                try { await ExportToPdfAsync(); }
+                catch (Exception ex) { _dialogService.ShowError($"Ошибка экспорта в PDF: {ex.Message}"); }
+            }, _ => HasData);
+            ExportToExcelCommand = new RelayCommand(async _ =>
+            {
+                try { await ExportToExcelAsync(); }
+                catch (Exception ex) { _dialogService.ShowError($"Ошибка экспорта в Excel: {ex.Message}"); }
+            }, _ => HasData);
         }
 
         #region Свойства
@@ -93,19 +101,21 @@ namespace AutoKassa.ViewModels.Reports
         protected abstract Task LoadDataAsync();
 
         /// <summary>
-        /// Экспорт в PDF (будет реализовано позже)
+        /// Экспорт в PDF (переопределяется в наследниках)
         /// </summary>
-        protected virtual void ExportToPdf()
+        protected virtual Task ExportToPdfAsync()
         {
             _dialogService.ShowInfo("Экспорт в PDF будет реализован в следующем этапе");
+            return Task.CompletedTask;
         }
 
         /// <summary>
-        /// Экспорт в Excel (будет реализовано позже)
+        /// Экспорт в Excel (переопределяется в наследниках)
         /// </summary>
-        protected virtual void ExportToExcel()
+        protected virtual Task ExportToExcelAsync()
         {
             _dialogService.ShowInfo("Экспорт в Excel будет реализован в следующем этапе");
+            return Task.CompletedTask;
         }
 
         #endregion

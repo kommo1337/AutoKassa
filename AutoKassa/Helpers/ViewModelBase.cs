@@ -5,9 +5,10 @@ using System.Runtime.CompilerServices;
 
 namespace AutoKassa.Helpers
 {
-    public abstract class ViewModelBase : INotifyPropertyChanged, INotifyDataErrorInfo
+    public abstract class ViewModelBase : INotifyPropertyChanged, INotifyDataErrorInfo, IDisposable
     {
         private static readonly ILogger _log = Log.ForContext<ViewModelBase>();
+        private bool _disposed;
 
         /// <summary>
         /// Запускает асинхронную операцию без блокировки конструктора/UI.
@@ -95,6 +96,23 @@ namespace AutoKassa.Helpers
         /// </summary>
         protected string GetFirstError(string propertyName) =>
             _errors.TryGetValue(propertyName, out var list) ? list.FirstOrDefault() : null;
+
+        #endregion
+
+        #region IDisposable
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            OnDispose();
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Переопределить для освобождения ресурсов (CancellationTokenSource, подписки на события и т.д.)
+        /// </summary>
+        protected virtual void OnDispose() { }
 
         #endregion
     }

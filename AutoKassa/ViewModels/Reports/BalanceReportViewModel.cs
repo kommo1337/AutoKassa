@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using AutoKassa.Helpers;
+using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 using AutoKassa.Services;
 using OxyPlot;
@@ -24,6 +27,7 @@ namespace AutoKassa.ViewModels.Reports
         private DateTime _dateTo;
         private BalanceReport _report;
         private PlotModel _plotModel;
+        private PaymentType? _selectedPaymentType;
 
         public BalanceReportViewModel(
             IReportService reportService,
@@ -39,6 +43,11 @@ namespace AutoKassa.ViewModels.Reports
 
             // Инициализация пустой модели графика
             _plotModel = new PlotModel();
+
+            // Команды фильтра типа оплаты
+            SetPaymentAllCommand     = new RelayCommand(_ => { SelectedPaymentType = null; _ = GenerateReportAsync(); });
+            SetPaymentCashCommand    = new RelayCommand(_ => { SelectedPaymentType = PaymentType.Cash; _ = GenerateReportAsync(); });
+            SetPaymentNonCashCommand = new RelayCommand(_ => { SelectedPaymentType = PaymentType.NonCash; _ = GenerateReportAsync(); });
         }
 
         #region Свойства
@@ -93,6 +102,29 @@ namespace AutoKassa.ViewModels.Reports
             set => SetProperty(ref _plotModel, value);
         }
 
+        // Фильтр типа оплаты
+        public PaymentType? SelectedPaymentType
+        {
+            get => _selectedPaymentType;
+            set
+            {
+                if (SetProperty(ref _selectedPaymentType, value))
+                {
+                    OnPropertyChanged(nameof(IsPaymentAll));
+                    OnPropertyChanged(nameof(IsPaymentCash));
+                    OnPropertyChanged(nameof(IsPaymentNonCash));
+                }
+            }
+        }
+
+        public bool IsPaymentAll     => !SelectedPaymentType.HasValue;
+        public bool IsPaymentCash    => SelectedPaymentType == PaymentType.Cash;
+        public bool IsPaymentNonCash => SelectedPaymentType == PaymentType.NonCash;
+
+        public ICommand SetPaymentAllCommand     { get; }
+        public ICommand SetPaymentCashCommand    { get; }
+        public ICommand SetPaymentNonCashCommand { get; }
+
         #endregion
 
         #region Методы
@@ -113,7 +145,7 @@ namespace AutoKassa.ViewModels.Reports
         /// </summary>
         protected override async Task LoadDataAsync()
         {
-            Report = await _reportService.GenerateBalanceReportAsync(DateFrom, DateTo);
+            Report = await _reportService.GenerateBalanceReportAsync(DateFrom, DateTo, SelectedPaymentType);
 
             // Обновляем график
             UpdateChart();
@@ -254,7 +286,7 @@ namespace AutoKassa.ViewModels.Reports
         /// <summary>
         /// Экспорт в PDF
         /// </summary>
-        protected override async void ExportToPdf()
+        protected override async Task ExportToPdfAsync()
         {
             if (Report == null)
             {
@@ -262,24 +294,15 @@ namespace AutoKassa.ViewModels.Reports
                 return;
             }
 
-            try
-            {
-                var filePath = await _exportService.ExportBalanceReportToPdfAsync(Report);
-                _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
-
-                // Открываем файл
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
-            }
-            catch (Exception ex)
-            {
-                _dialogService.ShowError($"Ошибка экспорта: {ex.Message}");
-            }
+            var filePath = await _exportService.ExportBalanceReportToPdfAsync(Report);
+            _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
+            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
         }
 
         /// <summary>
         /// Экспорт в Excel
         /// </summary>
-        protected override async void ExportToExcel()
+        protected override async Task ExportToExcelAsync()
         {
             if (Report == null)
             {
@@ -287,18 +310,9 @@ namespace AutoKassa.ViewModels.Reports
                 return;
             }
 
-            try
-            {
-                var filePath = await _exportService.ExportBalanceReportToExcelAsync(Report);
-                _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
-
-                // Открываем файл
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
-            }
-            catch (Exception ex)
-            {
-                _dialogService.ShowError($"Ошибка экспорта: {ex.Message}");
-            }
+            var filePath = await _exportService.ExportBalanceReportToExcelAsync(Report);
+            _dialogService.ShowInfo($"Отчет сохранен:\n{filePath}");
+            Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
         }
 
         #endregion

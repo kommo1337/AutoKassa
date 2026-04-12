@@ -1,24 +1,25 @@
 # Code Review — Оставшиеся проблемы
 
 > Выполнено 2026-04-12. Критические фиксы (#1-#5) и часть warning (#6-#10, #12, #14) уже применены.
+> Вторая волна (2026-04-12): #9, #10, #11, #13, #15, #17 + async void в отчётах — ПРИМЕНЕНЫ.
 
 ---
 
 ## WARNING (требуют правок)
 
-### #9. Синхронная миграция в конструкторе SettingsService
+### ~~#9. Синхронная миграция в конструкторе SettingsService~~ ✅
 - **Файл:** `Services/SettingsService.cs` — конструктор
 - **Проблема:** `context.Database.Migrate()` блокирует UI-поток при первом запуске. На медленном диске = зависание splash screen.
 - **Fix:** Вынести миграцию в `App.OnStartup()` до показа UI, выполнять через `await context.Database.MigrateAsync()`. SettingsService конструктор должен только читать кэш.
 
-### #10. Event-подписки без отписки (утечки памяти)
+### ~~#10. Event-подписки без отписки (утечки памяти)~~ ✅
 - **Файлы:**
   - `ViewModels/MainWindowViewModel.cs` ~33 — `_navigationService.CurrentViewChanged += ...` без отписки
   - `Views/TransactionEditView.xaml.cs` ~17 — `DataContextChanged += ...` без отписки
   - `Services/LockService.cs` ~64 — lambda в `lockWindow.Closed += ...`
 - **Fix:** Реализовать `IDisposable` в ViewModels, отписываться в `Dispose()`. Для Views — подписка на `Unloaded`.
 
-### #11. Удаление категории, установленной как дефолтная
+### ~~#11. Удаление категории, установленной как дефолтная~~ ✅
 - **Файлы:** `Services/CategoryService.cs` (DeleteAsync), `Models/AppSettings.cs` (DefaultIncomeCategoryId, DefaultExpenseCategoryId)
 - **Проблема:** Можно удалить категорию, которая используется как `DefaultIncomeCategoryId` / `DefaultExpenseCategoryId` в настройках — останутся битые FK-ссылки.
 - **Fix:** В `CategoryService.DeleteAsync` перед удалением проверять:
@@ -28,13 +29,13 @@
       throw new InvalidOperationException("Нельзя удалить категорию, установленную по умолчанию");
   ```
 
-### #13. Отсутствие null-check при открытии транзакции
+### ~~#13. Отсутствие null-check при открытии транзакции~~ ✅
 - **Файл:** `ViewModels/DashboardViewModel.cs` ~100
 - **Код:** `OpenTransactionCommand = new RelayCommand(t => OpenTransaction(t as Transaction ?? SelectedTransaction));`
 - **Проблема:** Если оба null — `OpenTransaction(null)`. Метод проверяет на ~716, но лучше не вызывать вообще.
 - **Fix:** Добавить `CanExecute`: `_ => SelectedTransaction != null` или guard в лямбде.
 
-### #15. Несогласованные границы дат (мелкий, но важный)
+### ~~#15. Несогласованные границы дат (мелкий, но важный)~~ ✅
 - **Файл:** `Services/TransactionService.cs`
 - **Проблема:** Используется `to.Date.AddDays(1).AddTicks(-1)` + `<=`. Это корректно, но хрупко — при переходе на другую БД или DateTime precision может сломаться.
 - **Рекомендация:** Перейти на паттерн exclusive upper bound: `t.Date < to.Date.AddDays(1)` без `AddTicks(-1)`.
@@ -44,7 +45,7 @@
 - **Проблема:** `DateTime.Now` разбросан по всему коду. При DST-переходе теоретически возможны дубли/пропуски.
 - **Fix (низкий приоритет):** Создать `ITimeProvider` с методом `Now` для тестируемости и единообразия. Или использовать .NET 8 `TimeProvider.System`.
 
-### #17. ViewModels не реализуют IDisposable
+### ~~#17. ViewModels не реализуют IDisposable~~ ✅
 - **Файлы:** Все ViewModels, `Helpers/ViewModelBase.cs`
 - **Проблема:** ViewModels держат CancellationTokenSource, подписки на события — но нет cleanup при уничтожении.
 - **Fix:**
@@ -94,7 +95,7 @@
 
 ---
 
-## async void в отчётах (отдельный блок)
+## ~~async void в отчётах (отдельный блок)~~ ✅
 
 Базовый класс `BaseReportViewModel` объявляет `ExportToPdf()` / `ExportToExcel()` как `virtual void`.
 Наследники переопределяют как `async void`:

@@ -88,6 +88,20 @@ namespace AutoKassa
                 return;
             }
 
+            // Применяем миграции БД до инициализации сервисов (async → sync bridge для OnStartup)
+            try
+            {
+                var contextFactory = _serviceProvider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<AppDbContext>>();
+                SettingsService.MigrateAsync(contextFactory).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Ошибка миграции БД");
+                ShowFatalError(ex);
+                Shutdown(1);
+                return;
+            }
+
             // Проверяем, установлен ли пароль
             ISettingsService settingsService;
             try

@@ -23,7 +23,7 @@ namespace AutoKassa.Services
         /// <summary>
         /// Сформировать отчет "Баланс за период"
         /// </summary>
-        public async Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo)
+        public async Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo, PaymentType? paymentType = null)
         {
             var report = new BalanceReport
             {
@@ -32,13 +32,16 @@ namespace AutoKassa.Services
             };
 
             // Получаем начальный баланс
-            report.StartBalance = await GetInitialBalanceAsync(dateFrom);
+            report.StartBalance = await GetInitialBalanceAsync(dateFrom, paymentType);
 
             // Получаем операции за период (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
-            var transactions = await _context.Transactions
+            var query = _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd)
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            var transactions = await query
                 .OrderBy(t => t.Date)
                 .ToListAsync();
 
@@ -67,12 +70,14 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить начальный баланс на дату
         /// </summary>
-        public async Task<decimal> GetInitialBalanceAsync(DateTime date)
+        public async Task<decimal> GetInitialBalanceAsync(DateTime date, PaymentType? paymentType = null)
         {
             // SQLite не поддерживает Sum для decimal, поэтому загружаем данные в память
-            var transactionsBeforeDate = await _context.Transactions
-                .Where(t => !t.IsDeleted && t.Date < date.Date)
-                .ToListAsync();
+            var query = _context.Transactions
+                .Where(t => !t.IsDeleted && t.Date < date.Date);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            var transactionsBeforeDate = await query.ToListAsync();
 
             var incomeBeforeDate = transactionsBeforeDate
                 .Where(t => t.Type == OperationType.Income)
@@ -136,7 +141,7 @@ namespace AutoKassa.Services
         /// <summary>
         /// Сформировать отчет "Структура по категориям"
         /// </summary>
-        public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType)
+        public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null)
         {
             var report = new CategoryReport
             {
@@ -147,10 +152,12 @@ namespace AutoKassa.Services
 
             // Получаем операции за период с указанным типом (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
-            var transactions = await _context.Transactions
+            var query = _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType)
-                .ToListAsync();
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            var transactions = await query.ToListAsync();
 
             // Общая сумма и количество операций
             report.TotalAmount = transactions.Sum(t => t.Amount);
@@ -207,7 +214,8 @@ namespace AutoKassa.Services
             DateTime dateFrom,
             DateTime dateTo,
             OperationType? operationType = null,
-            int? categoryId = null)
+            int? categoryId = null,
+            PaymentType? paymentType = null)
         {
             var report = new TransactionDetailReport
             {
@@ -222,6 +230,12 @@ namespace AutoKassa.Services
             var query = _context.Transactions
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
+
+            // Фильтр по типу оплаты
+            if (paymentType.HasValue)
+            {
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            }
 
             // Фильтр по типу операции
             if (operationType.HasValue)

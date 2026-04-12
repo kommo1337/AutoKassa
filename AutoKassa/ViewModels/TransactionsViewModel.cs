@@ -887,6 +887,13 @@ namespace AutoKassa.ViewModels
             }
         }
 
+        protected override void OnDispose()
+        {
+            _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadCts = null;
+        }
+
         #endregion
     }
 }

@@ -388,6 +388,23 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                    <!-- Разбивка Наличные / Безналичные -->
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Наличные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                   VerticalAlignment="Center" Margin="6,0,6,0"/>
+                        <TextBlock Text="{Binding CashBalance, StringFormat='{}{0:N0} ₽'}"
+                                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Безналичные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                   VerticalAlignment="Center" Margin="6,0,6,0"/>
+                        <TextBlock Text="{Binding NonCashBalance, StringFormat='{}{0:N0} ₽'}"
+                                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -415,6 +432,14 @@
                             </MultiBinding>
                         </TextBlock.Text>
                     </TextBlock>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CashIncome, StringFormat='+{0:N0} ₽'}" FontSize="12"
+                                   Foreground="{StaticResource AccentGreenBrush}" Margin="6,0,12,0" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding NonCashIncome, StringFormat='+{0:N0} ₽'}" FontSize="12"
+                                   Foreground="{StaticResource AccentGreenBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -442,6 +467,14 @@
                             </MultiBinding>
                         </TextBlock.Text>
                     </TextBlock>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding CashExpense, StringFormat='-{0:N0} ₽'}" FontSize="12"
+                                   Foreground="{StaticResource AccentRedBrush}" Margin="6,0,12,0" VerticalAlignment="Center"/>
+                        <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding NonCashExpense, StringFormat='-{0:N0} ₽'}" FontSize="12"
+                                   Foreground="{StaticResource AccentRedBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

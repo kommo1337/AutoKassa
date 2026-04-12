@@ -115,6 +115,14 @@ namespace AutoKassa.Services
             var category = await _context.Categories.FindAsync(id);
             if (category == null) return false;
 
+            // Нельзя удалить категорию, установленную по умолчанию в настройках
+            var settings = await _context.AppSettings.FirstOrDefaultAsync();
+            if (settings?.DefaultIncomeCategoryId == id || settings?.DefaultExpenseCategoryId == id)
+            {
+                _log.Warning("Попытка удалить дефолтную категорию ID={Id} — отклонено", id);
+                throw new InvalidOperationException("Нельзя удалить категорию, установленную по умолчанию. Сначала измените категорию по умолчанию в настройках.");
+            }
+
             // Проверяем, есть ли связанные операции (включая удаленные)
             var hasTransactions = await _context.Transactions
                 .AnyAsync(t => t.CategoryId == id);

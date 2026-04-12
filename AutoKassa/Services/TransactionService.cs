@@ -155,11 +155,14 @@ namespace AutoKassa.Services
         /// <summary>
         /// Суммарные доходы/расходы за период — SQL GROUP BY, без загрузки всех записей
         /// </summary>
-        public async Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        public async Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default)
         {
-            var dateTo = to.Date.AddDays(1).AddTicks(-1);
-            var rows = await _context.Transactions
-                .Where(t => !t.IsDeleted && t.Date >= from && t.Date <= dateTo)
+            var dateTo = to.Date.AddDays(1);
+            var query = _context.Transactions
+                .Where(t => !t.IsDeleted && t.Date >= from && t.Date < dateTo);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            var rows = await query
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount), Count = g.Count() })
                 .ToListAsync(ct);
@@ -176,11 +179,14 @@ namespace AutoKassa.Services
         /// <summary>
         /// Дневные итоги за период — SQL GROUP BY date, для графиков и группировки
         /// </summary>
-        public async Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        public async Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default)
         {
-            var dateTo = to.Date.AddDays(1).AddTicks(-1);
-            var rows = await _context.Transactions
-                .Where(t => !t.IsDeleted && t.Date >= from && t.Date <= dateTo)
+            var dateTo = to.Date.AddDays(1);
+            var query = _context.Transactions
+                .Where(t => !t.IsDeleted && t.Date >= from && t.Date < dateTo);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            var rows = await query
                 .GroupBy(t => t.Date.Date)
                 .Select(g => new
                 {
@@ -203,12 +209,15 @@ namespace AutoKassa.Services
         /// Топ N категорий по сумме для заданного типа операции
         /// </summary>
         public async Task<List<(string Name, decimal Total)>> GetTopCategoriesAsync(
-            DateTime from, DateTime to, OperationType type, int count, CancellationToken ct = default)
+            DateTime from, DateTime to, OperationType type, int count, PaymentType? paymentType = null, CancellationToken ct = default)
         {
-            var dateTo = to.Date.AddDays(1).AddTicks(-1);
-            var rows = await _context.Transactions
+            var dateTo = to.Date.AddDays(1);
+            var query = _context.Transactions
                 .Include(t => t.Category)
-                .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date <= dateTo)
+                .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date < dateTo);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            var rows = await query
                 .GroupBy(t => t.Category.Name ?? "?")
                 .Select(g => new { Name = g.Key, Total = g.Sum(t => (double)t.Amount) })
                 .OrderByDescending(x => x.Total)
@@ -233,9 +242,9 @@ namespace AutoKassa.Services
 
             if (filters.DateTo.HasValue)
             {
-                // Включаем весь день DateTo
-                var dateTo = filters.DateTo.Value.Date.AddDays(1).AddTicks(-1);
-                query = query.Where(t => t.Date <= dateTo);
+                // Exclusive upper bound: включаем весь день DateTo
+                var dateTo = filters.DateTo.Value.Date.AddDays(1);
+                query = query.Where(t => t.Date < dateTo);
             }
 
             // Фильтр по типу

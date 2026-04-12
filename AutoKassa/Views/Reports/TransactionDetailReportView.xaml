@@ -264,6 +264,55 @@
                                 Style="{StaticResource PillButton}"
                                 Padding="20,8"/>
                     </StackPanel>
+
+                    <!-- Фильтр типа оплаты -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="Оплата:" FontSize="13"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Content="Все" Command="{Binding SetPaymentAllCommand}" Margin="0,0,6,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPaymentAll}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Наличные" Command="{Binding SetPaymentCashCommand}" Margin="0,0,6,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPaymentCash}" Value="True">
+                                            <Setter Property="Background" Value="#94a3b8"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="BorderBrush" Value="#94a3b8"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Безналичные" Command="{Binding SetPaymentNonCashCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPaymentNonCash}" Value="True">
+                                            <Setter Property="Background" Value="#3b82f6"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="BorderBrush" Value="#3b82f6"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>

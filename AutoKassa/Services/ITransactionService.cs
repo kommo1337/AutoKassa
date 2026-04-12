@@ -51,16 +51,16 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить суммарные доходы/расходы за период (SQL-агрегация, без загрузки всех записей)
         /// </summary>
-        Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, CancellationToken ct = default);
+        Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default);
 
         /// <summary>
         /// Получить суммы доходов/расходов по дням за период (для графиков и группировки)
         /// </summary>
-        Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, CancellationToken ct = default);
+        Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default);
 
         /// <summary>
         /// Получить топ N категорий по сумме для указанного типа операции
         /// </summary>
-        Task<List<(string Name, decimal Total)>> GetTopCategoriesAsync(DateTime from, DateTime to, OperationType type, int count, CancellationToken ct = default);
+        Task<List<(string Name, decimal Total)>> GetTopCategoriesAsync(DateTime from, DateTime to, OperationType type, int count, PaymentType? paymentType = null, CancellationToken ct = default);
     }
 }

@@ -15,6 +15,7 @@ namespace AutoKassa.Views
         {
             InitializeComponent();
             DataContextChanged += OnDataContextChanged;
+            Unloaded += (_, _) => DataContextChanged -= OnDataContextChanged;
         }
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

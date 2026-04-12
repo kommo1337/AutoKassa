@@ -30,7 +30,10 @@
       "Bash(xargs grep:*)",
       "Bash(grep -E \"Service\\\\.cs$\")",
       "Bash(grep -r \"xunit\\\\|nunit\\\\|mstest\\\\|Test\\\\|test\" *.sln AutoKassa/*.csproj MigrationHelper/*.csproj)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(where dotnet:*)",
+      "Bash(C:/Program Files/dotnet/dotnet.exe build:*)",
+      "Bash(/c/Program Files/dotnet/dotnet.exe build:*)"
     ]
   }
 }

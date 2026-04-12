@@ -61,6 +61,14 @@ namespace AutoKassa.ViewModels
         private bool _hasTodayTransactions;
         private decimal _currentCashBalance;
 
+        // Разбивка по типу оплаты
+        private decimal _cashBalance;
+        private decimal _nonCashBalance;
+        private decimal _cashIncome;
+        private decimal _nonCashIncome;
+        private decimal _cashExpense;
+        private decimal _nonCashExpense;
+
         // Быстрое добавление (субVM)
         private QuickAddViewModel _quickAdd;
 
@@ -97,8 +105,12 @@ namespace AutoKassa.ViewModels
             OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
 
             // Команды операций (параметр = конкретная транзакция или null → используем SelectedTransaction)
-            OpenTransactionCommand = new RelayCommand(t => OpenTransaction(t as Transaction ?? SelectedTransaction));
-            EditTransactionCommand = new RelayCommand(t => OpenTransaction(t as Transaction ?? SelectedTransaction));
+            OpenTransactionCommand = new RelayCommand(
+                t => OpenTransaction(t as Transaction ?? SelectedTransaction),
+                _ => SelectedTransaction != null);
+            EditTransactionCommand = new RelayCommand(
+                t => OpenTransaction(t as Transaction ?? SelectedTransaction),
+                _ => SelectedTransaction != null);
             DeleteTransactionCommand = new RelayCommand(async t => await DeleteTransactionAsync(t as Transaction ?? SelectedTransaction));
             NavigateToAllTransactionsCommand = new RelayCommand(_ => NavigateToAllTransactions());
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
@@ -173,6 +185,43 @@ namespace AutoKassa.ViewModels
         {
             get => _profitability;
             set => SetProperty(ref _profitability, value);
+        }
+
+        // Разбивка по типу оплаты
+        public decimal CashBalance
+        {
+            get => _cashBalance;
+            set => SetProperty(ref _cashBalance, value);
+        }
+
+        public decimal NonCashBalance
+        {
+            get => _nonCashBalance;
+            set => SetProperty(ref _nonCashBalance, value);
+        }
+
+        public decimal CashIncome
+        {
+            get => _cashIncome;
+            set => SetProperty(ref _cashIncome, value);
+        }
+
+        public decimal NonCashIncome
+        {
+            get => _nonCashIncome;
+            set => SetProperty(ref _nonCashIncome, value);
+        }
+
+        public decimal CashExpense
+        {
+            get => _cashExpense;
+            set => SetProperty(ref _cashExpense, value);
+        }
+
+        public decimal NonCashExpense
+        {
+            get => _nonCashExpense;
+            set => SetProperty(ref _nonCashExpense, value);
         }
 
         #endregion
@@ -448,11 +497,22 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task LoadSummaryAsync(CancellationToken ct = default)
         {
-            var (income, expense, _, _) = await _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct);
+            var allTask  = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
+            var cashTask = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, PaymentType.Cash, ct);
+            var cardTask = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, PaymentType.NonCash, ct);
+            await Task.WhenAll(allTask, cashTask, cardTask);
+
+            var (income, expense, _, _) = allTask.Result;
             TotalIncome  = income;
             TotalExpense = expense;
             Profit       = income - expense;
             Profitability = income > 0 ? ((income - expense) / income) * 100 : 0;
+
+            var (ci, ce, _, _) = cashTask.Result;
+            CashIncome = ci; CashExpense = ce;
+            var (ni, ne, _, _) = cardTask.Result;
+            NonCashIncome = ni; NonCashExpense = ne;
+
             await CalculateChangesAsync(ct);
         }
 
@@ -466,7 +526,7 @@ namespace AutoKassa.ViewModels
             var prevDateFrom = prevDateTo.AddDays(-periodLength + 1);
 
             var (prevIncome, prevExpense, _, _) =
-                await _transactionService.GetPeriodTotalsAsync(prevDateFrom, prevDateTo, ct);
+                await _transactionService.GetPeriodTotalsAsync(prevDateFrom, prevDateTo, ct: ct);
             var prevProfit = prevIncome - prevExpense;
 
             IncomeChangePercent  = prevIncome  > 0 ? ((TotalIncome  - prevIncome)  / prevIncome)             * 100 : (TotalIncome  > 0 ? 100 : 0);
@@ -511,10 +571,10 @@ namespace AutoKassa.ViewModels
             }
 
             // Статистика — SQL-агрегация вместо in-memory по всем записям
-            var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct);
-            var dailyTask    = _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct);
-            var topExpTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Expense, 5, ct);
-            var topIncTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Income,  5, ct);
+            var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
+            var dailyTask    = _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct: ct);
+            var topExpTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Expense, 5, ct: ct);
+            var topIncTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Income,  5, ct: ct);
 
             await Task.WhenAll(totalsTask, dailyTask, topExpTask, topIncTask);
 
@@ -541,7 +601,7 @@ namespace AutoKassa.ViewModels
         private async Task LoadTodayBalanceAsync(CancellationToken ct = default)
         {
             var (income, expense, incCount, expCount) =
-                await _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, ct);
+                await _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, ct: ct);
             HasTodayTransactions = (incCount + expCount) > 0;
             TodayBalance = income - expense;
         }
@@ -552,9 +612,21 @@ namespace AutoKassa.ViewModels
         private async Task LoadCashBalanceAsync(CancellationToken ct = default)
         {
             var settings = await _settingsService.GetSettingsAsync();
-            var (allIncome, allExpense, _, _) = await _transactionService.GetPeriodTotalsAsync(
-                new DateTime(2000, 1, 1), DateTime.Today, ct);
+            var epoch = new DateTime(2000, 1, 1);
+
+            var allTask  = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, ct: ct);
+            var cashTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.Cash, ct);
+            var cardTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.NonCash, ct);
+            await Task.WhenAll(allTask, cashTask, cardTask);
+
+            var (allIncome, allExpense, _, _) = allTask.Result;
             CurrentCashBalance = settings.InitialBalance + allIncome - allExpense;
+
+            var (cashInc, cashExp, _, _) = cashTask.Result;
+            CashBalance = settings.InitialBalance + cashInc - cashExp;
+
+            var (cardInc, cardExp, _, _) = cardTask.Result;
+            NonCashBalance = cardInc - cardExp;
         }
 
         /// <summary>
@@ -562,7 +634,7 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task LoadChartDataAsync(CancellationToken ct = default)
         {
-            var groupedData = await _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct);
+            var groupedData = await _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct: ct);
 
             // Создание модели графика
             var model = new PlotModel
@@ -772,6 +844,13 @@ namespace AutoKassa.ViewModels
         {
             var navigationService = App.GetService<INavigationService>();
             navigationService?.NavigateTo<ReportsViewModel>();
+        }
+
+        protected override void OnDispose()
+        {
+            _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadCts = null;
         }
 
         #endregion

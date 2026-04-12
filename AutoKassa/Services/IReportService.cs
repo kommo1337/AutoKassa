@@ -13,21 +13,21 @@ namespace AutoKassa.Services
         /// <summary>
         /// Сформировать отчет "Баланс за период"
         /// </summary>
-        Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo);
+        Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo, PaymentType? paymentType = null);
 
         /// <summary>
         /// Получить начальный баланс на дату
         /// </summary>
-        Task<decimal> GetInitialBalanceAsync(DateTime date);
+        Task<decimal> GetInitialBalanceAsync(DateTime date, PaymentType? paymentType = null);
 
         /// <summary>
         /// Сформировать отчет "Структура по категориям"
         /// </summary>
-        Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType);
+        Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null);
 
         /// <summary>
         /// Сформировать отчет "Детализация операций"
         /// </summary>
-        Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(DateTime dateFrom, DateTime dateTo, OperationType? operationType = null, int? categoryId = null);
+        Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(DateTime dateFrom, DateTime dateTo, OperationType? operationType = null, int? categoryId = null, PaymentType? paymentType = null);
     }
 }

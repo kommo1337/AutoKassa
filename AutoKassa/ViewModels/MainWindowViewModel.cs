@@ -14,6 +14,7 @@ namespace AutoKassa.ViewModels
         private readonly ISettingsService _settingsService;
         private string _title = "АвтоКасса";
         private bool _showCategoriesInSidebar;
+        private ViewModelBase _previousView;
 
         public MainWindowViewModel(
             INavigationService navigationService,
@@ -173,6 +174,15 @@ namespace AutoKassa.ViewModels
 
         private void OnCurrentViewChanged()
         {
+            // Dispose предыдущего ViewModel при смене страницы
+            if (_previousView != null)
+            {
+                _previousView.Dispose();
+                _previousView = null;
+            }
+
+            _previousView = CurrentView;
+
             OnPropertyChanged(nameof(CurrentView));
             OnPropertyChanged(nameof(IsDashboardActive));
             OnPropertyChanged(nameof(IsTransactionsActive));
@@ -182,5 +192,11 @@ namespace AutoKassa.ViewModels
         }
 
         #endregion
+
+        protected override void OnDispose()
+        {
+            _navigationService.CurrentViewChanged -= OnCurrentViewChanged;
+            _previousView?.Dispose();
+        }
     }
 }
