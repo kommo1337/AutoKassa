@@ -7,6 +7,21 @@ using Microsoft.EntityFrameworkCore;
 namespace AutoKassa.Tests.Infrastructure
 {
     /// <summary>
+    /// Фабрика контекстов для тестов SettingsService (требует IDbContextFactory).
+    /// </summary>
+    public class TestDbContextFactory : IDbContextFactory<AppDbContext>
+    {
+        private readonly DbContextOptions<AppDbContext> _options;
+
+        public TestDbContextFactory(DbContextOptions<AppDbContext> options)
+        {
+            _options = options;
+        }
+
+        public AppDbContext CreateDbContext() => new AppDbContext(_options);
+    }
+
+    /// <summary>
     /// Хелпер для создания изолированной SQLite in-memory базы на каждый тест.
     /// </summary>
     public static class TestDatabase
@@ -29,6 +44,28 @@ namespace AutoKassa.Tests.Infrastructure
             context.Database.EnsureCreated(); // схема + seed-категории из OnModelCreating
 
             return (context, connection);
+        }
+
+        /// <summary>
+        /// Создаёт БД с IDbContextFactory для тестов SettingsService.
+        /// </summary>
+        public static (TestDbContextFactory factory, SqliteConnection connection) CreateWithFactory()
+        {
+            var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite(connection)
+                .Options;
+
+            // Создаём схему + seed
+            using (var ctx = new AppDbContext(options))
+            {
+                ctx.Database.EnsureCreated();
+            }
+
+            var factory = new TestDbContextFactory(options);
+            return (factory, connection);
         }
 
         /// <summary>

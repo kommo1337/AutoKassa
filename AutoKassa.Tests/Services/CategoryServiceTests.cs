@@ -195,5 +195,80 @@ namespace AutoKassa.Tests.Services
             updated1!.SortOrder.Should().Be(99);
             updated2!.SortOrder.Should().Be(1);
         }
+
+        // ─────────────────────────────────────────
+        // Дополнительные тесты
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GetAllAsync_ReturnsBothTypes()
+        {
+            TestDatabase.SeedExpenseCategory(_ctx, "Расход-X");
+            TestDatabase.SeedIncomeCategory(_ctx, "Доход-X");
+
+            var all = await _svc.GetAllAsync();
+
+            all.Should().Contain(c => c.Type == OperationType.Expense);
+            all.Should().Contain(c => c.Type == OperationType.Income);
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_ReturnsCorrectCategory()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Точная");
+
+            var result = await _svc.GetByIdAsync(cat.Id);
+
+            result.Should().NotBeNull();
+            result!.Name.Should().Be("Точная");
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_ReturnsNull_WhenNotFound()
+        {
+            var result = await _svc.GetByIdAsync(99999);
+
+            result.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_PersistsNameAndColorChanges()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "До-изменения");
+            cat.Name = "После-изменения";
+            cat.Color = "#ff0000";
+
+            await _svc.UpdateAsync(cat);
+
+            var updated = await _svc.GetByIdAsync(cat.Id);
+            updated!.Name.Should().Be("После-изменения");
+            updated.Color.Should().Be("#ff0000");
+        }
+
+        [Fact]
+        public async Task UpdateAsync_DoesNotThrowForValidData()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Валидная");
+            cat.Name = "Новое-имя";
+
+            Func<Task> act = () => _svc.UpdateAsync(cat);
+
+            await act.Should().NotThrowAsync();
+        }
+
+        [Fact]
+        public async Task GetOperationCountAsync_CountsOnlyNonDeletedTransactions()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Счётная");
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 200m);
+            var deleted = TestDatabase.SeedTransaction(_ctx, cat.Id, 300m);
+            _ctx.Transactions.Find(deleted.Id)!.IsDeleted = true;
+            _ctx.SaveChanges();
+
+            var count = await _svc.GetOperationCountAsync(cat.Id);
+
+            count.Should().Be(2);
+        }
     }
 }

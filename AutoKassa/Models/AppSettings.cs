@@ -183,6 +183,12 @@ namespace AutoKassa.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal InitialBalance { get; set; } = 0;
 
+        /// <summary>
+        /// Тип оплаты по умолчанию (1 = Наличные, 2 = Безналичные)
+        /// </summary>
+        [Required]
+        public int DefaultPaymentType { get; set; } = 1;
+
         #endregion
 
         #region Настройки интерфейса

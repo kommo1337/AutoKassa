@@ -180,7 +180,8 @@
                 <!-- Статус-бейдж: баланс за сегодня -->
                 <Border CornerRadius="12" Padding="10,5"
                         VerticalAlignment="Center" Margin="12,0,0,0"
-                        BorderThickness="1">
+                        BorderThickness="1"
+                        ToolTip="Итого за сегодня">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="BorderBrush" Value="#86efac"/>
@@ -576,22 +577,24 @@
                                     <DataTemplate DataType="{x:Type vm:DateGroup}">
                                         <StackPanel Margin="0,0,0,4">
                                             <!-- Заголовок дня -->
-                                            <Grid Margin="20,12,20,4">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding DateLabel}"
-                                                           FontSize="12" FontWeight="SemiBold"
-                                                           Foreground="{StaticResource MutedTextBrush}"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding DayTotalFormatted}"
-                                                           FontSize="13" FontWeight="SemiBold">
-                                                    <TextBlock.Foreground>
-                                                        <Binding Path="DayTotalColor" Converter="{StaticResource CategoryColorConverter}"/>
-                                                    </TextBlock.Foreground>
-                                                </TextBlock>
-                                            </Grid>
+                                            <Border Background="#F8F9FB" BorderBrush="#F0F2F5" BorderThickness="0,0,0,1">
+                                                <Grid Margin="20,9,20,7">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding DateLabel}"
+                                                               FontSize="12" FontWeight="SemiBold"
+                                                               Foreground="#344054"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding DayTotalFormatted}"
+                                                               FontSize="13" FontWeight="SemiBold">
+                                                        <TextBlock.Foreground>
+                                                            <Binding Path="DayTotalColor" Converter="{StaticResource CategoryColorConverter}"/>
+                                                        </TextBlock.Foreground>
+                                                    </TextBlock>
+                                                </Grid>
+                                            </Border>
 
                                             <!-- Строки операций -->
                                             <ItemsControl ItemsSource="{Binding Items}">
@@ -835,17 +838,6 @@
             </StackPanel>
         </Grid>
 
-        <!-- ==================== FAB кнопка ==================== -->
-        <Button Grid.Row="3"
-                Style="{StaticResource FloatingActionButton}"
-                Command="{Binding OpenAddTransactionCommand}"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Margin="0,0,44,40"
-                ToolTip="Добавить операцию">
-            <TextBlock Text="+" FontSize="26" FontWeight="Bold" VerticalAlignment="Center" Margin="0,-1,0,0"/>
-        </Button>
-
         <!-- Индикатор загрузки -->
         <Border Grid.RowSpan="3"
                 Background="#80FFFFFF"
@@ -859,6 +851,40 @@
         </Border>
         </Grid>
 
+        <!-- ===== FAB ===== -->
+        <Button Command="{Binding OpenAddTransactionCommand}"
+                Width="52" Height="52"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                Margin="0,0,28,38"
+                Cursor="Hand"
+                ToolTip="Добавить операцию"
+                Panel.ZIndex="50">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="fab" Background="#22c55e" CornerRadius="15">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#22c55e" BlurRadius="18" ShadowDepth="4" Opacity="0.35"/>
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal"/>
+                                <VisualState x:Name="MouseOver">
+                                    <Storyboard>
+                                        <ColorAnimation Storyboard.TargetName="fab"
+                                                        Storyboard.TargetProperty="Background.Color"
+                                                        To="#16a34a" Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Border>
+                </ControlTemplate>
+            </Button.Template>
+            <TextBlock Text="+" FontSize="28" Foreground="White" FontWeight="Light"
+                       Margin="0,-2,0,0" VerticalAlignment="Center"/>
+        </Button>
+
         <!-- ===== MODAL OVERLAY ===== -->
         <Grid Panel.ZIndex="100"
               Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -867,7 +893,7 @@
             <Rectangle Fill="#66000000"/>
 
             <!-- Modal card -->
-            <Grid MaxWidth="470" MaxHeight="750"
+            <Grid MaxWidth="470" MinHeight="775" MaxHeight="775"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
                   UseLayoutRounding="True" SnapsToDevicePixels="True">
                 <!-- Shadow layer (separate, no children affected) -->

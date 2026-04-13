@@ -267,7 +267,8 @@ namespace AutoKassa.Services
                     WindowWidth = 1200,
                     WindowHeight = 700,
                     DefaultOperationType = 2,
-                    InitialBalance = 0m
+                    InitialBalance = 0m,
+                    DefaultPaymentType = 1
                 }
             );
         }

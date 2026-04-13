@@ -1,22 +1,24 @@
 using AutoKassa.Helpers;
 using AutoKassa.Models;
+using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.Views;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    /// <summary>
-    /// ViewModel для окна настроек
-    /// </summary>
     public class SettingsViewModel : ViewModelBase
     {
         private readonly ISettingsService _settingsService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
+        private readonly ICategoryService _categoryService;
+        private readonly ITransactionService _transactionService;
 
         #region Поля
 
@@ -26,18 +28,22 @@ namespace AutoKassa.ViewModels
         private bool _hasUnsavedChanges;
         private int _selectedTabIndex;
 
-        // Общие настройки
+        // Общие
         private bool _autoLockEnabled;
         private int _autoLockMinutes;
         private bool _showNotifications;
-        private string _selectedTheme;
+        private decimal _initialBalance;
 
-        // Настройки операций
+        // Операции
         private bool _showOperationsInSidebar;
         private int _defaultPageSize;
         private bool _confirmDelete;
+        private int _defaultOperationType;
+        private int? _defaultIncomeCategoryId;
+        private int? _defaultExpenseCategoryId;
+        private int _defaultPaymentType;
 
-        // Настройки отчетов
+        // Отчёты
         private string _selectedDefaultPeriod;
         private bool _autoGenerateReports;
 
@@ -45,56 +51,62 @@ namespace AutoKassa.ViewModels
         private bool _backupEnabled;
         private int _autoBackupDays;
         private string _backupPath;
+        private int _backupKeepCount;
 
         // Безопасность
         private bool _requirePasswordOnStartup;
         private int _passwordExpireDays;
 
-        // Финансы
-        private decimal _initialBalance;
-
-        // Интерфейс
-        private string _selectedLanguage;
-        private double _windowWidth;
-        private double _windowHeight;
+        // О программе
+        private string _appVersion;
+        private string _dbFileSize;
+        private int _totalTransactions;
+        private int _totalCategories;
+        private string _lastBackupDate;
 
         #endregion
 
         #region Коллекции
 
-        public ObservableCollection<string> AvailableThemes { get; } = new()
+        public ObservableCollection<DisplayItem> AvailableOperationTypes { get; } = new()
         {
-            "Light",
-            "Dark"
+            new DisplayItem { Value = "1", Display = "Доход" },
+            new DisplayItem { Value = "2", Display = "Расход" }
         };
 
-        public ObservableCollection<string> AvailableLanguages { get; } = new()
+        public ObservableCollection<DisplayItem> AvailablePaymentTypes { get; } = new()
         {
-            "ru-RU",
-            "en-US"
+            new DisplayItem { Value = "1", Display = "Наличные" },
+            new DisplayItem { Value = "2", Display = "Безналичные" }
         };
 
-        public ObservableCollection<string> AvailablePeriods { get; } = new()
+        public ObservableCollection<DisplayItem> AvailablePeriods { get; } = new()
         {
-            "Today",
-            "Week",
-            "Month",
-            "Quarter",
-            "Year"
+            new DisplayItem { Value = "Today", Display = "Сегодня" },
+            new DisplayItem { Value = "Week", Display = "Неделя" },
+            new DisplayItem { Value = "Month", Display = "Месяц" },
+            new DisplayItem { Value = "Quarter", Display = "Квартал" },
+            new DisplayItem { Value = "Year", Display = "Год" }
         };
+
+        public ObservableCollection<Category> IncomeCategories { get; } = new();
+        public ObservableCollection<Category> ExpenseCategories { get; } = new();
 
         #endregion
 
         public SettingsViewModel(
             ISettingsService settingsService,
             IDialogService dialogService,
-            IToastNotificationService toastService)
+            IToastNotificationService toastService,
+            ICategoryService categoryService,
+            ITransactionService transactionService)
         {
             _settingsService = settingsService;
             _dialogService = dialogService;
             _toastService = toastService;
+            _categoryService = categoryService;
+            _transactionService = transactionService;
 
-            // Команды
             SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => HasUnsavedChanges);
             CancelCommand = new RelayCommand(_ => Cancel());
             ResetCommand = new RelayCommand(async _ => await ResetToDefaultsAsync());
@@ -105,40 +117,30 @@ namespace AutoKassa.ViewModels
             CreateBackupCommand = new RelayCommand(async _ => await CreateBackupAsync());
             RestoreBackupCommand = new RelayCommand(async _ => await RestoreBackupAsync());
 
-            // Загрузка данных
             RunAsync(LoadSettingsAsync);
         }
 
         #region Свойства
 
-        /// <summary>
-        /// Идет загрузка
-        /// </summary>
         public bool IsLoading
         {
             get => _isLoading;
             set => SetProperty(ref _isLoading, value);
         }
 
-        /// <summary>
-        /// Есть несохраненные изменения
-        /// </summary>
         public bool HasUnsavedChanges
         {
             get => _hasUnsavedChanges;
             set => SetProperty(ref _hasUnsavedChanges, value);
         }
 
-        /// <summary>
-        /// Индекс выбранной вкладки
-        /// </summary>
         public int SelectedTabIndex
         {
             get => _selectedTabIndex;
             set => SetProperty(ref _selectedTabIndex, value);
         }
 
-        #region Общие настройки
+        #region Общие
 
         public bool AutoLockEnabled
         {
@@ -158,15 +160,15 @@ namespace AutoKassa.ViewModels
             set { if (SetProperty(ref _showNotifications, value)) MarkAsChanged(); }
         }
 
-        public string SelectedTheme
+        public decimal InitialBalance
         {
-            get => _selectedTheme;
-            set { if (SetProperty(ref _selectedTheme, value)) MarkAsChanged(); }
+            get => _initialBalance;
+            set { if (SetProperty(ref _initialBalance, value)) MarkAsChanged(); }
         }
 
         #endregion
 
-        #region Настройки операций
+        #region Операции
 
         public bool ShowOperationsInSidebar
         {
@@ -186,9 +188,33 @@ namespace AutoKassa.ViewModels
             set { if (SetProperty(ref _confirmDelete, value)) MarkAsChanged(); }
         }
 
+        public int DefaultOperationType
+        {
+            get => _defaultOperationType;
+            set { if (SetProperty(ref _defaultOperationType, value)) MarkAsChanged(); }
+        }
+
+        public int? DefaultIncomeCategoryId
+        {
+            get => _defaultIncomeCategoryId;
+            set { if (SetProperty(ref _defaultIncomeCategoryId, value)) MarkAsChanged(); }
+        }
+
+        public int? DefaultExpenseCategoryId
+        {
+            get => _defaultExpenseCategoryId;
+            set { if (SetProperty(ref _defaultExpenseCategoryId, value)) MarkAsChanged(); }
+        }
+
+        public int DefaultPaymentType
+        {
+            get => _defaultPaymentType;
+            set { if (SetProperty(ref _defaultPaymentType, value)) MarkAsChanged(); }
+        }
+
         #endregion
 
-        #region Настройки отчетов
+        #region Отчёты
 
         public string SelectedDefaultPeriod
         {
@@ -224,6 +250,12 @@ namespace AutoKassa.ViewModels
             set { if (SetProperty(ref _backupPath, value)) MarkAsChanged(); }
         }
 
+        public int BackupKeepCount
+        {
+            get => _backupKeepCount;
+            set { if (SetProperty(ref _backupKeepCount, value)) MarkAsChanged(); }
+        }
+
         #endregion
 
         #region Безопасность
@@ -242,34 +274,36 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
-        #region Финансовые настройки
+        #region О программе (read-only)
 
-        public decimal InitialBalance
+        public string AppVersion
         {
-            get => _initialBalance;
-            set { if (SetProperty(ref _initialBalance, value)) MarkAsChanged(); }
+            get => _appVersion;
+            private set => SetProperty(ref _appVersion, value);
         }
 
-        #endregion
-
-        #region Интерфейс
-
-        public string SelectedLanguage
+        public string DbFileSize
         {
-            get => _selectedLanguage;
-            set { if (SetProperty(ref _selectedLanguage, value)) MarkAsChanged(); }
+            get => _dbFileSize;
+            private set => SetProperty(ref _dbFileSize, value);
         }
 
-        public double WindowWidth
+        public int TotalTransactions
         {
-            get => _windowWidth;
-            set { if (SetProperty(ref _windowWidth, value)) MarkAsChanged(); }
+            get => _totalTransactions;
+            private set => SetProperty(ref _totalTransactions, value);
         }
 
-        public double WindowHeight
+        public int TotalCategories
         {
-            get => _windowHeight;
-            set { if (SetProperty(ref _windowHeight, value)) MarkAsChanged(); }
+            get => _totalCategories;
+            private set => SetProperty(ref _totalCategories, value);
+        }
+
+        public string LastBackupDate
+        {
+            get => _lastBackupDate;
+            private set => SetProperty(ref _lastBackupDate, value);
         }
 
         #endregion
@@ -292,9 +326,6 @@ namespace AutoKassa.ViewModels
 
         #region Методы
 
-        /// <summary>
-        /// Загрузить настройки
-        /// </summary>
         private async Task LoadSettingsAsync()
         {
             try
@@ -304,8 +335,20 @@ namespace AutoKassa.ViewModels
                 _currentSettings = await _settingsService.GetSettingsAsync();
                 _originalSettings = CloneSettings(_currentSettings);
 
-                // Заполняем свойства
                 LoadPropertiesFromSettings(_currentSettings);
+
+                // Загрузить категории
+                var income = await _categoryService.GetByTypeAsync(OperationType.Income);
+                var expense = await _categoryService.GetByTypeAsync(OperationType.Expense);
+
+                IncomeCategories.Clear();
+                foreach (var c in income) IncomeCategories.Add(c);
+
+                ExpenseCategories.Clear();
+                foreach (var c in expense) ExpenseCategories.Add(c);
+
+                // Загрузить данные «О программе»
+                await LoadAboutDataAsync();
 
                 HasUnsavedChanges = false;
             }
@@ -319,19 +362,45 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Загрузить свойства из настроек
-        /// </summary>
+        private async Task LoadAboutDataAsync()
+        {
+            AppVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+
+            var dbPath = _settingsService.GetDatabasePath();
+            if (!string.IsNullOrEmpty(dbPath) && File.Exists(dbPath))
+            {
+                var size = new FileInfo(dbPath).Length;
+                DbFileSize = size < 1024 * 1024
+                    ? $"{size / 1024.0:F1} КБ"
+                    : $"{size / (1024.0 * 1024.0):F1} МБ";
+            }
+            else
+            {
+                DbFileSize = "—";
+            }
+
+            TotalTransactions = await _transactionService.GetTotalCountAsync(new TransactionFilterParameters());
+            var allCategories = await _categoryService.GetAllAsync();
+            TotalCategories = allCategories.Count;
+
+            var lastBackup = _settingsService.GetLastBackupDate();
+            LastBackupDate = lastBackup?.ToString("dd.MM.yyyy HH:mm") ?? "Нет данных";
+        }
+
         private void LoadPropertiesFromSettings(AppSettings settings)
         {
             _autoLockEnabled = settings.AutoLockEnabled;
             _autoLockMinutes = settings.AutoLockTimeout;
             _showNotifications = settings.ShowNotifications;
-            _selectedTheme = settings.Theme;
+            _initialBalance = settings.InitialBalance;
 
             _showOperationsInSidebar = settings.ShowOperationsInSidebar;
             _defaultPageSize = settings.DefaultPageSize;
             _confirmDelete = settings.ConfirmDelete;
+            _defaultOperationType = settings.DefaultOperationType;
+            _defaultIncomeCategoryId = settings.DefaultIncomeCategoryId;
+            _defaultExpenseCategoryId = settings.DefaultExpenseCategoryId;
+            _defaultPaymentType = settings.DefaultPaymentType;
 
             _selectedDefaultPeriod = settings.DefaultPeriodFilter;
             _autoGenerateReports = settings.AutoGenerateReports;
@@ -339,52 +408,42 @@ namespace AutoKassa.ViewModels
             _backupEnabled = settings.BackupEnabled;
             _autoBackupDays = settings.AutoBackupDays;
             _backupPath = settings.BackupPath ?? string.Empty;
+            _backupKeepCount = settings.BackupKeepCount;
 
             _requirePasswordOnStartup = settings.RequirePasswordOnStartup;
             _passwordExpireDays = settings.PasswordExpireDays;
-
-            _initialBalance = settings.InitialBalance;
-
-            _selectedLanguage = settings.Language;
-            _windowWidth = settings.WindowWidth;
-            _windowHeight = settings.WindowHeight;
 
             // Уведомляем UI
             OnPropertyChanged(nameof(AutoLockEnabled));
             OnPropertyChanged(nameof(AutoLockMinutes));
             OnPropertyChanged(nameof(ShowNotifications));
-            OnPropertyChanged(nameof(SelectedTheme));
+            OnPropertyChanged(nameof(InitialBalance));
             OnPropertyChanged(nameof(ShowOperationsInSidebar));
             OnPropertyChanged(nameof(DefaultPageSize));
             OnPropertyChanged(nameof(ConfirmDelete));
+            OnPropertyChanged(nameof(DefaultOperationType));
+            OnPropertyChanged(nameof(DefaultIncomeCategoryId));
+            OnPropertyChanged(nameof(DefaultExpenseCategoryId));
+            OnPropertyChanged(nameof(DefaultPaymentType));
             OnPropertyChanged(nameof(SelectedDefaultPeriod));
             OnPropertyChanged(nameof(AutoGenerateReports));
             OnPropertyChanged(nameof(BackupEnabled));
             OnPropertyChanged(nameof(AutoBackupDays));
             OnPropertyChanged(nameof(BackupPath));
+            OnPropertyChanged(nameof(BackupKeepCount));
             OnPropertyChanged(nameof(RequirePasswordOnStartup));
             OnPropertyChanged(nameof(PasswordExpireDays));
-            OnPropertyChanged(nameof(InitialBalance));
-            OnPropertyChanged(nameof(SelectedLanguage));
-            OnPropertyChanged(nameof(WindowWidth));
-            OnPropertyChanged(nameof(WindowHeight));
         }
 
-        /// <summary>
-        /// Сохранить настройки
-        /// </summary>
         private async Task SaveAsync()
         {
             try
             {
-                // Валидация
                 if (!ValidateSettings()) return;
 
                 IsLoading = true;
 
-                // Применяем изменения к настройкам
                 ApplyPropertiesToSettings(_currentSettings);
-
                 await _settingsService.SaveSettingsAsync(_currentSettings);
 
                 _originalSettings = CloneSettings(_currentSettings);
@@ -402,19 +461,20 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Применить свойства к настройкам
-        /// </summary>
         private void ApplyPropertiesToSettings(AppSettings settings)
         {
             settings.AutoLockEnabled = AutoLockEnabled;
             settings.AutoLockTimeout = AutoLockMinutes;
             settings.ShowNotifications = ShowNotifications;
-            settings.Theme = SelectedTheme;
+            settings.InitialBalance = InitialBalance;
 
             settings.ShowOperationsInSidebar = ShowOperationsInSidebar;
             settings.DefaultPageSize = DefaultPageSize;
             settings.ConfirmDelete = ConfirmDelete;
+            settings.DefaultOperationType = DefaultOperationType;
+            settings.DefaultIncomeCategoryId = DefaultIncomeCategoryId;
+            settings.DefaultExpenseCategoryId = DefaultExpenseCategoryId;
+            settings.DefaultPaymentType = DefaultPaymentType;
 
             settings.DefaultPeriodFilter = SelectedDefaultPeriod;
             settings.AutoGenerateReports = AutoGenerateReports;
@@ -422,20 +482,12 @@ namespace AutoKassa.ViewModels
             settings.BackupEnabled = BackupEnabled;
             settings.AutoBackupDays = AutoBackupDays;
             settings.BackupPath = string.IsNullOrWhiteSpace(BackupPath) ? null : BackupPath;
+            settings.BackupKeepCount = BackupKeepCount;
 
             settings.RequirePasswordOnStartup = RequirePasswordOnStartup;
             settings.PasswordExpireDays = PasswordExpireDays;
-
-            settings.InitialBalance = InitialBalance;
-
-            settings.Language = SelectedLanguage;
-            settings.WindowWidth = WindowWidth;
-            settings.WindowHeight = WindowHeight;
         }
 
-        /// <summary>
-        /// Валидация настроек
-        /// </summary>
         private bool ValidateSettings()
         {
             if (AutoLockMinutes < 1 || AutoLockMinutes > 60)
@@ -462,21 +514,21 @@ namespace AutoKassa.ViewModels
                 return false;
             }
 
+            if (BackupKeepCount < 1 || BackupKeepCount > 100)
+            {
+                _dialogService.ShowWarning("Количество хранимых копий должно быть от 1 до 100");
+                return false;
+            }
+
             return true;
         }
 
-        /// <summary>
-        /// Отменить изменения
-        /// </summary>
         private void Cancel()
         {
             LoadPropertiesFromSettings(_originalSettings);
             HasUnsavedChanges = false;
         }
 
-        /// <summary>
-        /// Сбросить к значениям по умолчанию
-        /// </summary>
         private async Task ResetToDefaultsAsync()
         {
             try
@@ -502,9 +554,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Экспортировать настройки
-        /// </summary>
         private async Task ExportSettingsAsync()
         {
             var dialog = new SaveFileDialog
@@ -519,7 +568,6 @@ namespace AutoKassa.ViewModels
             try
             {
                 IsLoading = true;
-
                 var success = await _settingsService.ExportSettingsAsync(dialog.FileName);
 
                 if (success)
@@ -537,9 +585,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Импортировать настройки
-        /// </summary>
         private async Task ImportSettingsAsync()
         {
             var dialog = new OpenFileDialog
@@ -553,7 +598,6 @@ namespace AutoKassa.ViewModels
             try
             {
                 IsLoading = true;
-
                 var success = await _settingsService.ImportSettingsAsync(dialog.FileName);
 
                 if (success)
@@ -580,9 +624,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Изменить пароль
-        /// </summary>
         private void ChangePassword()
         {
             var viewModel = new ChangePasswordViewModel(_settingsService, _dialogService, _toastService);
@@ -590,16 +631,11 @@ namespace AutoKassa.ViewModels
             {
                 Owner = Application.Current.MainWindow
             };
-
             window.ShowDialog();
         }
 
-        /// <summary>
-        /// Выбрать папку для резервных копий
-        /// </summary>
         private void SelectBackupPath()
         {
-            // Используем SaveFileDialog для выбора папки (выбираем любой файл в нужной папке)
             var dialog = new SaveFileDialog
             {
                 Title = "Выберите папку для резервных копий",
@@ -614,13 +650,10 @@ namespace AutoKassa.ViewModels
 
             if (dialog.ShowDialog() == true)
             {
-                BackupPath = System.IO.Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+                BackupPath = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
             }
         }
 
-        /// <summary>
-        /// Создать резервную копию
-        /// </summary>
         private async Task CreateBackupAsync()
         {
             string targetPath = BackupPath;
@@ -636,20 +669,22 @@ namespace AutoKassa.ViewModels
                     CheckFileExists = false
                 };
 
-                if (dialog.ShowDialog() != true)
-                    return;
-
-                targetPath = System.IO.Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
+                if (dialog.ShowDialog() != true) return;
+                targetPath = Path.GetDirectoryName(dialog.FileName) ?? string.Empty;
             }
 
             try
             {
                 IsLoading = true;
-
                 var backupFile = await _settingsService.CreateBackupAsync(targetPath);
 
                 if (!string.IsNullOrEmpty(backupFile))
+                {
                     _toastService.ShowSuccess($"Резервная копия создана:\n{backupFile}");
+                    // Обновить дату последнего бэкапа
+                    var lastBackup = _settingsService.GetLastBackupDate();
+                    LastBackupDate = lastBackup?.ToString("dd.MM.yyyy HH:mm") ?? "Нет данных";
+                }
                 else
                     _dialogService.ShowError("Не удалось создать резервную копию");
             }
@@ -663,9 +698,6 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Восстановить из резервной копии
-        /// </summary>
         private async Task RestoreBackupAsync()
         {
             var dialog = new OpenFileDialog
@@ -679,14 +711,11 @@ namespace AutoKassa.ViewModels
             try
             {
                 IsLoading = true;
-
                 var success = await _settingsService.RestoreBackupAsync(dialog.FileName);
 
                 if (success)
                 {
                     _dialogService.ShowInfo("База данных восстановлена. Приложение будет перезапущено.");
-
-                    // Перезапуск приложения
                     System.Diagnostics.Process.Start(Environment.ProcessPath!);
                     Application.Current.Shutdown();
                 }
@@ -705,18 +734,12 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        /// <summary>
-        /// Пометить как измененное
-        /// </summary>
         private void MarkAsChanged()
         {
             if (!IsLoading)
                 HasUnsavedChanges = true;
         }
 
-        /// <summary>
-        /// Клонировать настройки
-        /// </summary>
         private AppSettings CloneSettings(AppSettings source)
         {
             return new AppSettings
@@ -748,6 +771,7 @@ namespace AutoKassa.ViewModels
                 DefaultOperationType = source.DefaultOperationType,
                 DefaultIncomeCategoryId = source.DefaultIncomeCategoryId,
                 DefaultExpenseCategoryId = source.DefaultExpenseCategoryId,
+                DefaultPaymentType = source.DefaultPaymentType,
                 InitialBalance = source.InitialBalance
             };
         }

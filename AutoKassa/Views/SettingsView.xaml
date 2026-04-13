@@ -1,9 +1,13 @@
 <UserControl x:Class="AutoKassa.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:AutoKassa.Helpers.Converters"
              Background="{StaticResource BackgroundBrush}">
 
     <UserControl.Resources>
+
+        <conv:IntEqualityConverter x:Key="IntEqualityConverter"/>
+        <conv:IntToStringConverter x:Key="IntToStringConverter"/>
 
         <!-- Вкладка боковой навигации -->
         <Style x:Key="SettingsTabStyle" TargetType="RadioButton">
@@ -131,6 +135,20 @@
             </Setter>
         </Style>
 
+        <!-- Подпись «О программе» -->
+        <Style x:Key="AboutLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="AboutValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+
     </UserControl.Resources>
 
     <Grid>
@@ -173,7 +191,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Боковая навигация -->
+            <!-- Бок��вая навигация -->
             <Border Grid.Column="0"
                     Background="{StaticResource CardBgBrush}"
                     CornerRadius="12"
@@ -190,12 +208,30 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0">
-                        <RadioButton Content="Общие"            Style="{StaticResource SettingsTabStyle}" IsChecked="True" GroupName="SettingsTabs"/>
-                        <RadioButton Content="Операции"         Style="{StaticResource SettingsTabStyle}" GroupName="SettingsTabs"/>
-                        <RadioButton Content="Отчёты"           Style="{StaticResource SettingsTabStyle}" GroupName="SettingsTabs"/>
-                        <RadioButton Content="Резерв. копир."   Style="{StaticResource SettingsTabStyle}" GroupName="SettingsTabs"/>
-                        <RadioButton Content="Безопасность"     Style="{StaticResource SettingsTabStyle}" GroupName="SettingsTabs"/>
-                        <RadioButton Content="Интерфейс"        Style="{StaticResource SettingsTabStyle}" GroupName="SettingsTabs"/>
+                        <RadioButton Content="Общие"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=0}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Операции"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=1}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Отчёты"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=2}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Резерв. копир."
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=3}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="Безопасность"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=4}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="О программе"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=5}"
+                                     GroupName="SettingsTabs"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Margin="0,16,0,0">
@@ -225,8 +261,18 @@
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
 
-                    <!-- Общие -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
+                    <!-- ===== TAB 0: Общие ===== -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
                             <TextBlock Text="Общие настройки" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -250,23 +296,12 @@
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Показывать уведомления" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Показывать уведомл��ния" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <CheckBox Grid.Column="1" IsChecked="{Binding ShowNotifications}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Тема оформления" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                <ComboBox Grid.Column="1"
-                                          ItemsSource="{Binding AvailableThemes}"
-                                          SelectedItem="{Binding SelectedTheme}"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
+                            <Rectangle Height="1" Fill="{StaticResource BorderLightBrush}" Margin="0,4,0,14"/>
 
-                    <!-- Финансы -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
-                        <StackPanel>
                             <TextBlock Text="Финансовые настройки" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid>
@@ -283,15 +318,25 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Операции -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
+                    <!-- ===== TAB 1: Операции ===== -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="1">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
-                            <TextBlock Text="Настройки операций" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="Настро��ки операций" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Показывать «Категории» в меню" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Показывать «Категории» в ме��ю" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
                                     <TextBlock Text="Добавить кнопку Категории в боковое меню"
                                                FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
                                 </StackPanel>
@@ -300,31 +345,92 @@
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Записей на странице" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Записей н�� странице" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1"
                                          Text="{Binding DefaultPageSize, UpdateSourceTrigger=PropertyChanged}"
                                          Padding="10,8" TextAlignment="Center"/>
                             </Grid>
 
-                            <Grid>
+                            <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Подтверждать удаление" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <CheckBox Grid.Column="1" IsChecked="{Binding ConfirmDelete}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
+
+                            <Rectangle Height="1" Fill="{StaticResource BorderLightBrush}" Margin="0,4,0,14"/>
+
+                            <TextBlock Text="Значения по умолчанию" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Тип операции" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailableOperationTypes}"
+                                          DisplayMemberPath="Display"
+                                          SelectedValuePath="Value"
+                                          SelectedValue="{Binding DefaultOperationType, Converter={StaticResource IntToStringConverter}}"
+                                          Padding="10,8"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Тип оплаты" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding AvailablePaymentTypes}"
+                                          DisplayMemberPath="Display"
+                                          SelectedValuePath="Value"
+                                          SelectedValue="{Binding DefaultPaymentType, Converter={StaticResource IntToStringConverter}}"
+                                          Padding="10,8"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Категория дохода" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding IncomeCategories}"
+                                          DisplayMemberPath="Name"
+                                          SelectedValuePath="Id"
+                                          SelectedValue="{Binding DefaultIncomeCategoryId}"
+                                          Padding="10,8"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Категория расхода" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <ComboBox Grid.Column="1"
+                                          ItemsSource="{Binding ExpenseCategories}"
+                                          DisplayMemberPath="Name"
+                                          SelectedValuePath="Id"
+                                          SelectedValue="{Binding DefaultExpenseCategoryId}"
+                                          Padding="10,8"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
-                    <!-- Отчёты -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
+                    <!-- ===== TAB 2: Отчёты ===== -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="2">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
                             <TextBlock Text="Настройки отчётов" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/></Grid.ColumnDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Период по умолчанию" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <ComboBox Grid.Column="1"
                                           ItemsSource="{Binding AvailablePeriods}"
-                                          SelectedItem="{Binding SelectedDefaultPeriod}"/>
+                                          DisplayMemberPath="Display"
+                                          SelectedValuePath="Value"
+                                          SelectedValue="{Binding SelectedDefaultPeriod}"
+                                          Padding="10,8"/>
                             </Grid>
 
                             <Grid>
@@ -335,8 +441,18 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Резервное копирование -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
+                    <!-- ===== TAB 3: Резервное копирование ===== -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="3">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
                             <TextBlock Text="Резервное копирование" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -351,6 +467,14 @@
                                 <TextBlock Text="Интервал (дней)" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1"
                                          Text="{Binding AutoBackupDays, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Кол-во хранимых копий" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding BackupKeepCount, UpdateSourceTrigger=PropertyChanged}"
                                          Padding="10,8" TextAlignment="Center"/>
                             </Grid>
 
@@ -376,14 +500,24 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Безопасность -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
+                    <!-- ===== TAB 4: Безопасность ===== -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="4">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
-                            <TextBlock Text="Безопасность" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="Безопасност��" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Требовать пароль при запуске" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Требовать пароль при зап��ске" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <CheckBox Grid.Column="1" IsChecked="{Binding RequirePasswordOnStartup}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
 
@@ -408,33 +542,49 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Интерфейс -->
-                    <Border Style="{StaticResource SettingsSectionStyle}">
+                    <!-- ===== TAB 5: О программе ===== -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="5">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
-                            <TextBlock Text="Интерфейс" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="О программе" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Язык интерфейса" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                <ComboBox Grid.Column="1"
-                                          ItemsSource="{Binding AvailableLanguages}"
-                                          SelectedItem="{Binding SelectedLanguage}"/>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Версия приложения" Style="{StaticResource AboutLabelStyle}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AppVersion}" Style="{StaticResource AboutValueStyle}"/>
                             </Grid>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Ширина окна по умолчанию" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1"
-                                         Text="{Binding WindowWidth, UpdateSourceTrigger=PropertyChanged}"
-                                         Padding="10,8" TextAlignment="Center"/>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Размер базы данных" Style="{StaticResource AboutLabelStyle}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding DbFileSize}" Style="{StaticResource AboutValueStyle}"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Всего операций" Style="{StaticResource AboutLabelStyle}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalTransactions}" Style="{StaticResource AboutValueStyle}"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Всего категорий" Style="{StaticResource AboutLabelStyle}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalCategories}" Style="{StaticResource AboutValueStyle}"/>
                             </Grid>
 
                             <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Высота окна по умолчанию" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1"
-                                         Text="{Binding WindowHeight, UpdateSourceTrigger=PropertyChanged}"
-                                         Padding="10,8" TextAlignment="Center"/>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Последнее резервное копирование" Style="{StaticResource AboutLabelStyle}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding LastBackupDate}" Style="{StaticResource AboutValueStyle}"/>
                             </Grid>
                         </StackPanel>
                     </Border>

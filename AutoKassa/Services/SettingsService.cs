@@ -248,6 +248,7 @@ namespace AutoKassa.Services
             _cachedSettings.DefaultIncomeCategoryId = null;
             _cachedSettings.DefaultExpenseCategoryId = null;
             _cachedSettings.InitialBalance = 0m;
+            _cachedSettings.DefaultPaymentType = 1;
 
             // Восстанавливаем пароль
             _cachedSettings.PasswordHash = currentPassword;
@@ -287,6 +288,7 @@ namespace AutoKassa.Services
                     WindowWidth = _cachedSettings.WindowWidth,
                     WindowHeight = _cachedSettings.WindowHeight,
                     DefaultOperationType = _cachedSettings.DefaultOperationType,
+                    DefaultPaymentType = _cachedSettings.DefaultPaymentType,
                     InitialBalance = _cachedSettings.InitialBalance,
                     ExportDate = DateTime.Now
                 };
@@ -335,6 +337,7 @@ namespace AutoKassa.Services
                 _cachedSettings.WindowWidth = importData.WindowWidth;
                 _cachedSettings.WindowHeight = importData.WindowHeight;
                 _cachedSettings.DefaultOperationType = importData.DefaultOperationType;
+                _cachedSettings.DefaultPaymentType = importData.DefaultPaymentType;
                 _cachedSettings.InitialBalance = importData.InitialBalance;
 
                 await SaveSettingsAsync(_cachedSettings);
@@ -454,6 +457,41 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
+        /// Получить дату последнего резервного копирования
+        /// </summary>
+        public DateTime? GetLastBackupDate()
+        {
+            var backupDir = _cachedSettings?.BackupPath;
+            if (string.IsNullOrWhiteSpace(backupDir) || !Directory.Exists(backupDir))
+                return null;
+
+            var latest = Directory
+                .GetFiles(backupDir, "AutoKassa_Backup_*.db")
+                .OrderByDescending(f => f)
+                .FirstOrDefault();
+
+            if (latest == null) return null;
+
+            var name = Path.GetFileNameWithoutExtension(latest);
+            var parts = name.Split('_');
+            if (parts.Length >= 4 &&
+                DateTime.TryParseExact(parts[2] + "_" + parts[3], "yyyyMMdd_HHmmss",
+                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var lastDate))
+                return lastDate;
+
+            return null;
+        }
+
+        /// <summary>
+        /// Получить путь к файлу базы данных
+        /// </summary>
+        public string? GetDatabasePath()
+        {
+            using var context = _contextFactory.CreateDbContext();
+            return context.Database.GetDbConnection().DataSource;
+        }
+
+        /// <summary>
         /// Определяет количество дней с последнего бэкапа по имени файла.
         /// Возвращает int.MaxValue если бэкапов нет или папки не существует.
         /// </summary>
@@ -526,7 +564,8 @@ namespace AutoKassa.Services
                 Language = "ru-RU",
                 WindowWidth = 1200,
                 WindowHeight = 700,
-                DefaultOperationType = (int)OperationType.Expense
+                DefaultOperationType = (int)OperationType.Expense,
+                DefaultPaymentType = 1
             };
             using var context = _contextFactory.CreateDbContext();
             context.AppSettings.Add(settings);
@@ -562,6 +601,7 @@ namespace AutoKassa.Services
         public double WindowWidth { get; set; }
         public double WindowHeight { get; set; }
         public int DefaultOperationType { get; set; }
+        public int DefaultPaymentType { get; set; }
         public decimal InitialBalance { get; set; }
         public DateTime ExportDate { get; set; }
     }

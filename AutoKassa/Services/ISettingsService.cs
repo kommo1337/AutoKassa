@@ -124,6 +124,16 @@ namespace AutoKassa.Services
         /// </summary>
         Task RunAutoBackupIfDueAsync();
 
+        /// <summary>
+        /// Получить дату последнего резервного копирования
+        /// </summary>
+        DateTime? GetLastBackupDate();
+
+        /// <summary>
+        /// Получить путь к файлу базы данных
+        /// </summary>
+        string? GetDatabasePath();
+
         #endregion
     }
 }

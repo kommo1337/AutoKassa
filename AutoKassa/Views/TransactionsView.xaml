@@ -1817,7 +1817,7 @@
             <Rectangle Fill="#66000000"/>
 
             <!-- Modal card -->
-            <Grid MaxWidth="470" MaxHeight="750"
+            <Grid MaxWidth="470" MinHeight="775" MaxHeight="775"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
                   UseLayoutRounding="True" SnapsToDevicePixels="True">
                 <!-- Shadow layer (separate, no children affected) -->

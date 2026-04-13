@@ -407,9 +407,112 @@ namespace AutoKassa.Tests.Services
             cts.Cancel();
 
             Func<Task> act = () => _svc.GetPeriodTotalsAsync(
-                DateTime.Today, DateTime.Today, cts.Token);
+                DateTime.Today, DateTime.Today, null, cts.Token);
 
             await act.Should().ThrowAsync<OperationCanceledException>();
+        }
+
+        // ─────────────────────────────────────────
+        // Дополнительные тесты
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GetRecentAsync_ReturnsRequestedCount_OrderedByDateDesc()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            for (int i = 0; i < 5; i++)
+                TestDatabase.SeedTransaction(_ctx, cat.Id, (i + 1) * 100m,
+                    date: new DateTime(2025, 1, i + 1));
+
+            var result = await _svc.GetRecentAsync(3);
+
+            result.Should().HaveCount(3);
+            result[0].Date.Should().BeOnOrAfter(result[1].Date);
+            result[1].Date.Should().BeOnOrAfter(result[2].Date);
+        }
+
+        [Fact]
+        public async Task GetRecentAsync_ExcludesSoftDeleted()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var kept = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+            var deleted = TestDatabase.SeedTransaction(_ctx, cat.Id, 200m);
+            await _svc.DeleteAsync(deleted.Id);
+
+            var result = await _svc.GetRecentAsync(10);
+
+            result.Should().ContainSingle(t => t.Id == kept.Id);
+            result.Should().NotContain(t => t.Id == deleted.Id);
+        }
+
+        [Fact]
+        public async Task GetRecentAsync_LoadsCategory()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Загружаемая");
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+
+            var result = await _svc.GetRecentAsync(1);
+
+            result[0].Category.Should().NotBeNull();
+            result[0].Category!.Name.Should().Be("Загружаемая");
+        }
+
+        [Fact]
+        public async Task Filter_CombinedFilters_TypeAndDateAndPayment()
+        {
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+
+            var match = TestDatabase.SeedTransaction(_ctx, expCat.Id, 100m, OperationType.Expense, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 200m, OperationType.Expense, PaymentType.NonCash, day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 300m, OperationType.Income, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 400m, OperationType.Expense, PaymentType.Cash, new DateTime(2025, 7, 1));
+
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters
+            {
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                DateFrom = new DateTime(2025, 6, 1),
+                DateTo = new DateTime(2025, 6, 30),
+                Take = 100
+            });
+
+            result.Should().ContainSingle(t => t.Id == match.Id);
+        }
+
+        [Fact]
+        public async Task Filter_CombinedFilters_CategoryAndSearchText()
+        {
+            var cat1 = TestDatabase.SeedExpenseCategory(_ctx, "Фильтр-Кат1");
+            var cat2 = TestDatabase.SeedExpenseCategory(_ctx, "Фильтр-Кат2");
+
+            var match = TestDatabase.SeedTransaction(_ctx, cat1.Id, 100m, description: "замена масла");
+            TestDatabase.SeedTransaction(_ctx, cat1.Id, 200m, description: "диагностика");
+            TestDatabase.SeedTransaction(_ctx, cat2.Id, 300m, description: "замена масла");
+
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters
+            {
+                CategoryId = cat1.Id,
+                SearchText = "масла",
+                Take = 100
+            });
+
+            result.Should().ContainSingle(t => t.Id == match.Id);
+        }
+
+        [Fact]
+        public async Task GetTransactionsAsync_DefaultSorting_ByDateDescending()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, date: new DateTime(2025, 1, 1));
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 200m, date: new DateTime(2025, 3, 1));
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 300m, date: new DateTime(2025, 2, 1));
+
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters { Take = 100 });
+
+            result[0].Date.Should().BeOnOrAfter(result[1].Date);
+            result[1].Date.Should().BeOnOrAfter(result[2].Date);
         }
     }
 }
