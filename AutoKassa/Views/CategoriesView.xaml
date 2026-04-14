@@ -220,6 +220,18 @@
                         <TextBlock Text="Категории доходов" FontSize="18" FontWeight="SemiBold"
                                    Foreground="{StaticResource SuccessBrush}" Margin="0,0,0,15"/>
 
+                        <StackPanel HorizontalAlignment="Center" Margin="0,30"
+                                    Visibility="{Binding HasIncomeCategories, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
+                            <Border Width="52" Height="52" CornerRadius="14"
+                                    Background="#F0F2F5" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                <TextBlock Text="💰" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Нет категорий доходов" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="#344054" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                            <TextBlock Text="Создайте первую через «Управление категориями»" FontSize="12"
+                                       Foreground="#98A2B3" HorizontalAlignment="Center"/>
+                        </StackPanel>
+
                         <ItemsControl ItemsSource="{Binding IncomeCategories}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -286,6 +298,18 @@
                                 Visibility="{Binding ShowExpenseCategories, Converter={StaticResource BoolToVisibilityConverter}}">
                         <TextBlock Text="Категории расходов" FontSize="18" FontWeight="SemiBold"
                                    Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,15"/>
+
+                        <StackPanel HorizontalAlignment="Center" Margin="0,30"
+                                    Visibility="{Binding HasExpenseCategories, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=inverse}">
+                            <Border Width="52" Height="52" CornerRadius="14"
+                                    Background="#F0F2F5" Margin="0,0,0,12" HorizontalAlignment="Center">
+                                <TextBlock Text="🧾" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Нет категорий расходов" FontSize="14" FontWeight="SemiBold"
+                                       Foreground="#344054" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                            <TextBlock Text="Создайте первую через «Управление категориями»" FontSize="12"
+                                       Foreground="#98A2B3" HorizontalAlignment="Center"/>
+                        </StackPanel>
 
                         <ItemsControl ItemsSource="{Binding ExpenseCategories}">
                             <ItemsControl.ItemTemplate>

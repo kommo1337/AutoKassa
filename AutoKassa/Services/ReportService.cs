@@ -72,20 +72,20 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<decimal> GetInitialBalanceAsync(DateTime date, PaymentType? paymentType = null)
         {
-            // SQLite не поддерживает Sum для decimal, поэтому загружаем данные в память
+            // SQLite не поддерживает Sum для decimal — агрегируем через double на стороне БД,
+            // чтобы не материализовать все транзакции в память.
             var query = _context.Transactions
                 .Where(t => !t.IsDeleted && t.Date < date.Date);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
-            var transactionsBeforeDate = await query.ToListAsync();
 
-            var incomeBeforeDate = transactionsBeforeDate
-                .Where(t => t.Type == OperationType.Income)
-                .Sum(t => t.Amount);
+            var rows = await query
+                .GroupBy(t => t.Type)
+                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .ToListAsync();
 
-            var expenseBeforeDate = transactionsBeforeDate
-                .Where(t => t.Type == OperationType.Expense)
-                .Sum(t => t.Amount);
+            var incomeBeforeDate  = rows.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
+            var expenseBeforeDate = rows.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
 
             return incomeBeforeDate - expenseBeforeDate;
         }

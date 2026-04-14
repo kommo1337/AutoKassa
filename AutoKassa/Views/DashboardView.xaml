@@ -629,8 +629,6 @@
                                                                     <ColumnDefinition Width="*"/>
                                                                     <!-- Название -->
                                                                     <ColumnDefinition Width="Auto"/>
-                                                                    <!-- Дата -->
-                                                                    <ColumnDefinition Width="Auto"/>
                                                                     <!-- Касса -->
                                                                     <ColumnDefinition Width="100"/>
                                                                     <!-- Сумма -->
@@ -657,16 +655,8 @@
                                                                                Visibility="{Binding Description, Converter={StaticResource StringToVisibilityConverter}}"/>
                                                                 </StackPanel>
 
-                                                                <!-- Время операции -->
-                                                                <TextBlock Grid.Column="2"
-                                                                           Text="{Binding Date, StringFormat={}{0:HH:mm}}"
-                                                                           FontSize="11"
-                                                                           Foreground="{StaticResource MutedTextBrush}"
-                                                                           VerticalAlignment="Center"
-                                                                           Margin="12,0,16,0"/>
-
                                                                 <!-- Иконка кассы -->
-                                                                <ContentControl Grid.Column="3"
+                                                                <ContentControl Grid.Column="2"
                                                                                 VerticalAlignment="Center"
                                                                                 Margin="0,0,20,0"
                                                                                 ToolTip="{Binding PaymentType, Converter={StaticResource PaymentTypeToTextConverter}}">
@@ -683,7 +673,7 @@
                                                                 </ContentControl>
 
                                                                 <!-- Сумма -->
-                                                                <TextBlock Grid.Column="4"
+                                                                <TextBlock Grid.Column="3"
                                                                            Text="{Binding Amount, Converter={StaticResource DecimalToStringConverter}}"
                                                                            FontSize="14" FontWeight="SemiBold"
                                                                            HorizontalAlignment="Right"

@@ -30,8 +30,21 @@ namespace AutoKassa.Services
 
             query = ApplyFilters(query, filters);
             query = ApplySorting(query, filters.SortBy, filters.SortDescending);
-            query = query.Skip(filters.Skip).Take(filters.Take);
 
+            // SQLite LOWER() не поддерживает Unicode (кириллицу), поэтому
+            // поиск по описанию выполняется в памяти, после SQL-фильтрации.
+            if (!string.IsNullOrWhiteSpace(filters.SearchText))
+            {
+                var all = await query.ToListAsync(ct);
+                return all
+                    .Where(t => t.Description != null &&
+                                t.Description.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase))
+                    .Skip(filters.Skip)
+                    .Take(filters.Take)
+                    .ToList();
+            }
+
+            query = query.Skip(filters.Skip).Take(filters.Take);
             return await query.ToListAsync(ct);
         }
 
@@ -44,6 +57,13 @@ namespace AutoKassa.Services
                 .Where(t => !t.IsDeleted);
 
             query = ApplyFilters(query, filters);
+
+            if (!string.IsNullOrWhiteSpace(filters.SearchText))
+            {
+                var all = await query.Select(t => t.Description).ToListAsync(ct);
+                return all.Count(d => d != null &&
+                                      d.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase));
+            }
 
             return await query.CountAsync(ct);
         }
@@ -265,12 +285,8 @@ namespace AutoKassa.Services
                 query = query.Where(t => t.CategoryId == filters.CategoryId.Value);
             }
 
-            // Поиск по описанию
-            if (!string.IsNullOrWhiteSpace(filters.SearchText))
-            {
-                var searchText = filters.SearchText.ToLower();
-                query = query.Where(t => t.Description != null && t.Description.ToLower().Contains(searchText));
-            }
+            // Поиск по описанию выполняется в памяти (см. GetTransactionsAsync/GetTotalCountAsync):
+            // SQLite LOWER() не поддерживает Unicode, поэтому фильтрация по SearchText здесь пропущена.
 
             // Фильтр по сумме
             if (filters.AmountFrom.HasValue)

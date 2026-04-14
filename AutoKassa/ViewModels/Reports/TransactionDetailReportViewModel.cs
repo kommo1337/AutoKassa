@@ -41,6 +41,7 @@ namespace AutoKassa.ViewModels.Reports
 
             _dateFrom   = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo     = DateTime.Now.Date;
+            ActivePeriodPreset = "Month";
             _categories = new List<Category>();
 
             ShowAllCommand      = new RelayCommand(_ => SetOperationType(null));
@@ -64,13 +65,13 @@ namespace AutoKassa.ViewModels.Reports
         public DateTime DateFrom
         {
             get => _dateFrom;
-            set { if (SetProperty(ref _dateFrom, value)) { ValidateDateRange(); AutoRefresh(); } }
+            set { if (SetProperty(ref _dateFrom, value)) { OnDateChangedByUser(); ValidateDateRange(); AutoRefresh(); } }
         }
 
         public DateTime DateTo
         {
             get => _dateTo;
-            set { if (SetProperty(ref _dateTo, value)) { ValidateDateRange(); AutoRefresh(); } }
+            set { if (SetProperty(ref _dateTo, value)) { OnDateChangedByUser(); ValidateDateRange(); AutoRefresh(); } }
         }
 
         public OperationType? SelectedOperationType
@@ -219,32 +220,11 @@ namespace AutoKassa.ViewModels.Reports
         {
             BatchUpdate(() =>
             {
-                var now = DateTime.Now;
-                switch (period)
-                {
-                    case "Today":
-                        DateFrom = now.Date;
-                        DateTo   = now.Date;
-                        break;
-                    case "Week":
-                        DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
-                        DateTo   = now.Date;
-                        break;
-                    case "Month":
-                        DateFrom = new DateTime(now.Year, now.Month, 1);
-                        DateTo   = now.Date;
-                        break;
-                    case "Quarter":
-                        var q    = (now.Month - 1) / 3;
-                        DateFrom = new DateTime(now.Year, q * 3 + 1, 1);
-                        DateTo   = now.Date;
-                        break;
-                    case "Year":
-                        DateFrom = new DateTime(now.Year, 1, 1);
-                        DateTo   = now.Date;
-                        break;
-                }
+                var (from, to) = AutoKassa.Helpers.PeriodHelper.GetDateRange(period);
+                DateFrom = from;
+                DateTo = to;
             });
+            ActivePeriodPreset = period;
         }
 
         protected override async Task ExportToPdfAsync()

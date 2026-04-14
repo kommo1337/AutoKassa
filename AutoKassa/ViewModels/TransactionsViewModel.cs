@@ -14,7 +14,7 @@ namespace AutoKassa.ViewModels
         Week,
         Month,
         LastMonth,
-        Quarter,
+        Year,
         AllTime,
         Custom
     }
@@ -36,6 +36,7 @@ namespace AutoKassa.ViewModels
         private int _currentPage;
         private int _pageSize = 100;
         private CancellationTokenSource _loadCts;
+        private CancellationTokenSource _searchDebounceCts;
         private decimal _totalIncome;
         private decimal _totalExpense;
         private static readonly CultureInfo RuCulture = new("ru-RU");
@@ -242,7 +243,34 @@ namespace AutoKassa.ViewModels
         public string SearchText
         {
             get => _searchText;
-            set => SetProperty(ref _searchText, value);
+            set
+            {
+                if (SetProperty(ref _searchText, value))
+                    DebounceSearch();
+            }
+        }
+
+        private void DebounceSearch()
+        {
+            var newCts = new CancellationTokenSource();
+            var oldCts = System.Threading.Interlocked.Exchange(ref _searchDebounceCts, newCts);
+            oldCts?.Cancel();
+            oldCts?.Dispose();
+            var ct = newCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(350, ct);
+                    if (ct.IsCancellationRequested) return;
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+                    {
+                        if (!ct.IsCancellationRequested) await LoadDataAsync();
+                    });
+                }
+                catch (TaskCanceledException) { }
+            });
         }
 
         public bool IsAllPaymentFilter => _selectedPaymentTypeFilter == null;
@@ -287,7 +315,7 @@ namespace AutoKassa.ViewModels
             PeriodPreset.Week => "Эта неделя",
             PeriodPreset.Month => "Этот месяц",
             PeriodPreset.LastMonth => "Прошлый месяц",
-            PeriodPreset.Quarter => "Квартал",
+            PeriodPreset.Year => "Год",
             PeriodPreset.AllTime => "Всё время",
             PeriodPreset.Custom when _dateFrom.HasValue && _dateTo.HasValue =>
                 $"{_dateFrom.Value:dd.MM} – {_dateTo.Value:dd.MM}",
@@ -482,10 +510,11 @@ namespace AutoKassa.ViewModels
 
         private async Task LoadDataAsync()
         {
-            _loadCts?.Cancel();
-            _loadCts?.Dispose();
-            _loadCts = new CancellationTokenSource();
-            var ct = _loadCts.Token;
+            var newCts = new CancellationTokenSource();
+            var oldCts = System.Threading.Interlocked.Exchange(ref _loadCts, newCts);
+            oldCts?.Cancel();
+            oldCts?.Dispose();
+            var ct = newCts.Token;
 
             try
             {
@@ -584,6 +613,11 @@ namespace AutoKassa.ViewModels
             TotalIncome = Transactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
             TotalExpense = Transactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
 
+            // Снимаем подписки на старых элементах, чтобы они не держали ViewModel через делегат.
+            foreach (var oldGroup in GroupedTransactions)
+                foreach (var item in oldGroup.Items)
+                    item.SelectionChanged = null;
+
             GroupedTransactions.Clear();
             var grouped = Transactions.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
 
@@ -604,7 +638,7 @@ namespace AutoKassa.ViewModels
                     DayTotal = dayTotal,
                     Items = items
                 };
-                group.InitInline(_categories, GroupInlineSaveAsync);
+                group.InitInline(_categories, GroupInlineSaveAsync, _toastService);
                 GroupedTransactions.Add(group);
             }
 
@@ -726,10 +760,10 @@ namespace AutoKassa.ViewModels
                     DateTo = new DateTime(last.Year, last.Month, DateTime.DaysInMonth(last.Year, last.Month));
                     _selectedPeriodPreset = PeriodPreset.LastMonth;
                     break;
-                case "Quarter":
-                    DateFrom = today.AddMonths(-3);
+                case "Year":
+                    DateFrom = today.AddYears(-1);
                     DateTo = today;
-                    _selectedPeriodPreset = PeriodPreset.Quarter;
+                    _selectedPeriodPreset = PeriodPreset.Year;
                     break;
                 case "AllTime":
                     DateFrom = null;
@@ -805,7 +839,28 @@ namespace AutoKassa.ViewModels
 
         private void CloseInline()
         {
-            IsInlineOpen = false;
+            if (!HasInlineInput())
+            {
+                IsInlineOpen = false;
+                return;
+            }
+
+            _toastService.ShowWithAction(
+                "Отменить добавление? Данные будут потеряны.",
+                "Отменить",
+                () =>
+                {
+                    IsInlineOpen = false;
+                    InlineAmountText = string.Empty;
+                    InlineDescription = string.Empty;
+                },
+                ToastType.Info);
+        }
+
+        private bool HasInlineInput()
+        {
+            return !string.IsNullOrWhiteSpace(InlineAmountText)
+                || !string.IsNullOrWhiteSpace(InlineDescription);
         }
 
         private async Task InlineSaveAsync()
@@ -839,8 +894,11 @@ namespace AutoKassa.ViewModels
                 };
 
                 await _transactionService.AddAsync(transaction);
-                CloseInline();
+                IsInlineOpen = false;
+                InlineAmountText = string.Empty;
+                InlineDescription = string.Empty;
                 await LoadDataAsync();
+                _toastService.ShowSuccess("Операция добавлена");
             }
             catch (Exception ex)
             {
@@ -880,6 +938,7 @@ namespace AutoKassa.ViewModels
 
                 await _transactionService.AddAsync(transaction);
                 await LoadDataAsync();
+                _toastService.ShowSuccess("Операция добавлена");
             }
             catch (Exception ex)
             {
@@ -889,9 +948,12 @@ namespace AutoKassa.ViewModels
 
         protected override void OnDispose()
         {
-            _loadCts?.Cancel();
-            _loadCts?.Dispose();
-            _loadCts = null;
+            var cts = System.Threading.Interlocked.Exchange(ref _loadCts, null);
+            cts?.Cancel();
+            cts?.Dispose();
+            var sCts = System.Threading.Interlocked.Exchange(ref _searchDebounceCts, null);
+            sCts?.Cancel();
+            sCts?.Dispose();
         }
 
         #endregion

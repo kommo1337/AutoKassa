@@ -77,6 +77,9 @@ namespace AutoKassa.ViewModels
         public bool ShowIncomeCategories => FilterType == null || FilterType == OperationType.Income;
         public bool ShowExpenseCategories => FilterType == null || FilterType == OperationType.Expense;
 
+        public bool HasIncomeCategories => IncomeCategories != null && IncomeCategories.Count > 0;
+        public bool HasExpenseCategories => ExpenseCategories != null && ExpenseCategories.Count > 0;
+
         public bool IsLoading
         {
             get => _isLoading;
@@ -126,6 +129,9 @@ namespace AutoKassa.ViewModels
                 ExpenseCategories.Clear();
                 foreach (var cat in expenseCategories)
                     ExpenseCategories.Add(cat);
+
+                OnPropertyChanged(nameof(HasIncomeCategories));
+                OnPropertyChanged(nameof(HasExpenseCategories));
             }
             catch (Exception ex)
             {

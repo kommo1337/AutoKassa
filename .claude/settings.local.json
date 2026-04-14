@@ -35,7 +35,11 @@
       "Bash(C:/Program Files/dotnet/dotnet.exe build:*)",
       "Bash(/c/Program Files/dotnet/dotnet.exe build:*)",
       "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build AutoKassa/AutoKassa.csproj)",
-      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build \"/c/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/AutoKassa/AutoKassa.csproj\")"
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build \"/c/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/AutoKassa/AutoKassa.csproj\")",
+      "Bash(grep -v \":0$\")",
+      "Bash(grep -A 10 \"class SettingsService\\\\|class ExportService\\\\|class LockService\" Services/*.cs)",
+      "Bash(grep -i \"focus\\\\|tabindex\\\\|focusvisual\\\\|focusable\" \"C:/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/AutoKassa/Views\"/*.xaml)",
+      "Bash(grep -r \"star\\\\|Auto\\\\|Fixed\" \"C:/Users/Лиза Блинова/source/repos/kommo1337/AutoKassa/AutoKassa/Views\"/*.xaml)"
     ]
   }
 }

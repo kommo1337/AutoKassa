@@ -14,15 +14,19 @@ namespace AutoKassa.Helpers
         /// Запускает асинхронную операцию без блокировки конструктора/UI.
         /// Перехватывает и логирует исключения вместо silent fail.
         /// </summary>
-        protected void RunAsync(Func<Task> action)
+        protected void RunAsync(Func<Task> action, Action<Exception> onError = null)
         {
             action().ContinueWith(t =>
             {
-                if (t.IsFaulted)
-                    Log.ForContext(GetType()).Error(
-                        t.Exception?.GetBaseException(),
-                        "Необработанная ошибка в асинхронной операции [{ViewModel}]",
-                        GetType().Name);
+                if (!t.IsFaulted) return;
+                var ex = t.Exception?.GetBaseException();
+                Log.ForContext(GetType()).Error(
+                    ex,
+                    "Необработанная ошибка в асинхронной операции [{ViewModel}]",
+                    GetType().Name);
+
+                if (onError != null && ex != null)
+                    System.Windows.Application.Current?.Dispatcher?.BeginInvoke(() => onError(ex));
             }, System.Threading.Tasks.TaskScheduler.Default);
         }
 

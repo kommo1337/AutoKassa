@@ -1,5 +1,6 @@
 using AutoKassa.Models;
 using AutoKassa.ViewModels;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -49,6 +50,12 @@ namespace AutoKassa.Views
         {
             if (DataContext is TransactionsViewModel vm && vm.DeleteCommand.CanExecute(null))
                 vm.DeleteCommand.Execute(null);
+        }
+
+        private void InlineAmount_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            Regex regex = new Regex(@"[^0-9,.]");
+            e.Handled = regex.IsMatch(e.Text);
         }
     }
 }

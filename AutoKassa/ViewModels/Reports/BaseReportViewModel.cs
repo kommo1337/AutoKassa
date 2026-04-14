@@ -17,6 +17,7 @@ namespace AutoKassa.ViewModels.Reports
         private bool _hasData;
         private bool _initialized;
         private bool _suppressRefresh;
+        private string _activePeriodPreset;
 
         protected BaseReportViewModel(IDialogService dialogService, IToastNotificationService toastService)
         {
@@ -92,6 +93,42 @@ namespace AutoKassa.ViewModels.Reports
         /// Название отчета
         /// </summary>
         public abstract string ReportName { get; }
+
+        /// <summary>
+        /// Код активного пресета периода ("Today", "Week", "Month", "Quarter", "Year") либо null
+        /// для произвольного диапазона. Используется для подсветки кнопок-чипов.
+        /// </summary>
+        public string ActivePeriodPreset
+        {
+            get => _activePeriodPreset;
+            set
+            {
+                if (SetProperty(ref _activePeriodPreset, value))
+                {
+                    OnPropertyChanged(nameof(IsPresetToday));
+                    OnPropertyChanged(nameof(IsPresetWeek));
+                    OnPropertyChanged(nameof(IsPresetMonth));
+                    OnPropertyChanged(nameof(IsPresetQuarter));
+                    OnPropertyChanged(nameof(IsPresetYear));
+                }
+            }
+        }
+
+        public bool IsPresetToday   => _activePeriodPreset == "Today";
+        public bool IsPresetWeek    => _activePeriodPreset == "Week";
+        public bool IsPresetMonth   => _activePeriodPreset == "Month";
+        public bool IsPresetQuarter => _activePeriodPreset == "Quarter";
+        public bool IsPresetYear    => _activePeriodPreset == "Year";
+
+        /// <summary>
+        /// Вызывать из сеттеров DateFrom/DateTo: сбрасывает пресет, если пользователь
+        /// меняет дату вручную (а не через BatchUpdate внутри SetPeriod).
+        /// </summary>
+        protected void OnDateChangedByUser()
+        {
+            if (!_suppressRefresh)
+                ActivePeriodPreset = null;
+        }
 
         #endregion
 

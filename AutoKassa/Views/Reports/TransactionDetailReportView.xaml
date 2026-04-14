@@ -175,10 +175,58 @@
                                    Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}"/>
                         <DatePicker SelectedDate="{Binding DateTo, Mode=TwoWay}"
                                     Width="130" Margin="0,0,16,0"/>
-                        <Button Content="Сегодня" Style="{StaticResource PeriodPresetButtonStyle}" Click="QuickFilterButton_Click" Tag="Today"   Margin="0,0,6,0"/>
-                        <Button Content="Неделя"  Style="{StaticResource PeriodPresetButtonStyle}" Click="QuickFilterButton_Click" Tag="Week"    Margin="0,0,6,0"/>
-                        <Button Content="Месяц"   Style="{StaticResource PeriodPresetButtonStyle}" Click="QuickFilterButton_Click" Tag="Month"   Margin="0,0,6,0"/>
-                        <Button Content="Год"     Style="{StaticResource PeriodPresetButtonStyle}" Click="QuickFilterButton_Click" Tag="Year"/>
+                        <Button Content="Сегодня" Click="QuickFilterButton_Click" Tag="Today" Margin="0,0,6,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPresetToday}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Неделя" Click="QuickFilterButton_Click" Tag="Week" Margin="0,0,6,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPresetWeek}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Месяц" Click="QuickFilterButton_Click" Tag="Month" Margin="0,0,6,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPresetMonth}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Год" Click="QuickFilterButton_Click" Tag="Year">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPresetYear}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource TextPrimaryBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
 
                     <!-- Тип + Категория + Кнопка -->

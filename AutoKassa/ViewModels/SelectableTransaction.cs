@@ -1,6 +1,7 @@
 using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
+using AutoKassa.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -143,7 +144,8 @@ namespace AutoKassa.ViewModels
         /// и привязывает категории + делегат сохранения.
         /// </summary>
         public void InitInline(ObservableCollection<Category> categories,
-                               Func<SelectableDateGroup, Task> onSave)
+                               Func<SelectableDateGroup, Task> onSave,
+                               IToastNotificationService? toastService = null)
         {
             _allCategories = categories;
             GroupInlineCategory = GroupInlineCategories.FirstOrDefault();
@@ -168,7 +170,24 @@ namespace AutoKassa.ViewModels
                     : PaymentType.Cash);
 
             GroupInlineSaveCommand  = new RelayCommand(async _ => await onSave(this));
-            GroupInlineCancelCommand = new RelayCommand(_ => { IsInlineOpen = false; ResetInline(); });
+            GroupInlineCancelCommand = new RelayCommand(_ =>
+            {
+                var hasInput = !string.IsNullOrWhiteSpace(InlineAmountText)
+                               || !string.IsNullOrWhiteSpace(InlineDescription);
+
+                if (!hasInput || toastService == null)
+                {
+                    IsInlineOpen = false;
+                    ResetInline();
+                    return;
+                }
+
+                toastService.ShowWithAction(
+                    "Отменить добавление? Данные будут потеряны.",
+                    "Отменить",
+                    () => { IsInlineOpen = false; ResetInline(); },
+                    ToastType.Info);
+            });
         }
 
         private void ResetInline()

@@ -26,13 +26,7 @@ namespace AutoKassa.ViewModels
         private PaymentType _selectedPaymentType = PaymentType.Cash;
         private bool _showAllCategories;
 
-        // Calculator state
-        private bool _isCalcOpen;
-        private string _calcDisplay = "";
-        private string _calcCurrentInput = "";
-        private decimal _calcLeft;
-        private string _calcOp;
-        private bool _calcWaiting;
+        public CalculatorViewModel Calculator { get; }
 
         private readonly ISettingsService _settingsService;
         private readonly IToastNotificationService _toastService;
@@ -40,6 +34,14 @@ namespace AutoKassa.ViewModels
         // Category manager
         private bool _isCategoryManagerOpen;
         private CategoryManagerViewModel _categoryManagerViewModel;
+
+        // Snapshot to detect unsaved changes
+        private string _initialAmountText = "";
+        private OperationType _initialType;
+        private int? _initialCategoryId;
+        private string _initialDescription = "";
+        private PaymentType _initialPaymentType = PaymentType.Cash;
+        private DateTime _initialDate;
 
         public TransactionEditViewModel(
             ITransactionService transactionService,
@@ -63,13 +65,7 @@ namespace AutoKassa.ViewModels
             ToggleShowAllCategoriesCommand = new RelayCommand(_ => ShowAllCategories = !ShowAllCategories);
             SelectCategoryCommand = new RelayCommand(p => { if (p is Category c) SelectedCategory = c; });
 
-            // Calculator commands
-            ToggleCalcCommand = new RelayCommand(_ => { IsCalcOpen = !IsCalcOpen; if (IsCalcOpen) CalcClear(); });
-            CalcDigitCommand = new RelayCommand(p => { if (p is string d) CalcDigit(d); });
-            CalcOpCommand = new RelayCommand(p => { if (p is string op) CalcOp(op); });
-            CalcEqualsCommand = new RelayCommand(_ => CalcEquals());
-            CalcClearCommand = new RelayCommand(_ => CalcClear());
-            CalcBackspaceCommand = new RelayCommand(_ => CalcBackspace());
+            Calculator = new CalculatorViewModel { OnResult = result => AmountText = result };
             OpenCategoryManagerCommand = new RelayCommand(_ => OpenCategoryManager());
 
             Date = DateTime.Now;
@@ -252,20 +248,6 @@ namespace AutoKassa.ViewModels
             set { if (value) SelectedPaymentType = PaymentType.NonCash; }
         }
 
-        // === Calculator properties ===
-
-        public bool IsCalcOpen
-        {
-            get => _isCalcOpen;
-            set => SetProperty(ref _isCalcOpen, value);
-        }
-
-        public string CalcDisplay
-        {
-            get => _calcDisplay;
-            set => SetProperty(ref _calcDisplay, value);
-        }
-
         public bool IsCategoryManagerOpen
         {
             get => _isCategoryManagerOpen;
@@ -290,12 +272,6 @@ namespace AutoKassa.ViewModels
         public ICommand SelectIncomeTypeCommand { get; }
         public ICommand ToggleShowAllCategoriesCommand { get; }
         public ICommand SelectCategoryCommand { get; }
-        public ICommand ToggleCalcCommand { get; }
-        public ICommand CalcDigitCommand { get; }
-        public ICommand CalcOpCommand { get; }
-        public ICommand CalcEqualsCommand { get; }
-        public ICommand CalcClearCommand { get; }
-        public ICommand CalcBackspaceCommand { get; }
         public ICommand OpenCategoryManagerCommand { get; }
 
         #endregion
@@ -315,9 +291,10 @@ namespace AutoKassa.ViewModels
             Description = string.Empty;
             SelectedPaymentType = PaymentType.Cash;
             ShowAllCategories = false;
-            CalcClear();
-            IsCalcOpen = false;
+            Calculator.Clear();
+            Calculator.IsOpen = false;
             ValidateCategory();
+            CaptureSnapshot();
         }
 
         public void InitializeForEdit(Transaction transaction)
@@ -331,8 +308,8 @@ namespace AutoKassa.ViewModels
             Description = transaction.Description;
             SelectedPaymentType = transaction.PaymentType;
             ShowAllCategories = false;
-            CalcClear();
-            IsCalcOpen = false;
+            Calculator.Clear();
+            Calculator.IsOpen = false;
 
             RunAsync(async () =>
             {
@@ -340,8 +317,28 @@ namespace AutoKassa.ViewModels
 
                 if (Categories != null && Categories.Count > 0)
                     SelectedCategory = Categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+
+                CaptureSnapshot();
             });
         }
+
+        private void CaptureSnapshot()
+        {
+            _initialAmountText = _amountText ?? "";
+            _initialType = _type;
+            _initialCategoryId = _selectedCategory?.Id;
+            _initialDescription = _description ?? "";
+            _initialPaymentType = _selectedPaymentType;
+            _initialDate = _date;
+        }
+
+        public bool HasUnsavedChanges =>
+            (_amountText ?? "") != _initialAmountText
+            || _type != _initialType
+            || (_selectedCategory?.Id) != _initialCategoryId
+            || (_description ?? "") != _initialDescription
+            || _selectedPaymentType != _initialPaymentType
+            || _date != _initialDate;
 
         private async System.Threading.Tasks.Task LoadCategoriesAsync()
         {
@@ -441,6 +438,7 @@ namespace AutoKassa.ViewModels
                     await _transactionService.AddAsync(transaction);
                 }
 
+                _toastService.ShowSuccess(IsEditMode ? "Операция сохранена" : "Операция добавлена");
                 OnSaved?.Invoke();
             }
             catch (Exception ex)
@@ -449,111 +447,52 @@ namespace AutoKassa.ViewModels
             }
         }
 
+        private System.Windows.Threading.DispatcherTimer _cancelToastTimer;
+        private bool _isCancelToastVisible;
+        public bool IsCancelToastVisible
+        {
+            get => _isCancelToastVisible;
+            set => SetProperty(ref _isCancelToastVisible, value);
+        }
+
+        public ICommand ConfirmCancelCommand => new RelayCommand(_ =>
+        {
+            HideCancelToast();
+            OnCancelled?.Invoke();
+        });
+
+        public ICommand DismissCancelToastCommand => new RelayCommand(_ => HideCancelToast());
+
+        private void HideCancelToast()
+        {
+            IsCancelToastVisible = false;
+            _cancelToastTimer?.Stop();
+        }
+
+        private void ShowCancelToast()
+        {
+            IsCancelToastVisible = true;
+
+            if (_cancelToastTimer == null)
+            {
+                _cancelToastTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(5)
+                };
+                _cancelToastTimer.Tick += (s, e) => HideCancelToast();
+            }
+            _cancelToastTimer.Stop();
+            _cancelToastTimer.Start();
+        }
+
         private void Cancel()
         {
-            OnCancelled?.Invoke();
-        }
-
-        #endregion
-
-        #region Calculator logic
-
-        private void CalcDigit(string digit)
-        {
-            if (_calcWaiting)
+            if (!HasUnsavedChanges)
             {
-                _calcCurrentInput = digit == "." ? "0." : digit;
-                _calcWaiting = false;
-            }
-            else
-            {
-                if (digit == "." && _calcCurrentInput.Contains('.'))
-                    return; // already has decimal point
-                if (_calcCurrentInput == "0" && digit != ".")
-                    _calcCurrentInput = digit;
-                else
-                    _calcCurrentInput += digit;
-            }
-            UpdateCalcDisplay();
-        }
-
-        private void CalcOp(string op)
-        {
-            if (decimal.TryParse(_calcCurrentInput.Replace(',', '.'),
-                NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
-            {
-                if (_calcOp != null && !_calcWaiting)
-                    _calcLeft = ComputeCalc(_calcLeft, val, _calcOp);
-                else
-                    _calcLeft = val;
-            }
-            _calcOp = op;
-            _calcWaiting = true;
-            UpdateCalcDisplay();
-        }
-
-        private void CalcEquals()
-        {
-            if (_calcOp == null)
-            {
-                if (decimal.TryParse(_calcCurrentInput.Replace(',', '.'),
-                    NumberStyles.Any, CultureInfo.InvariantCulture, out decimal v))
-                {
-                    AmountText = v.ToString(CultureInfo.InvariantCulture);
-                    IsCalcOpen = false;
-                }
+                OnCancelled?.Invoke();
                 return;
             }
-
-            if (!decimal.TryParse(_calcCurrentInput.Replace(',', '.'),
-                NumberStyles.Any, CultureInfo.InvariantCulture, out decimal right))
-                return;
-
-            var result = ComputeCalc(_calcLeft, right, _calcOp);
-            CalcDisplay = $"{_calcLeft} {_calcOp} {right} = {result}";
-            AmountText = result.ToString(CultureInfo.InvariantCulture);
-            _calcLeft = result;
-            _calcOp = null;
-            _calcCurrentInput = result.ToString(CultureInfo.InvariantCulture);
-            _calcWaiting = false;
-            IsCalcOpen = false;
-        }
-
-        private void UpdateCalcDisplay()
-        {
-            if (_calcOp == null)
-                CalcDisplay = _calcCurrentInput;
-            else if (_calcWaiting)
-                CalcDisplay = $"{_calcLeft} {_calcOp}";
-            else
-                CalcDisplay = $"{_calcLeft} {_calcOp} {_calcCurrentInput}";
-        }
-
-        private decimal ComputeCalc(decimal left, decimal right, string op) => op switch
-        {
-            "+" => left + right,
-            "-" => left - right,
-            "×" => left * right,
-            "÷" => right != 0 ? Math.Round(left / right, 2) : 0,
-            _ => right
-        };
-
-        private void CalcClear()
-        {
-            _calcCurrentInput = "";
-            _calcLeft = 0;
-            _calcOp = null;
-            _calcWaiting = false;
-            CalcDisplay = "";
-        }
-
-        private void CalcBackspace()
-        {
-            if (_calcCurrentInput.Length > 0)
-            {
-                _calcCurrentInput = _calcCurrentInput[..^1];
-                UpdateCalcDisplay();
-            }
+            ShowCancelToast();
         }
 
         #endregion

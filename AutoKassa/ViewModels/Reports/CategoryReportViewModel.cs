@@ -53,6 +53,7 @@ namespace AutoKassa.ViewModels.Reports
 
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now.Date;
+            ActivePeriodPreset = "Month";
             _selectedOperationType = OperationType.Expense;
             _plotModel = new PlotModel();
 
@@ -95,6 +96,7 @@ namespace AutoKassa.ViewModels.Reports
             {
                 if (SetProperty(ref _dateFrom, value))
                 {
+                    OnDateChangedByUser();
                     ValidateDateRange();
                     AutoRefresh();
                 }
@@ -108,6 +110,7 @@ namespace AutoKassa.ViewModels.Reports
             {
                 if (SetProperty(ref _dateTo, value))
                 {
+                    OnDateChangedByUser();
                     ValidateDateRange();
                     AutoRefresh();
                 }
@@ -273,32 +276,11 @@ namespace AutoKassa.ViewModels.Reports
         {
             BatchUpdate(() =>
             {
-                var now = DateTime.Now;
-                switch (period)
-                {
-                    case "Today":
-                        DateFrom = now.Date;
-                        DateTo = now.Date;
-                        break;
-                    case "Week":
-                        DateFrom = now.Date.AddDays(-(int)now.DayOfWeek);
-                        DateTo = now.Date;
-                        break;
-                    case "Month":
-                        DateFrom = new DateTime(now.Year, now.Month, 1);
-                        DateTo = now.Date;
-                        break;
-                    case "Quarter":
-                        var quarter = (now.Month - 1) / 3;
-                        DateFrom = new DateTime(now.Year, quarter * 3 + 1, 1);
-                        DateTo = now.Date;
-                        break;
-                    case "Year":
-                        DateFrom = new DateTime(now.Year, 1, 1);
-                        DateTo = now.Date;
-                        break;
-                }
+                var (from, to) = AutoKassa.Helpers.PeriodHelper.GetDateRange(period);
+                DateFrom = from;
+                DateTo = to;
             });
+            ActivePeriodPreset = period;
         }
 
         private void EditTransaction(Transaction transaction)

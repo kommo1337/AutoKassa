@@ -330,7 +330,7 @@ namespace AutoKassa.Services
                 _cachedSettings.AutoBackupDays = importData.AutoBackupDays;
                 _cachedSettings.BackupFrequency = importData.BackupFrequency ?? "Weekly";
                 _cachedSettings.BackupKeepCount = importData.BackupKeepCount;
-                _cachedSettings.BackupPath = importData.BackupPath;
+                _cachedSettings.BackupPath = SanitizeBackupPath(importData.BackupPath);
                 _cachedSettings.RequirePasswordOnStartup = importData.RequirePasswordOnStartup;
                 _cachedSettings.PasswordExpireDays = importData.PasswordExpireDays;
                 _cachedSettings.Language = importData.Language ?? "ru-RU";
@@ -439,6 +439,26 @@ namespace AutoKassa.Services
                 _log.Error(ex, "Ошибка восстановления из бэкапа {BackupFile}", backupFilePath);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Защита от path traversal при импорте настроек: разрешаем только пути
+        /// внутри профиля пользователя или каталога приложения.
+        /// </summary>
+        private static string? SanitizeBackupPath(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            try
+            {
+                var fullPath = Path.GetFullPath(path);
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var appDir = AppDomain.CurrentDomain.BaseDirectory;
+                if (!fullPath.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase)
+                    && !fullPath.StartsWith(appDir, StringComparison.OrdinalIgnoreCase))
+                    return null;
+                return fullPath;
+            }
+            catch { return null; }
         }
 
         /// <summary>

@@ -251,7 +251,7 @@
                             </TextBlock.Style>
                         </TextBlock>
                         <!-- Calculator toggle button -->
-                        <Button x:Name="CalcToggleBtn" Grid.Column="1" Command="{Binding ToggleCalcCommand}"
+                        <Button x:Name="CalcToggleBtn" Grid.Column="1" Command="{Binding Calculator.ToggleCommand}"
                                 Cursor="Hand" Width="34" Height="34" ToolTip="Калькулятор">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
@@ -264,7 +264,7 @@
                                                         <Style TargetType="Path">
                                                             <Setter Property="Stroke" Value="#98A2B3"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding DataContext.IsCalcOpen, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                                                <DataTrigger Binding="{Binding DataContext.Calculator.IsOpen, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
                                                                     <Setter Property="Stroke" Value="#22c55e"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -601,7 +601,7 @@
     </Border>
 
     <!-- ===== CALCULATOR POPUP ===== -->
-    <Popup IsOpen="{Binding IsCalcOpen, Mode=TwoWay}"
+    <Popup IsOpen="{Binding Calculator.IsOpen, Mode=TwoWay}"
            PlacementTarget="{x:Reference CalcToggleBtn}"
            Placement="Bottom"
            StaysOpen="False"
@@ -633,58 +633,58 @@
                 <Border Grid.Row="0" Grid.ColumnSpan="4"
                         Background="White" CornerRadius="8" Padding="10,6" Margin="2,0,2,6"
                         BorderBrush="#E5E7EB" BorderThickness="1">
-                    <TextBlock Text="{Binding CalcDisplay}" FontFamily="Consolas" FontSize="13"
+                    <TextBlock Text="{Binding Calculator.Display}" FontFamily="Consolas" FontSize="13"
                                Foreground="#1A1D23" TextAlignment="Right" MinHeight="18"
                                TextTrimming="CharacterEllipsis"/>
                 </Border>
 
                 <!-- Row 1: C ⌫ ÷ × -->
-                <Button Grid.Row="1" Grid.Column="0" Content="C" Command="{Binding CalcClearCommand}"
+                <Button Grid.Row="1" Grid.Column="0" Content="C" Command="{Binding Calculator.ClearCommand}"
                         Style="{StaticResource CalcOpBtnStyle}" Foreground="#ef4444"/>
-                <Button Grid.Row="1" Grid.Column="1" Content="⌫" Command="{Binding CalcBackspaceCommand}"
+                <Button Grid.Row="1" Grid.Column="1" Content="⌫" Command="{Binding Calculator.BackspaceCommand}"
                         Style="{StaticResource CalcOpBtnStyle}"/>
-                <Button Grid.Row="1" Grid.Column="2" Content="÷" Command="{Binding CalcOpCommand}"
+                <Button Grid.Row="1" Grid.Column="2" Content="÷" Command="{Binding Calculator.OpCommand}"
                         CommandParameter="÷" Style="{StaticResource CalcOpBtnStyle}"/>
-                <Button Grid.Row="1" Grid.Column="3" Content="×" Command="{Binding CalcOpCommand}"
+                <Button Grid.Row="1" Grid.Column="3" Content="×" Command="{Binding Calculator.OpCommand}"
                         CommandParameter="×" Style="{StaticResource CalcOpBtnStyle}"/>
 
                 <!-- Row 2: 7 8 9 − -->
-                <Button Grid.Row="2" Grid.Column="0" Content="7" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="2" Grid.Column="0" Content="7" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="7" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="2" Grid.Column="1" Content="8" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="2" Grid.Column="1" Content="8" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="8" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="2" Grid.Column="2" Content="9" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="2" Grid.Column="2" Content="9" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="9" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="2" Grid.Column="3" Content="−" Command="{Binding CalcOpCommand}"
+                <Button Grid.Row="2" Grid.Column="3" Content="−" Command="{Binding Calculator.OpCommand}"
                         CommandParameter="-" Style="{StaticResource CalcOpBtnStyle}"/>
 
                 <!-- Row 3: 4 5 6 + -->
-                <Button Grid.Row="3" Grid.Column="0" Content="4" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="3" Grid.Column="0" Content="4" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="4" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="3" Grid.Column="1" Content="5" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="3" Grid.Column="1" Content="5" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="5" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="3" Grid.Column="2" Content="6" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="3" Grid.Column="2" Content="6" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="6" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="3" Grid.Column="3" Content="+" Command="{Binding CalcOpCommand}"
+                <Button Grid.Row="3" Grid.Column="3" Content="+" Command="{Binding Calculator.OpCommand}"
                         CommandParameter="+" Style="{StaticResource CalcOpBtnStyle}"/>
 
                 <!-- Row 4: 1 2 3 = -->
-                <Button Grid.Row="4" Grid.Column="0" Content="1" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="4" Grid.Column="0" Content="1" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="1" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="4" Grid.Column="1" Content="2" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="4" Grid.Column="1" Content="2" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="2" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="4" Grid.Column="2" Content="3" Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="4" Grid.Column="2" Content="3" Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="3" Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="4" Grid.Column="3" Content="=" Command="{Binding CalcEqualsCommand}"
+                <Button Grid.Row="4" Grid.Column="3" Content="=" Command="{Binding Calculator.EqualsCommand}"
                         Style="{StaticResource CalcEqBtnStyle}"/>
 
                 <!-- Row 5: 0 (span 2) . OK -->
                 <Button Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Content="0"
-                        Command="{Binding CalcDigitCommand}" CommandParameter="0"
+                        Command="{Binding Calculator.DigitCommand}" CommandParameter="0"
                         Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="5" Grid.Column="2" Content="." Command="{Binding CalcDigitCommand}"
+                <Button Grid.Row="5" Grid.Column="2" Content="." Command="{Binding Calculator.DigitCommand}"
                         CommandParameter="." Style="{StaticResource CalcBtnStyle}"/>
-                <Button Grid.Row="5" Grid.Column="3" Content="✓" Command="{Binding CalcEqualsCommand}"
+                <Button Grid.Row="5" Grid.Column="3" Content="✓" Command="{Binding Calculator.EqualsCommand}"
                         Style="{StaticResource CalcEqBtnStyle}"/>
             </Grid>
         </Border>
@@ -704,5 +704,34 @@
             <views:CategoryManagerView DataContext="{Binding CategoryManagerViewModel}"/>
         </Border>
     </Grid>
+
+    <!-- ===== LOCAL CANCEL TOAST (bottom of form) ===== -->
+    <Border Panel.ZIndex="250"
+            VerticalAlignment="Bottom" HorizontalAlignment="Center"
+            Margin="0,0,0,20"
+            Background="#1A1D23" CornerRadius="8" Padding="12,8"
+            Visibility="{Binding IsCancelToastVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+        <Border.Effect>
+            <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="16" ShadowDepth="3"/>
+        </Border.Effect>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Отменить изменения?"
+                       Foreground="White" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <Button Command="{Binding ConfirmCancelCommand}" Cursor="Hand">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock x:Name="txt" Text="Отменить"
+                                   Foreground="#22C55E" FontSize="13" FontWeight="SemiBold"
+                                   Padding="4,1"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="txt" Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+        </StackPanel>
+    </Border>
     </Grid>
 </UserControl>

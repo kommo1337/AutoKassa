@@ -175,7 +175,15 @@ namespace AutoKassa.ViewModels
                 _toastService.ShowSuccess("Операция добавлена успешно");
 
                 ClearForm();
-                OnTransactionAdded?.Invoke();
+                try
+                {
+                    OnTransactionAdded?.Invoke();
+                }
+                catch (Exception handlerEx)
+                {
+                    Serilog.Log.ForContext<QuickAddViewModel>()
+                        .Error(handlerEx, "Ошибка в обработчике OnTransactionAdded");
+                }
             }
             catch (Exception ex)
             {

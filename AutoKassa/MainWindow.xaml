@@ -5,15 +5,76 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:AutoKassa.ViewModels"
         xmlns:views="clr-namespace:AutoKassa.Views"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="{Binding Title}"
         Height="768" Width="1366"
         MinHeight="720" MinWidth="1280"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         Background="{StaticResource ContentBgBrush}">
 
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="36"
+                            ResizeBorderThickness="6"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
     <Window.Resources>
+        <!-- Кнопка тайтлбара (свернуть/развернуть) — для светлой зоны -->
+        <Style x:Key="TitleBarButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#E5E7EB"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Кнопка закрытия -->
+        <Style x:Key="TitleBarCloseButton" TargetType="Button" BasedOn="{StaticResource TitleBarButton}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#e81123"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#e81123"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Стиль навигационной кнопки сайдбара -->
         <Style x:Key="SidebarNavButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -53,6 +114,100 @@
     </Window.InputBindings>
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="36"/>
+            <!-- Кастомный TitleBar -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ==================== TITLEBAR ==================== -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="76"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Тёмная зона над сайдбаром -->
+            <Border Grid.Column="0" Background="{StaticResource SidebarBrush}"/>
+
+            <!-- Светлая зона над контентом: название + кнопки -->
+            <Border Grid.Column="1" Background="{StaticResource ContentBgBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding Title}"
+                               Margin="14,0,0,0"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Кнопки управления окном -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="MinimizeButton" Click="MinimizeButton_Click"
+                            Style="{StaticResource TitleBarButton}"
+                            ToolTip="Свернуть">
+                        <Path Data="M0,0 L10,0" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1" VerticalAlignment="Center"/>
+                    </Button>
+                    <Button x:Name="MaximizeButton" Click="MaximizeButton_Click"
+                            Style="{StaticResource TitleBarButton}"
+                            ToolTip="Развернуть">
+                        <Grid>
+                            <!-- Иконка "развернуть" (прямоугольник) -->
+                            <Rectangle Width="10" Height="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                       StrokeThickness="1" Fill="Transparent">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <!-- Иконка "свернуть в окно" (два наложенных прямоугольника) -->
+                            <Grid>
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Rectangle Width="8" Height="8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           StrokeThickness="1" Fill="Transparent"
+                                           HorizontalAlignment="Right" VerticalAlignment="Top"
+                                           Margin="0,0,0,0"/>
+                                <Rectangle Width="8" Height="8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           StrokeThickness="1" Fill="{StaticResource ContentBgBrush}"
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                           Margin="0,0,2,0"/>
+                            </Grid>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="CloseButton" Click="CloseButton_Click"
+                            Style="{StaticResource TitleBarCloseButton}"
+                            ToolTip="Закрыть">
+                        <Path Data="M0,0 L10,10 M10,0 L0,10"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1"/>
+                    </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== ОСНОВНОЙ КОНТЕНТ ==================== -->
+        <Grid Grid.Row="1">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="76"/>
             <!-- Тёмный сайдбар -->
@@ -82,10 +237,12 @@
                 </Grid.RowDefinitions>
 
                 <!-- Логотип -->
-                <Border Grid.Row="0" Padding="0,16,0,12"
+                <Border Grid.Row="0" Height="56"
                         BorderBrush="#2a2d33" BorderThickness="0,0,0,1">
                     <TextBlock Text="AK"
                                HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Margin="0,0,0,12"
                                FontSize="20"
                                FontWeight="Bold"
                                Foreground="White"/>
@@ -307,6 +464,7 @@
             </ContentControl.Resources>
         </ContentControl>
 
+        </Grid>
     </Grid>
 
 </Window>

@@ -486,11 +486,13 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task LoadDataAsync()
         {
-            // Отменяем предыдущую загрузку, если ещё не завершилась
-            _loadCts?.Cancel();
-            _loadCts?.Dispose();
-            _loadCts = new CancellationTokenSource();
-            var ct = _loadCts.Token;
+            // Отменяем предыдущую загрузку атомарно — защита от гонки при быстром
+            // переключении периода (двойной Dispose / ObjectDisposedException).
+            var newCts = new CancellationTokenSource();
+            var oldCts = System.Threading.Interlocked.Exchange(ref _loadCts, newCts);
+            oldCts?.Cancel();
+            oldCts?.Dispose();
+            var ct = newCts.Token;
 
             try
             {
@@ -758,33 +760,25 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void SetPeriodDates(PeriodType period)
         {
-            var today = DateTime.Today;
-
             switch (period)
             {
                 case PeriodType.Today:
-                    DateFrom = today;
-                    DateTo = today;
+                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Today");
                     PeriodLabel = "ЗА СЕГОДНЯ";
                     break;
 
                 case PeriodType.Week:
-                    // Начало недели (понедельник)
-                    var daysFromMonday = ((int)today.DayOfWeek + 6) % 7;
-                    DateFrom = today.AddDays(-daysFromMonday);
-                    DateTo = today;
+                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Week");
                     PeriodLabel = "ЗА НЕДЕЛЮ";
                     break;
 
                 case PeriodType.Month:
-                    DateFrom = new DateTime(today.Year, today.Month, 1);
-                    DateTo = today;
+                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Month");
                     PeriodLabel = "ЗА МЕСЯЦ";
                     break;
 
                 case PeriodType.Year:
-                    DateFrom = new DateTime(today.Year, 1, 1);
-                    DateTo = today;
+                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Year");
                     PeriodLabel = "ЗА ГОД";
                     break;
 
@@ -875,9 +869,9 @@ namespace AutoKassa.ViewModels
 
         protected override void OnDispose()
         {
-            _loadCts?.Cancel();
-            _loadCts?.Dispose();
-            _loadCts = null;
+            var cts = System.Threading.Interlocked.Exchange(ref _loadCts, null);
+            cts?.Cancel();
+            cts?.Dispose();
         }
 
         #endregion
