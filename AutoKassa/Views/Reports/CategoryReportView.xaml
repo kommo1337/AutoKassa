@@ -28,15 +28,14 @@
         </Grid.RowDefinitions>
 
         <!-- ФИЛЬТРЫ -->
-        <Border Grid.Row="0"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="12"
-                Padding="20"
-                Margin="0,0,0,16">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-            </Border.Effect>
-            <Grid>
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+            </Border>
+            <Border Background="Transparent" CornerRadius="12" Padding="20">
+                <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -255,19 +254,19 @@
                     </StackPanel>
                 </StackPanel>
             </Grid>
-        </Border>
+            </Border>
+        </Grid>
 
         <!-- СВОДКА -->
-        <Border Grid.Row="1"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="12"
-                Padding="20,16"
-                Margin="0,0,0,16"
-                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-            </Border.Effect>
-            <Grid>
+        <Grid Grid.Row="1" Margin="0,0,0,16"
+              Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+            </Border>
+            <Border Background="Transparent" CornerRadius="12" Padding="20,16">
+                <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="1"/>
@@ -298,7 +297,8 @@
                                FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>
                 </StackPanel>
             </Grid>
-        </Border>
+            </Border>
+        </Grid>
 
         <!-- ДИАГРАММА И ТАБЛИЦА -->
         <Grid Grid.Row="2"
@@ -309,15 +309,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- DONUT CHART -->
-            <Border Grid.Column="0"
-                    Background="{StaticResource CardBgBrush}"
-                    CornerRadius="12"
-                    Padding="20"
-                    Margin="0,0,16,0">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-                </Border.Effect>
-                <Grid>
+            <Grid Grid.Column="0" Margin="0,0,16,0">
+                <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="Transparent" CornerRadius="12" Padding="20">
+                    <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -378,17 +377,18 @@
                         </Grid>
                     </Grid>
                 </Grid>
-            </Border>
+                </Border>
+            </Grid>
 
             <!-- ТАБЛИЦА КАТЕГОРИЙ (раскрываемая) -->
-            <Border Grid.Column="1"
-                    Background="{StaticResource CardBgBrush}"
-                    CornerRadius="12"
-                    Padding="20">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-                </Border.Effect>
-                <Grid>
+            <Grid Grid.Column="1">
+                <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="Transparent" CornerRadius="12" Padding="20">
+                    <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -648,7 +648,8 @@
                            TextAlignment="Center"
                            Margin="0,12,0,0"/>
             </StackPanel>
-        </Border>
+            </Border>
+        </Grid>
         </Grid>
 
         <!-- ===== MODAL OVERLAY (редактирование операции) ===== -->

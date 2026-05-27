@@ -694,27 +694,32 @@
     <Grid Panel.ZIndex="200"
           Visibility="{Binding IsCategoryManagerOpen, Converter={StaticResource BoolToVisibilityConverter}}">
         <Rectangle Fill="#88000000"/>
-        <Border Background="White" CornerRadius="16"
-                MaxWidth="480" MaxHeight="600"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                Margin="8">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="24" ShadowDepth="6"/>
-            </Border.Effect>
-            <views:CategoryManagerView DataContext="{Binding CategoryManagerViewModel}"/>
-        </Border>
+        <Grid MaxWidth="480" MaxHeight="600"
+              HorizontalAlignment="Center" VerticalAlignment="Center"
+              Margin="8">
+            <Border Background="White" CornerRadius="16">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="24" ShadowDepth="6"/>
+                </Border.Effect>
+            </Border>
+            <Border Background="Transparent" CornerRadius="16" ClipToBounds="True">
+                <views:CategoryManagerView DataContext="{Binding CategoryManagerViewModel}"/>
+            </Border>
+        </Grid>
     </Grid>
 
     <!-- ===== LOCAL CANCEL TOAST (bottom of form) ===== -->
-    <Border Panel.ZIndex="250"
-            VerticalAlignment="Bottom" HorizontalAlignment="Center"
-            Margin="0,0,0,20"
-            Background="#1A1D23" CornerRadius="8" Padding="12,8"
-            Visibility="{Binding IsCancelToastVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-        <Border.Effect>
-            <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="16" ShadowDepth="3"/>
-        </Border.Effect>
-        <StackPanel Orientation="Horizontal">
+    <Grid Panel.ZIndex="250"
+          VerticalAlignment="Bottom" HorizontalAlignment="Center"
+          Margin="0,0,0,20"
+          Visibility="{Binding IsCancelToastVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+        <Border Background="#1A1D23" CornerRadius="8">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="16" ShadowDepth="3"/>
+            </Border.Effect>
+        </Border>
+        <Border Background="Transparent" CornerRadius="8" Padding="12,8">
+            <StackPanel Orientation="Horizontal">
             <TextBlock Text="Отменить изменения?"
                        Foreground="White" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0"/>
             <Button Command="{Binding ConfirmCancelCommand}" Cursor="Hand">
@@ -733,5 +738,6 @@
             </Button>
         </StackPanel>
     </Border>
+    </Grid>
     </Grid>
 </UserControl>

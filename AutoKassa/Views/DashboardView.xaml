@@ -325,93 +325,127 @@
             </Grid.ColumnDefinitions>
 
             <!-- Баланс — с градиентным фоном -->
-            <Border Grid.Column="0" Margin="0,0,10,0"
-                    CornerRadius="12" Padding="20,20" MinHeight="108">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
-                </Border.Effect>
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="BorderThickness" Value="0.8"/>
-                        <Setter Property="BorderBrush" Value="#86efac"/>
-                        <Setter Property="Background">
-                            <Setter.Value>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Color="#F0FFF4" Offset="0"/>
-                                    <GradientStop Color="#DCFCE7" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Setter.Value>
-                        </Setter>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                <Setter Property="BorderBrush" Value="#fca5a5"/>
-                                <Setter Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#FFF5F5" Offset="0"/>
-                                            <GradientStop Color="#FFE4E6" Offset="1"/>
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel>
-                    <!-- Label БАЛАНС -->
-                    <TextBlock Text="БАЛАНС" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
-                               Foreground="{StaticResource MutedTextBrush}"/>
-                    <!-- Большая сумма -->
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock FontSize="30" FontWeight="Bold"
-                                   Text="{Binding CurrentCashBalance, StringFormat='{}{0:N0}'}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text=" ₽" FontSize="20" FontWeight="Bold" Opacity="0.5"
-                                   VerticalAlignment="Bottom" Margin="0,0,0,3">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+            <Grid Grid.Column="0" Margin="0,0,10,0">
+                <!-- Shadow layer -->
+                <Border CornerRadius="12" Padding="20,20" MinHeight="108">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                    </Border.Effect>
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="BorderThickness" Value="0.8"/>
+                            <Setter Property="BorderBrush" Value="#86efac"/>
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#F0FFF4" Offset="0"/>
+                                        <GradientStop Color="#DCFCE7" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                    <Setter Property="BorderBrush" Value="#fca5a5"/>
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#FFF5F5" Offset="0"/>
+                                                <GradientStop Color="#FFE4E6" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+                <!-- Content layer -->
+                <Border CornerRadius="12" Padding="20,20" MinHeight="108" Background="Transparent">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="BorderThickness" Value="0.8"/>
+                            <Setter Property="BorderBrush" Value="#86efac"/>
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#F0FFF4" Offset="0"/>
+                                        <GradientStop Color="#DCFCE7" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                    <Setter Property="BorderBrush" Value="#fca5a5"/>
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#FFF5F5" Offset="0"/>
+                                                <GradientStop Color="#FFE4E6" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <!-- Label БАЛАНС -->
+                        <TextBlock Text="БАЛАНС" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
+                                   Foreground="{StaticResource MutedTextBrush}"/>
+                        <!-- Большая сумма -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontSize="30" FontWeight="Bold"
+                                       Text="{Binding CurrentCashBalance, StringFormat='{}{0:N0}'}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text=" ₽" FontSize="20" FontWeight="Bold" Opacity="0.5"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,3">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <!-- Разбивка Наличные / Безналичные -->
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Наличные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" Margin="6,0,6,0"/>
+                            <TextBlock Text="{Binding CashBalance, StringFormat='{}{0:N0} ₽'}"
+                                       FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Безналичные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" Margin="6,0,6,0"/>
+                            <TextBlock Text="{Binding NonCashBalance, StringFormat='{}{0:N0} ₽'}"
+                                       FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
-                    <!-- Разбивка Наличные / Безналичные -->
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
-                        <TextBlock Text="Наличные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center" Margin="6,0,6,0"/>
-                        <TextBlock Text="{Binding CashBalance, StringFormat='{}{0:N0} ₽'}"
-                                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                        <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
-                        <TextBlock Text="Безналичные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center" Margin="6,0,6,0"/>
-                        <TextBlock Text="{Binding NonCashBalance, StringFormat='{}{0:N0} ₽'}"
-                                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
+            </Grid>
 
             <!-- Доходы -->
-            <Border Grid.Column="1" Style="{StaticResource SummaryCard}" Margin="0,0,10,0">
+            <Grid Grid.Column="1" Margin="0,0,10,0">
+                <Border Style="{StaticResource SummaryCard}"/>
+                <Border Style="{StaticResource SummaryCard}" Background="Transparent">
                 <StackPanel>
                     <TextBlock Text="ДОХОДЫ" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                Foreground="{StaticResource MutedTextBrush}"/>
@@ -439,9 +473,12 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+            </Grid>
 
             <!-- Расходы -->
-            <Border Grid.Column="2" Style="{StaticResource SummaryCard}" Margin="0,0,10,0">
+            <Grid Grid.Column="2" Margin="0,0,10,0">
+                <Border Style="{StaticResource SummaryCard}"/>
+                <Border Style="{StaticResource SummaryCard}" Background="Transparent">
                 <StackPanel>
                     <TextBlock Text="РАСХОДЫ" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                Foreground="{StaticResource MutedTextBrush}"/>
@@ -469,59 +506,63 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+            </Grid>
 
             <!-- За период -->
-            <Border Grid.Column="3" Style="{StaticResource SummaryCard}">
-                <StackPanel>
-                    <TextBlock Text="{Binding PeriodLabel}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
-                               Foreground="{StaticResource MutedTextBrush}"/>
-                    <!-- Итог за период (Profit) -->
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock FontSize="30" FontWeight="Bold"
-                                   Text="{Binding Profit, StringFormat='{}{0:N0}'}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text=" ₽" FontSize="20" FontWeight="Bold" Opacity="0.5"
-                                   VerticalAlignment="Bottom" Margin="0,0,0,3">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+            <Grid Grid.Column="3">
+                <Border Style="{StaticResource SummaryCard}"/>
+                <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="{Binding PeriodLabel}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
+                                   Foreground="{StaticResource MutedTextBrush}"/>
+                        <!-- Итог за период (Profit) -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontSize="30" FontWeight="Bold"
+                                       Text="{Binding Profit, StringFormat='{}{0:N0}'}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text=" ₽" FontSize="20" FontWeight="Bold" Opacity="0.5"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,3">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Наличные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" Margin="6,0,6,0"/>
+                            <TextBlock Text="{Binding CashProfit, StringFormat='{}{0:N0} ₽'}"
+                                       FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Безналичные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center" Margin="6,0,6,0"/>
+                            <TextBlock Text="{Binding NonCashProfit, StringFormat='{}{0:N0} ₽'}"
+                                       FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <ContentControl ContentTemplate="{StaticResource CashPaymentIconTemplate}" VerticalAlignment="Center"/>
-                        <TextBlock Text="Наличные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center" Margin="6,0,6,0"/>
-                        <TextBlock Text="{Binding CashProfit, StringFormat='{}{0:N0} ₽'}"
-                                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                        <ContentControl ContentTemplate="{StaticResource NonCashPaymentIconTemplate}" VerticalAlignment="Center"/>
-                        <TextBlock Text="Безналичные:" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center" Margin="6,0,6,0"/>
-                        <TextBlock Text="{Binding NonCashProfit, StringFormat='{}{0:N0} ₽'}"
-                                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                </Border>
+            </Grid>
         </Grid>
 
         <!-- ==================== ОСНОВНОЙ КОНТЕНТ ==================== -->
@@ -534,11 +575,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- ЛЕНТА ОПЕРАЦИЙ СЛЕВА -->
-            <Border Grid.Column="0" Background="White" CornerRadius="12" Margin="0,0,16,24">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
-                </Border.Effect>
-                <Grid>
+            <Grid Grid.Column="0" Margin="0,0,16,24">
+                <Border Background="White" CornerRadius="12">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="Transparent" CornerRadius="12" ClipToBounds="True">
+                    <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -605,7 +649,8 @@
                                                                 BorderThickness="0,0,0,1"
                                                                 BorderBrush="{StaticResource BorderLightBrush}"
                                                                 Cursor="Hand"
-                                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                MouseLeftButtonDown="TransactionItem_MouseLeftButtonDown">
                                                             <Border.ContextMenu>
                                                                 <ContextMenu Style="{StaticResource ModernContextMenuStyle}">
                                                                     <MenuItem Header="Редактировать" Tag="✏️"
@@ -701,18 +746,22 @@
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
-            </Border>
+                </Border>
+            </Grid>
 
             <!-- ПРАВАЯ ПАНЕЛЬ -->
             <StackPanel Grid.Column="1" Margin="0,0,0,24">
 
                 <!-- Топ расходов -->
-                <Border Background="White" CornerRadius="12" Padding="16" Margin="0,0,0,12">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
-                    </Border.Effect>
-                    <StackPanel>
-                        <TextBlock Text="Топ расходов" FontSize="13" FontWeight="SemiBold"
+                <Grid Margin="0,0,0,12">
+                    <Border Background="White" CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Background="Transparent" CornerRadius="12" Padding="16" ClipToBounds="True">
+                        <StackPanel>
+                            <TextBlock Text="Топ расходов" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                         <ItemsControl ItemsSource="{Binding TopExpenses}">
                             <ItemsControl.ItemTemplate>
@@ -738,16 +787,20 @@
                                    HorizontalAlignment="Center"
                                    Visibility="{Binding TopExpenses.Count, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}"
                                    Margin="0,8"/>
-                    </StackPanel>
-                </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <!-- Топ доходов -->
-                <Border Background="White" CornerRadius="12" Padding="16" Margin="0,0,0,12">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
-                    </Border.Effect>
-                    <StackPanel>
-                        <TextBlock Text="Топ доходов" FontSize="13" FontWeight="SemiBold"
+                <Grid Margin="0,0,0,12">
+                    <Border Background="White" CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Background="Transparent" CornerRadius="12" Padding="16" ClipToBounds="True">
+                        <StackPanel>
+                            <TextBlock Text="Топ доходов" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                         <ItemsControl ItemsSource="{Binding TopIncomes}">
                             <ItemsControl.ItemTemplate>
@@ -773,16 +826,20 @@
                                    HorizontalAlignment="Center"
                                    Visibility="{Binding TopIncomes.Count, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}"
                                    Margin="0,8"/>
-                    </StackPanel>
-                </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <!-- Сводка за период -->
-                <Border Background="White" CornerRadius="12" Padding="16">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
-                    </Border.Effect>
-                    <StackPanel>
-                        <TextBlock Text="Сводка за период" FontSize="13" FontWeight="SemiBold"
+                <Grid>
+                    <Border Background="White" CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Background="Transparent" CornerRadius="12" Padding="16" ClipToBounds="True">
+                        <StackPanel>
+                            <TextBlock Text="Сводка за период" FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,10"/>
                         <Grid Margin="0,3">
                             <Grid.ColumnDefinitions>
@@ -824,6 +881,7 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+            </Grid>
 
             </StackPanel>
         </Grid>

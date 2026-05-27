@@ -11,17 +11,28 @@ namespace AutoKassa.Tests.Services
         private readonly AppDbContext _ctx;
         private readonly Microsoft.Data.Sqlite.SqliteConnection _conn;
         private readonly ReportService _svc;
+        private readonly TestDbContextFactory _factory;
+        private readonly ISettingsService _settingsSvc;
 
         public ReportServiceTests()
         {
-            (_ctx, _conn) = TestDatabase.Create();
-            _svc = new ReportService(_ctx);
+            (_factory, _conn) = TestDatabase.CreateWithFactory();
+            _settingsSvc = new SettingsService(_factory);
+            _ctx = _factory.CreateDbContext();
+            _svc = new ReportService(_ctx, _settingsSvc);
         }
 
         public void Dispose()
         {
             _ctx.Dispose();
             _conn.Dispose();
+        }
+
+        private async Task SetInitialBalanceAsync(decimal amount)
+        {
+            var settings = await _settingsSvc.GetSettingsAsync();
+            settings.InitialBalance = amount;
+            await _settingsSvc.SaveSettingsAsync(settings);
         }
 
         // ─────────────────────────────────────────
@@ -212,6 +223,48 @@ namespace AutoKassa.Tests.Services
             var result = await _svc.GetInitialBalanceAsync(new DateTime(2025, 6, 1), PaymentType.Cash);
 
             result.Should().Be(1000m);
+        }
+
+        [Fact]
+        public async Task GetInitialBalanceAsync_IncludesAppSettingsInitialBalance_WhenNoPaymentType()
+        {
+            await SetInitialBalanceAsync(2500m);
+
+            var result = await _svc.GetInitialBalanceAsync(DateTime.Today);
+
+            result.Should().Be(2500m);
+        }
+
+        [Fact]
+        public async Task GetInitialBalanceAsync_IncludesAppSettingsInitialBalance_ForCash()
+        {
+            await SetInitialBalanceAsync(1000m);
+
+            var result = await _svc.GetInitialBalanceAsync(DateTime.Today, PaymentType.Cash);
+
+            result.Should().Be(1000m);
+        }
+
+        [Fact]
+        public async Task GetInitialBalanceAsync_DoesNotIncludeInitialBalance_ForNonCash()
+        {
+            await SetInitialBalanceAsync(1000m);
+
+            var result = await _svc.GetInitialBalanceAsync(DateTime.Today, PaymentType.NonCash);
+
+            result.Should().Be(0m);
+        }
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_StartBalanceIncludesInitialBalance()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            await SetInitialBalanceAsync(500m);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 200m, OperationType.Income, date: new DateTime(2025, 1, 1));
+
+            var report = await _svc.GenerateBalanceReportAsync(new DateTime(2025, 6, 1), new DateTime(2025, 6, 30));
+
+            report.StartBalance.Should().Be(700m);
         }
 
         // ─────────────────────────────────────────

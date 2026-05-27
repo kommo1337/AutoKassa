@@ -82,18 +82,18 @@
                    Width="400">
 
                 <!-- Карточка блокировки -->
-                <Border Background="White"
-                    CornerRadius="12"
-                    Padding="40">
-                    <Border.Effect>
-                        <DropShadowEffect Color="Black" 
-                                    Direction="270" 
-                                    ShadowDepth="5" 
-                                    Opacity="0.3" 
-                                    BlurRadius="20"/>
-                    </Border.Effect>
-
-                    <StackPanel>
+                <Grid>
+                    <Border Background="White" CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect Color="Black" 
+                                        Direction="270" 
+                                        ShadowDepth="5" 
+                                        Opacity="0.3" 
+                                        BlurRadius="20"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Background="Transparent" CornerRadius="12" Padding="40">
+                        <StackPanel>
                         <!-- Логотип -->
                         <TextBlock Text="💼" 
                               FontSize="60" 
@@ -139,6 +139,9 @@
                                     PasswordChanged="PasswordBox_PasswordChanged"
                                     KeyDown="PasswordBox_KeyDown"/>
                         </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                         <!-- Сообщение об ошибке -->
                         <TextBlock Text="{Binding ErrorMessage}" 
@@ -196,9 +199,7 @@
                         </Hyperlink>
                         </TextBlock>
                     </StackPanel>
-                </Border>
-            </StackPanel>
-        </Grid>
+                </Grid>
 
         <!-- Экран восстановления пароля -->
         <Grid Visibility="{Binding IsPasswordRecoveryMode, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -206,18 +207,18 @@
                    HorizontalAlignment="Center" 
                    Width="450">
 
-                <Border Background="White"
-                    CornerRadius="12"
-                    Padding="40">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#7F716767" 
-                                    Direction="270" 
-                                    ShadowDepth="5" 
-                                    Opacity="0.3" 
-                                    BlurRadius="20"/>
-                    </Border.Effect>
-
-                    <StackPanel>
+                <Grid>
+                    <Border Background="White" CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#7F716767" 
+                                        Direction="270" 
+                                        ShadowDepth="5" 
+                                        Opacity="0.3" 
+                                        BlurRadius="20"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Background="Transparent" CornerRadius="12" Padding="40">
+                        <StackPanel>
                         <TextBlock Text="Восстановление пароля" 
                               FontSize="20" 
                               FontWeight="SemiBold"
@@ -267,7 +268,8 @@
                             </Button.Style>
                         </Button>
                     </StackPanel>
-                </Border>
+                    </Border>
+                </Grid>
             </StackPanel>
         </Grid>
     </Grid>

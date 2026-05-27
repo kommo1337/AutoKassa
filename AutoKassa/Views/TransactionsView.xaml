@@ -1739,11 +1739,14 @@
         <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
                 Margin="0,0,0,24" Panel.ZIndex="70"
                 Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border Background="#1A1D23" CornerRadius="28" Padding="16,10">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.35" BlurRadius="24" ShadowDepth="6" Direction="270"/>
-                </Border.Effect>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Grid>
+                <Border Background="#1A1D23" CornerRadius="28">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.35" BlurRadius="24" ShadowDepth="6" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="Transparent" CornerRadius="28" Padding="16,10">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding SelectedCountLabel}" Foreground="White"
                                FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"
                                Margin="0,0,14,0"/>
@@ -1800,6 +1803,7 @@
                     </Button>
                 </StackPanel>
             </Border>
+            </Grid>
         </Border>
 
         <!-- ===== MODAL OVERLAY ===== -->

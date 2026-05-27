@@ -126,15 +126,14 @@
         </Grid.RowDefinitions>
 
         <!-- ФИЛЬТРЫ -->
-        <Border Grid.Row="0"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="12"
-                Padding="20"
-                Margin="0,0,0,16">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-            </Border.Effect>
-            <Grid>
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+            </Border>
+            <Border Background="Transparent" CornerRadius="12" Padding="20">
+                <Grid>
                 <!-- Экспорт -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
                     <Button Command="{Binding ExportToPdfCommand}" Cursor="Hand" Margin="0,0,8,0">
@@ -359,19 +358,19 @@
                     </StackPanel>
                 </StackPanel>
             </Grid>
-        </Border>
+            </Border>
+        </Grid>
 
         <!-- ИТОГИ -->
-        <Border Grid.Row="1"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="12"
-                Padding="20,16"
-                Margin="0,0,0,16"
-                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-            </Border.Effect>
-            <Grid>
+        <Grid Grid.Row="1" Margin="0,0,0,16"
+              Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+            </Border>
+            <Border Background="Transparent" CornerRadius="12" Padding="20,16">
+                <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="1"/>
@@ -406,17 +405,19 @@
                                FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" Margin="0,4,0,0"/>
                 </StackPanel>
             </Grid>
-        </Border>
+            </Border>
+        </Grid>
 
         <!-- СПИСОК ОПЕРАЦИЙ (сгруппированный по дням) -->
-        <Border Grid.Row="2"
-                Background="{StaticResource CardBgBrush}"
-                CornerRadius="12"
-                Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border.Effect>
-                <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-            </Border.Effect>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Grid.Row="2"
+              Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+            </Border>
+            <Border Background="Transparent" CornerRadius="12" ClipToBounds="True">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <ItemsControl ItemsSource="{Binding GroupedTransactions}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -527,7 +528,8 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-        </Border>
+            </Border>
+        </Grid>
 
         <!-- ЗАГЛУШКА -->
         <Border Grid.Row="2"

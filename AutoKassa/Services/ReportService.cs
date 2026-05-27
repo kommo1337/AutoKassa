@@ -14,10 +14,12 @@ namespace AutoKassa.Services
     public class ReportService : IReportService
     {
         private readonly AppDbContext _context;
+        private readonly ISettingsService _settingsService;
 
-        public ReportService(AppDbContext context)
+        public ReportService(AppDbContext context, ISettingsService settingsService)
         {
             _context = context;
+            _settingsService = settingsService;
         }
 
         /// <summary>
@@ -87,7 +89,16 @@ namespace AutoKassa.Services
             var incomeBeforeDate  = rows.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
             var expenseBeforeDate = rows.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
 
-            return incomeBeforeDate - expenseBeforeDate;
+            var balance = incomeBeforeDate - expenseBeforeDate;
+
+            // Начальный баланс из настроек относится только к наличным (касса)
+            if (!paymentType.HasValue || paymentType.Value == PaymentType.Cash)
+            {
+                var settings = await _settingsService.GetSettingsAsync();
+                balance += settings.InitialBalance;
+            }
+
+            return balance;
         }
 
         /// <summary>

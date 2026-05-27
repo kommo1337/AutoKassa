@@ -41,15 +41,23 @@
             </Setter>
         </Style>
 
-        <!-- Карточка секции -->
-        <Style x:Key="SettingsSectionStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="24"/>
+        <!-- Карточка секции (shadow + content layers для чёткого текста) -->
+        <Style x:Key="SettingsSectionCard" TargetType="ContentControl">
             <Setter Property="Margin" Value="0,0,0,16"/>
-            <Setter Property="Effect">
+            <Setter Property="Template">
                 <Setter.Value>
-                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid>
+                            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                                </Border.Effect>
+                            </Border>
+                            <Border Background="Transparent" CornerRadius="12" Padding="24" ClipToBounds="True">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
@@ -192,16 +200,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- Бок��вая навигация -->
-            <Border Grid.Column="0"
-                    Background="{StaticResource CardBgBrush}"
-                    CornerRadius="12"
-                    Padding="10"
-                    Margin="0,0,20,0"
-                    VerticalAlignment="Top">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-                </Border.Effect>
-                <Grid>
+            <Grid Grid.Column="0" Margin="0,0,20,0" VerticalAlignment="Top">
+                <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="Transparent" CornerRadius="12" Padding="10">
+                    <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
@@ -253,7 +259,8 @@
                                 Foreground="{StaticResource AccentRedBrush}"/>
                     </StackPanel>
                 </Grid>
-            </Border>
+                </Border>
+            </Grid>
 
             <!-- Контент секций -->
             <ScrollViewer Grid.Column="1"
@@ -262,9 +269,9 @@
                 <StackPanel>
 
                     <!-- ===== TAB 0: Общие ===== -->
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="0">
@@ -272,7 +279,7 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
+                        </ContentControl.Style>
                         <StackPanel>
                             <TextBlock Text="Общие настройки" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -316,12 +323,12 @@
                                          Padding="10,8" TextAlignment="Right"/>
                             </Grid>
                         </StackPanel>
-                    </Border>
+                    </ContentControl>
 
                     <!-- ===== TAB 1: Операции ===== -->
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="1">
@@ -329,7 +336,7 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
+                        </ContentControl.Style>
                         <StackPanel>
                             <TextBlock Text="Настро��ки операций" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -405,12 +412,12 @@
                                           Padding="10,8"/>
                             </Grid>
                         </StackPanel>
-                    </Border>
+                    </ContentControl>
 
                     <!-- ===== TAB 2: Отчёты ===== -->
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="2">
@@ -418,7 +425,7 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
+                        </ContentControl.Style>
                         <StackPanel>
                             <TextBlock Text="Настройки отчётов" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -439,12 +446,12 @@
                                 <CheckBox Grid.Column="1" IsChecked="{Binding AutoGenerateReports}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
                         </StackPanel>
-                    </Border>
+                    </ContentControl>
 
                     <!-- ===== TAB 3: Резервное копирование ===== -->
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="3">
@@ -452,7 +459,7 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
+                        </ContentControl.Style>
                         <StackPanel>
                             <TextBlock Text="Резервное копирование" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -498,12 +505,12 @@
                                         Style="{StaticResource ActionButtonStyle}"/>
                             </StackPanel>
                         </StackPanel>
-                    </Border>
+                    </ContentControl>
 
                     <!-- ===== TAB 4: Безопасность ===== -->
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="4">
@@ -511,7 +518,7 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
+                        </ContentControl.Style>
                         <StackPanel>
                             <TextBlock Text="Безопасност��" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -540,12 +547,12 @@
                                     HorizontalAlignment="Left"
                                     Margin="0,4,0,0"/>
                         </StackPanel>
-                    </Border>
+                    </ContentControl>
 
                     <!-- ===== TAB 5: О программе ===== -->
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource SettingsSectionStyle}">
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="5">
@@ -553,7 +560,7 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
+                        </ContentControl.Style>
                         <StackPanel>
                             <TextBlock Text="О программе" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -587,7 +594,7 @@
                                 <TextBlock Grid.Column="1" Text="{Binding LastBackupDate}" Style="{StaticResource AboutValueStyle}"/>
                             </Grid>
                         </StackPanel>
-                    </Border>
+                    </ContentControl>
 
                 </StackPanel>
             </ScrollViewer>
