@@ -12,7 +12,11 @@
             MinWidth="260"
             MaxWidth="480"
             ClipToBounds="True"
-            Visibility="Collapsed">
+            Visibility="Collapsed"
+            Opacity="0">
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="ToastTranslate" Y="20"/>
+        </Border.RenderTransform>
 
         <StackPanel>
             <!-- Основной контент -->

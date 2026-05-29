@@ -3,6 +3,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace AutoKassa.Views
@@ -10,12 +11,36 @@ namespace AutoKassa.Views
     public partial class ToastOverlayView : UserControl
     {
         private readonly DispatcherTimer _timer;
+        private readonly Storyboard _showStoryboard;
+        private readonly Storyboard _hideStoryboard;
+
         private Action _currentUndoAction;
         private Action _currentActionCallback;
         private int _remainingTicks;
 
-        private const int TotalTicks = 100;
-        private const int TickIntervalMs = 50; // 100 × 50ms = 5 секунд
+        private const int TotalTicks = 50;
+        private const int TickIntervalMs = 35; // 50 × 35ms ≈ 1.75 секунды плавного обновления
+
+        // Кэшированные кисти — избегаем создания SolidColorBrush при каждом ShowToast
+        private static readonly SolidColorBrush DeleteBackground  = new(Color.FromRgb(0xfe, 0xf2, 0xf2));
+        private static readonly SolidColorBrush DeleteBorder      = new(Color.FromRgb(0xfe, 0xca, 0xca));
+        private static readonly SolidColorBrush DeleteProgressBg  = new(Color.FromRgb(0xfe, 0xca, 0xca));
+        private static readonly SolidColorBrush DeleteProgressFill = new(Color.FromRgb(0xef, 0x44, 0x44));
+
+        private static readonly SolidColorBrush SuccessBackground = new(Color.FromRgb(0xf0, 0xfd, 0xf4));
+        private static readonly SolidColorBrush SuccessBorder     = new(Color.FromRgb(0xbb, 0xf7, 0xd0));
+        private static readonly SolidColorBrush SuccessProgressBg = new(Color.FromRgb(0xbb, 0xf7, 0xd0));
+        private static readonly SolidColorBrush SuccessProgressFill = new(Color.FromRgb(0x22, 0xc5, 0x5e));
+
+        private static readonly SolidColorBrush ErrorBackground   = new(Color.FromRgb(0xfe, 0xf2, 0xf2));
+        private static readonly SolidColorBrush ErrorBorder       = new(Color.FromRgb(0xfe, 0xca, 0xca));
+        private static readonly SolidColorBrush ErrorProgressBg   = new(Color.FromRgb(0xfe, 0xca, 0xca));
+        private static readonly SolidColorBrush ErrorProgressFill = new(Color.FromRgb(0xef, 0x44, 0x44));
+
+        private static readonly SolidColorBrush InfoBackground    = new(Color.FromRgb(0xef, 0xf6, 0xff));
+        private static readonly SolidColorBrush InfoBorder        = new(Color.FromRgb(0xbd, 0xdb, 0xfe));
+        private static readonly SolidColorBrush InfoProgressBg    = new(Color.FromRgb(0xbd, 0xdb, 0xfe));
+        private static readonly SolidColorBrush InfoProgressFill  = new(Color.FromRgb(0x3b, 0x82, 0xf6));
 
         public ToastOverlayView()
         {
@@ -24,16 +49,62 @@ namespace AutoKassa.Views
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TickIntervalMs) };
             _timer.Tick += OnTick;
 
+            // Анимация появления (opacity + slide up)
+            _showStoryboard = new Storyboard();
+            var showOpacity = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(250))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(showOpacity, ToastBorder);
+            Storyboard.SetTargetProperty(showOpacity, new PropertyPath(OpacityProperty));
+            _showStoryboard.Children.Add(showOpacity);
+
+            var showTranslate = new DoubleAnimation(20, 0, TimeSpan.FromMilliseconds(250))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            };
+            Storyboard.SetTarget(showTranslate, ToastTranslate);
+            Storyboard.SetTargetProperty(showTranslate, new PropertyPath(TranslateTransform.YProperty));
+            _showStoryboard.Children.Add(showTranslate);
+
+            // Анимация исчезновения (opacity + slide down)
+            _hideStoryboard = new Storyboard();
+            var hideOpacity = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(200))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+            };
+            Storyboard.SetTarget(hideOpacity, ToastBorder);
+            Storyboard.SetTargetProperty(hideOpacity, new PropertyPath(OpacityProperty));
+            _hideStoryboard.Children.Add(hideOpacity);
+
+            var hideTranslate = new DoubleAnimation(0, 20, TimeSpan.FromMilliseconds(200))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
+            };
+            Storyboard.SetTarget(hideTranslate, ToastTranslate);
+            Storyboard.SetTargetProperty(hideTranslate, new PropertyPath(TranslateTransform.YProperty));
+            _hideStoryboard.Children.Add(hideTranslate);
+
+            _hideStoryboard.Completed += (_, _) =>
+            {
+                ToastBorder.Visibility = Visibility.Collapsed;
+            };
+
             Unloaded += (_, _) =>
             {
                 _timer.Stop();
                 _timer.Tick -= OnTick;
+                _showStoryboard.Stop();
+                _hideStoryboard.Stop();
             };
         }
 
         public void ShowToast(ToastItem item)
         {
             _timer.Stop();
+            _showStoryboard.Stop();
+            _hideStoryboard.Stop();
+
             _currentUndoAction = item.UndoAction;
             _currentActionCallback = item.ActionCallback;
             MessageText.Text = item.Message;
@@ -55,7 +126,13 @@ namespace AutoKassa.Views
 
             _remainingTicks = TotalTicks;
             ProgressScale.ScaleX = 1.0;
+
+            // Сброс в начальное состояние и плавное появление
             ToastBorder.Visibility = Visibility.Visible;
+            ToastBorder.Opacity = 0;
+            ToastTranslate.Y = 20;
+
+            _showStoryboard.Begin();
             _timer.Start();
         }
 
@@ -70,34 +147,34 @@ namespace AutoKassa.Views
             switch (type)
             {
                 case ToastType.Delete:
-                    ToastBorder.Background = new SolidColorBrush(Color.FromRgb(0xfe, 0xf2, 0xf2));
-                    ToastBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xfe, 0xca, 0xca));
-                    ProgressBackground.Background = new SolidColorBrush(Color.FromRgb(0xfe, 0xca, 0xca));
-                    ProgressFill.Background = new SolidColorBrush(Color.FromRgb(0xef, 0x44, 0x44));
+                    ToastBorder.Background = DeleteBackground;
+                    ToastBorder.BorderBrush = DeleteBorder;
+                    ProgressBackground.Background = DeleteProgressBg;
+                    ProgressFill.Background = DeleteProgressFill;
                     IconDelete.Visibility = Visibility.Visible;
                     break;
 
                 case ToastType.Success:
-                    ToastBorder.Background = new SolidColorBrush(Color.FromRgb(0xf0, 0xfd, 0xf4));
-                    ToastBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xbb, 0xf7, 0xd0));
-                    ProgressBackground.Background = new SolidColorBrush(Color.FromRgb(0xbb, 0xf7, 0xd0));
-                    ProgressFill.Background = new SolidColorBrush(Color.FromRgb(0x22, 0xc5, 0x5e));
+                    ToastBorder.Background = SuccessBackground;
+                    ToastBorder.BorderBrush = SuccessBorder;
+                    ProgressBackground.Background = SuccessProgressBg;
+                    ProgressFill.Background = SuccessProgressFill;
                     IconSuccess.Visibility = Visibility.Visible;
                     break;
 
                 case ToastType.Error:
-                    ToastBorder.Background = new SolidColorBrush(Color.FromRgb(0xfe, 0xf2, 0xf2));
-                    ToastBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xfe, 0xca, 0xca));
-                    ProgressBackground.Background = new SolidColorBrush(Color.FromRgb(0xfe, 0xca, 0xca));
-                    ProgressFill.Background = new SolidColorBrush(Color.FromRgb(0xef, 0x44, 0x44));
+                    ToastBorder.Background = ErrorBackground;
+                    ToastBorder.BorderBrush = ErrorBorder;
+                    ProgressBackground.Background = ErrorProgressBg;
+                    ProgressFill.Background = ErrorProgressFill;
                     IconError.Visibility = Visibility.Visible;
                     break;
 
                 case ToastType.Info:
-                    ToastBorder.Background = new SolidColorBrush(Color.FromRgb(0xef, 0xf6, 0xff));
-                    ToastBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xbd, 0xdb, 0xfe));
-                    ProgressBackground.Background = new SolidColorBrush(Color.FromRgb(0xbd, 0xdb, 0xfe));
-                    ProgressFill.Background = new SolidColorBrush(Color.FromRgb(0x3b, 0x82, 0xf6));
+                    ToastBorder.Background = InfoBackground;
+                    ToastBorder.BorderBrush = InfoBorder;
+                    ProgressBackground.Background = InfoProgressBg;
+                    ProgressFill.Background = InfoProgressFill;
                     IconInfo.Visibility = Visibility.Visible;
                     break;
             }
@@ -116,7 +193,13 @@ namespace AutoKassa.Views
         private void HideToast()
         {
             _timer.Stop();
-            ToastBorder.Visibility = Visibility.Collapsed;
+            _showStoryboard.Stop();
+
+            if (ToastBorder.Visibility == Visibility.Visible)
+            {
+                _hideStoryboard.Begin();
+            }
+
             _currentUndoAction = null;
             _currentActionCallback = null;
         }

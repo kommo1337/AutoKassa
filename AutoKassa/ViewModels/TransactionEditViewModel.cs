@@ -349,7 +349,7 @@ namespace AutoKassa.ViewModels
 
                 if (SelectedCategory == null || SelectedCategory.Type != Type)
                 {
-                    var defaultCategoryId = _settingsService.GetDefaultCategoryId(Type);
+                    var defaultCategoryId = await _settingsService.GetDefaultCategoryIdAsync(Type);
 
                     if (defaultCategoryId.HasValue && Categories.Count > 0)
                         SelectedCategory = Categories.FirstOrDefault(c => c.Id == defaultCategoryId.Value);
@@ -463,6 +463,8 @@ namespace AutoKassa.ViewModels
 
         public ICommand DismissCancelToastCommand => new RelayCommand(_ => HideCancelToast());
 
+        private void OnCancelToastTick(object sender, EventArgs e) => HideCancelToast();
+
         private void HideCancelToast()
         {
             IsCancelToastVisible = false;
@@ -479,10 +481,21 @@ namespace AutoKassa.ViewModels
                 {
                     Interval = TimeSpan.FromSeconds(5)
                 };
-                _cancelToastTimer.Tick += (s, e) => HideCancelToast();
+                _cancelToastTimer.Tick += OnCancelToastTick;
             }
             _cancelToastTimer.Stop();
             _cancelToastTimer.Start();
+        }
+
+        protected override void OnDispose()
+        {
+            if (_cancelToastTimer != null)
+            {
+                _cancelToastTimer.Stop();
+                _cancelToastTimer.Tick -= OnCancelToastTick;
+                _cancelToastTimer = null;
+            }
+            base.OnDispose();
         }
 
         private void Cancel()

@@ -366,7 +366,7 @@ namespace AutoKassa.ViewModels
         {
             AppVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
-            var dbPath = _settingsService.GetDatabasePath();
+            var dbPath = await _settingsService.GetDatabasePathAsync();
             if (!string.IsNullOrEmpty(dbPath) && File.Exists(dbPath))
             {
                 var size = new FileInfo(dbPath).Length;
@@ -383,7 +383,7 @@ namespace AutoKassa.ViewModels
             var allCategories = await _categoryService.GetAllAsync();
             TotalCategories = allCategories.Count;
 
-            var lastBackup = _settingsService.GetLastBackupDate();
+            var lastBackup = await _settingsService.GetLastBackupDateAsync();
             LastBackupDate = lastBackup?.ToString("dd.MM.yyyy HH:mm") ?? "Нет данных";
         }
 
@@ -413,26 +413,8 @@ namespace AutoKassa.ViewModels
             _requirePasswordOnStartup = settings.RequirePasswordOnStartup;
             _passwordExpireDays = settings.PasswordExpireDays;
 
-            // Уведомляем UI
-            OnPropertyChanged(nameof(AutoLockEnabled));
-            OnPropertyChanged(nameof(AutoLockMinutes));
-            OnPropertyChanged(nameof(ShowNotifications));
-            OnPropertyChanged(nameof(InitialBalance));
-            OnPropertyChanged(nameof(ShowOperationsInSidebar));
-            OnPropertyChanged(nameof(DefaultPageSize));
-            OnPropertyChanged(nameof(ConfirmDelete));
-            OnPropertyChanged(nameof(DefaultOperationType));
-            OnPropertyChanged(nameof(DefaultIncomeCategoryId));
-            OnPropertyChanged(nameof(DefaultExpenseCategoryId));
-            OnPropertyChanged(nameof(DefaultPaymentType));
-            OnPropertyChanged(nameof(SelectedDefaultPeriod));
-            OnPropertyChanged(nameof(AutoGenerateReports));
-            OnPropertyChanged(nameof(BackupEnabled));
-            OnPropertyChanged(nameof(AutoBackupDays));
-            OnPropertyChanged(nameof(BackupPath));
-            OnPropertyChanged(nameof(BackupKeepCount));
-            OnPropertyChanged(nameof(RequirePasswordOnStartup));
-            OnPropertyChanged(nameof(PasswordExpireDays));
+            // Уведомляем UI одним событием вместо 18 отдельных
+            OnPropertyChanged(string.Empty);
         }
 
         private async Task SaveAsync()
@@ -682,7 +664,7 @@ namespace AutoKassa.ViewModels
                 {
                     _toastService.ShowSuccess($"Резервная копия создана:\n{backupFile}");
                     // Обновить дату последнего бэкапа
-                    var lastBackup = _settingsService.GetLastBackupDate();
+                    var lastBackup = await _settingsService.GetLastBackupDateAsync();
                     LastBackupDate = lastBackup?.ToString("dd.MM.yyyy HH:mm") ?? "Нет данных";
                 }
                 else

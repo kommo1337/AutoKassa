@@ -5,22 +5,6 @@
              Background="{StaticResource BackgroundBrush}">
 
     <Grid>
-        <!-- Main content (blurs when modal open) -->
-        <Grid x:Name="MainContent">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsModalOpen}" Value="True">
-                            <Setter Property="Effect">
-                                <Setter.Value>
-                                    <BlurEffect Radius="6"/>
-                                </Setter.Value>
-                            </Setter>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -649,25 +633,6 @@
                            Margin="0,12,0,0"/>
             </StackPanel>
             </Border>
-        </Grid>
-        </Grid>
-
-        <!-- ===== MODAL OVERLAY (редактирование операции) ===== -->
-        <Grid Panel.ZIndex="100"
-              Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Rectangle Fill="#66000000"/>
-            <Grid MaxWidth="470" MaxHeight="750"
-                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                  UseLayoutRounding="True" SnapsToDevicePixels="True">
-                <Border Background="White" CornerRadius="20">
-                    <Border.Effect>
-                        <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="48" ShadowDepth="10" Direction="270"/>
-                    </Border.Effect>
-                </Border>
-                <Border Background="White" CornerRadius="20" ClipToBounds="True">
-                    <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
-                </Border>
-            </Grid>
         </Grid>
     </Grid>
 </UserControl>

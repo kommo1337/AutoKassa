@@ -7,7 +7,7 @@ namespace AutoKassa.ViewModels
 {
     public class ReportsViewModel : ViewModelBase
     {
-        private ViewModelBase _currentReport;
+        private BaseReportViewModel _currentReport;
 
         public ReportsViewModel()
         {
@@ -15,11 +15,11 @@ namespace AutoKassa.ViewModels
             ShowCategoryReportCommand          = new RelayCommand(_ => ShowCategoryReport());
             ShowTransactionDetailReportCommand = new RelayCommand(_ => ShowTransactionDetailReport());
 
-            // По умолчанию открываем первую вкладку
+            // По умолчанию открываем отчёт «Баланс» сразу при переходе на вкладку
             ShowBalanceReport();
         }
 
-        public ViewModelBase CurrentReport
+        public BaseReportViewModel CurrentReport
         {
             get => _currentReport;
             set
@@ -41,17 +41,26 @@ namespace AutoKassa.ViewModels
 
         private void ShowBalanceReport()
         {
-            CurrentReport = App.GetService<BalanceReportViewModel>();
+            (_currentReport as IDisposable)?.Dispose();
+            var vm = App.GetService<BalanceReportViewModel>();
+            CurrentReport = vm;
+            RunAsync(vm.InitializeAsync);
         }
 
         private void ShowCategoryReport()
         {
-            CurrentReport = App.GetService<CategoryReportViewModel>();
+            (_currentReport as IDisposable)?.Dispose();
+            var vm = App.GetService<CategoryReportViewModel>();
+            CurrentReport = vm;
+            RunAsync(vm.InitializeAsync);
         }
 
         private void ShowTransactionDetailReport()
         {
-            CurrentReport = App.GetService<TransactionDetailReportViewModel>();
+            (_currentReport as IDisposable)?.Dispose();
+            var vm = App.GetService<TransactionDetailReportViewModel>();
+            CurrentReport = vm;
+            RunAsync(vm.InitializeAsync);
         }
     }
 }

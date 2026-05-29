@@ -36,5 +36,32 @@ namespace AutoKassa.Views
             e.Handled = regex.IsMatch(e.Text);
         }
 
+        /// <summary>
+        /// Tab из поля суммы перемещает фокус сразу на описание
+        /// </summary>
+        private void AmountTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Tab && !Keyboard.IsKeyDown(Key.LeftShift) && !Keyboard.IsKeyDown(Key.RightShift))
+            {
+                e.Handled = true;
+                DescriptionTextBox?.Focus();
+            }
+        }
+
+        /// <summary>
+        /// Enter подтверждает закрытие формы при показанном тосте "Отменить изменения?"
+        /// </summary>
+        protected override void OnPreviewKeyDown(KeyEventArgs e)
+        {
+            base.OnPreviewKeyDown(e);
+
+            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None &&
+                DataContext is TransactionEditViewModel vm && vm.IsCancelToastVisible)
+            {
+                e.Handled = true;
+                vm.ConfirmCancelCommand.Execute(null);
+            }
+        }
+
     }
 }

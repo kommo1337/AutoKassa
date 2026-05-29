@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
@@ -13,6 +14,12 @@ namespace AutoKassa.Services
     /// </summary>
     public class ReportService : IReportService
     {
+        /// <summary>
+        /// Максимальное количество операций в отчёте «Детализация операций».
+        /// Защита от RAM-всплеска и зависаний UI на старых ПК.
+        /// </summary>
+        private const int MaxDetailTransactions = 5000;
+
         private readonly AppDbContext _context;
         private readonly ISettingsService _settingsService;
 
@@ -25,7 +32,7 @@ namespace AutoKassa.Services
         /// <summary>
         /// Сформировать отчет "Баланс за период"
         /// </summary>
-        public async Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo, PaymentType? paymentType = null)
+        public async Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo, PaymentType? paymentType = null, CancellationToken ct = default)
         {
             var report = new BalanceReport
             {
@@ -34,37 +41,56 @@ namespace AutoKassa.Services
             };
 
             // Получаем начальный баланс
-            report.StartBalance = await GetInitialBalanceAsync(dateFrom, paymentType);
+            report.StartBalance = await GetInitialBalanceAsync(dateFrom, paymentType, ct).ConfigureAwait(false);
 
-            // Получаем операции за период (включая весь последний день)
+            // Фильтр за период (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = _context.Transactions
-                .Include(t => t.Category)
+                .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
-            var transactions = await query
-                .OrderBy(t => t.Date)
-                .ToListAsync();
 
-            // Считаем доходы и расходы
-            report.TotalIncome = transactions
-                .Where(t => t.Type == OperationType.Income)
-                .Sum(t => t.Amount);
+            // SQL-агрегация итогов вместо загрузки всех транзакций в память
+            var totals = await query
+                .GroupBy(t => t.Type)
+                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
-            report.TotalExpense = transactions
-                .Where(t => t.Type == OperationType.Expense)
-                .Sum(t => t.Amount);
+            report.TotalIncome  = totals.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
+            report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
+            report.EndBalance   = report.StartBalance + report.TotalIncome - report.TotalExpense;
 
-            report.EndBalance = report.StartBalance + report.TotalIncome - report.TotalExpense;
+            // SQL-агрегация по дням
+            var dailyRows = await query
+                .GroupBy(t => t.Date.Date)
+                .Select(g => new
+                {
+                    Date    = g.Key,
+                    Income  = (decimal)g.Where(t => t.Type == OperationType.Income).Sum(t => (double)t.Amount),
+                    Expense = (decimal)g.Where(t => t.Type == OperationType.Expense).Sum(t => (double)t.Amount)
+                })
+                .OrderBy(x => x.Date)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
-            // Формируем данные по дням
-            report.DailyBalances = GenerateDailyBalances(
-                dateFrom,
-                dateTo,
-                report.StartBalance,
-                transactions
-            );
+            var dailyDict = dailyRows.ToDictionary(r => r.Date, r => (r.Income, r.Expense));
+            report.DailyBalances = new List<DailyBalance>();
+            var currentBalance = report.StartBalance;
+
+            for (var date = dateFrom.Date; date <= dateTo.Date; date = date.AddDays(1))
+            {
+                var (dayIncome, dayExpense) = dailyDict.TryGetValue(date, out var v) ? v : (0m, 0m);
+                currentBalance += dayIncome - dayExpense;
+                report.DailyBalances.Add(new DailyBalance
+                {
+                    Date    = date,
+                    Income  = dayIncome,
+                    Expense = dayExpense,
+                    Balance = currentBalance
+                });
+            }
 
             return report;
         }
@@ -72,7 +98,7 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить начальный баланс на дату
         /// </summary>
-        public async Task<decimal> GetInitialBalanceAsync(DateTime date, PaymentType? paymentType = null)
+        public async Task<decimal> GetInitialBalanceAsync(DateTime date, PaymentType? paymentType = null, CancellationToken ct = default)
         {
             // SQLite не поддерживает Sum для decimal — агрегируем через double на стороне БД,
             // чтобы не материализовать все транзакции в память.
@@ -84,7 +110,8 @@ namespace AutoKassa.Services
             var rows = await query
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
-                .ToListAsync();
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
             var incomeBeforeDate  = rows.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
             var expenseBeforeDate = rows.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
@@ -94,7 +121,7 @@ namespace AutoKassa.Services
             // Начальный баланс из настроек относится только к наличным (касса)
             if (!paymentType.HasValue || paymentType.Value == PaymentType.Cash)
             {
-                var settings = await _settingsService.GetSettingsAsync();
+                var settings = await _settingsService.GetSettingsAsync().ConfigureAwait(false);
                 balance += settings.InitialBalance;
             }
 
@@ -102,57 +129,9 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
-        /// Сформировать данные баланса по дням
-        /// </summary>
-        private List<DailyBalance> GenerateDailyBalances(
-            DateTime dateFrom,
-            DateTime dateTo,
-            decimal startBalance,
-            List<Models.Transaction> transactions)
-        {
-            var dailyBalances = new List<DailyBalance>();
-            var currentBalance = startBalance;
-
-            // Группируем операции по дням
-            var transactionsByDay = transactions
-                .GroupBy(t => t.Date.Date)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            // Проходим по всем дням периода
-            for (var date = dateFrom.Date; date <= dateTo.Date; date = date.AddDays(1))
-            {
-                var dayIncome = 0m;
-                var dayExpense = 0m;
-
-                if (transactionsByDay.ContainsKey(date))
-                {
-                    var dayTransactions = transactionsByDay[date];
-                    dayIncome = dayTransactions
-                        .Where(t => t.Type == OperationType.Income)
-                        .Sum(t => t.Amount);
-                    dayExpense = dayTransactions
-                        .Where(t => t.Type == OperationType.Expense)
-                        .Sum(t => t.Amount);
-                }
-
-                currentBalance += dayIncome - dayExpense;
-
-                dailyBalances.Add(new DailyBalance
-                {
-                    Date = date,
-                    Income = dayIncome,
-                    Expense = dayExpense,
-                    Balance = currentBalance
-                });
-            }
-
-            return dailyBalances;
-        }
-
-        /// <summary>
         /// Сформировать отчет "Структура по категориям"
         /// </summary>
-        public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null)
+        public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, CancellationToken ct = default)
         {
             var report = new CategoryReport
             {
@@ -161,25 +140,35 @@ namespace AutoKassa.Services
                 OperationType = operationType
             };
 
-            // Получаем операции за период с указанным типом (включая весь последний день)
+            // Фильтр за период с указанным типом (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = _context.Transactions
+                .AsNoTracking()
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
-            var transactions = await query.ToListAsync();
 
-            // Общая сумма и количество операций
-            report.TotalAmount = transactions.Sum(t => t.Amount);
-            report.TransactionCount = transactions.Count;
+            // SQL-агрегация общей суммы и количества
+            var totals = await query
+                .GroupBy(_ => 1)
+                .Select(g => new { TotalAmount = (decimal)g.Sum(t => (double)t.Amount), Count = g.Count() })
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
 
-            // Группируем по категориям
+            report.TotalAmount = totals?.TotalAmount ?? 0m;
+            report.TransactionCount = totals?.Count ?? 0;
+
+            // Группировка по категориям — в памяти, т.к. UI требует List<Transaction> в каждой категории.
+            // AsNoTracking + Include выше уже минимизируют накладные расходы EF.
+            // Группируем по CategoryId (а не по ссылке на entity), т.к. при AsNoTracking EF создаёт
+            // отдельные экземпляры Category для каждой строки и GroupBy по ссылке дал бы неверный результат.
+            var transactions = await query.ToListAsync(ct).ConfigureAwait(false);
             var categoryGroups = transactions
-                .GroupBy(t => t.Category)
+                .GroupBy(t => t.CategoryId)
                 .Select(g => new
                 {
-                    Category = g.Key,
+                    Category = g.First().Category,
                     Amount = g.Sum(t => t.Amount),
                     Count = g.Count(),
                     Transactions = g.OrderByDescending(t => t.Date).ToList()
@@ -228,7 +217,8 @@ namespace AutoKassa.Services
             DateTime dateTo,
             OperationType? operationType = null,
             int? categoryId = null,
-            PaymentType? paymentType = null)
+            PaymentType? paymentType = null,
+            CancellationToken ct = default)
         {
             var report = new TransactionDetailReport
             {
@@ -238,10 +228,10 @@ namespace AutoKassa.Services
                 FilterCategoryId = categoryId
             };
 
-            // Получаем операции за период (включая весь последний день)
+            // Фильтр за период (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = _context.Transactions
-                .Include(t => t.Category)
+                .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
 
             // Фильтр по типу оплаты
@@ -262,38 +252,42 @@ namespace AutoKassa.Services
                 query = query.Where(t => t.CategoryId == categoryId.Value);
             }
 
-            var transactions = await query.OrderBy(t => t.Date).ThenBy(t => t.CreatedAt).ToListAsync();
+            // Проецируем сразу в DTO на стороне SQL — без материализации Transaction entities
+            report.Transactions = await query
+                .OrderBy(t => t.Date).ThenBy(t => t.CreatedAt)
+                .Select(t => new TransactionDetailItem
+                {
+                    Id = t.Id,
+                    Date = t.Date,
+                    Type = t.Type,
+                    Amount = t.Amount,
+                    CategoryName = t.Category.Name ?? "Без категории",
+                    Description = t.Description ?? string.Empty,
+                    CreatedAt = t.CreatedAt
+                })
+                .Take(MaxDetailTransactions)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
             // Получаем название категории для фильтра
             if (categoryId.HasValue)
             {
-                var category = await _context.Categories.FindAsync(categoryId.Value);
+                var category = await _context.Categories
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == categoryId.Value, ct)
+                    .ConfigureAwait(false);
                 report.FilterCategoryName = category?.Name;
             }
 
-            // Преобразуем в элементы отчета
-            foreach (var transaction in transactions)
-            {
-                report.Transactions.Add(new TransactionDetailItem
-                {
-                    Id = transaction.Id,
-                    Date = transaction.Date,
-                    Type = transaction.Type,
-                    Amount = transaction.Amount,
-                    CategoryName = transaction.Category?.Name ?? "Без категории",
-                    Description = transaction.Description ?? string.Empty,
-                    CreatedAt = transaction.CreatedAt
-                });
-            }
+            // SQL-агрегация итогов
+            var totals = await query
+                .GroupBy(t => t.Type)
+                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
-            // Считаем итоги
-            report.TotalIncome = transactions
-                .Where(t => t.Type == OperationType.Income)
-                .Sum(t => t.Amount);
-
-            report.TotalExpense = transactions
-                .Where(t => t.Type == OperationType.Expense)
-                .Sum(t => t.Amount);
+            report.TotalIncome  = totals.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
+            report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
 
             return report;
         }

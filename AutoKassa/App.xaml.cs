@@ -18,7 +18,7 @@ namespace AutoKassa
         /// <summary>
         /// Конфигурирование DI контейнера при запуске приложения
         /// </summary>
-        protected override void OnStartup(StartupEventArgs e)
+        protected override async void OnStartup(StartupEventArgs e)
         {
             // Инициализируем Serilog ДО всего остального, чтобы ловить ошибки старта
             var logPath = System.IO.Path.Combine(
@@ -88,11 +88,11 @@ namespace AutoKassa
                 return;
             }
 
-            // Применяем миграции БД до инициализации сервисов (async → sync bridge для OnStartup)
+            // Применяем миграции БД до инициализации сервисов
             try
             {
                 var contextFactory = _serviceProvider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<AppDbContext>>();
-                SettingsService.MigrateAsync(contextFactory).GetAwaiter().GetResult();
+                await SettingsService.MigrateAsync(contextFactory);
             }
             catch (Exception ex)
             {
@@ -107,6 +107,8 @@ namespace AutoKassa
             try
             {
                 settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
+                // Разогреваем кеш настроек, чтобы все sync-чтения работали без I/O
+                await settingsService.GetSettingsAsync();
             }
             catch (Exception ex)
             {
@@ -157,7 +159,7 @@ namespace AutoKassa
         private void ConfigureServices(IServiceCollection services)
         {
             // Регистрация DbContext + фабрика для Singleton-сервисов
-            services.AddDbContext<AppDbContext>();
+            services.AddDbContext<AppDbContext>(ServiceLifetime.Transient);
             services.AddDbContextFactory<AppDbContext>();
 
             // Регистрация базовых сервисов
@@ -167,9 +169,9 @@ namespace AutoKassa
             services.AddSingleton<IDialogService, DialogService>();
             services.AddSingleton<IToastNotificationService, ToastNotificationService>();
             services.AddSingleton<ILockService, LockService>();
-            services.AddScoped<ITransactionService, TransactionService>();
-            services.AddScoped<ICategoryService, CategoryService>();
-            services.AddScoped<IReportService, ReportService>();
+            services.AddTransient<ITransactionService, TransactionService>();
+            services.AddTransient<ICategoryService, CategoryService>();
+            services.AddTransient<IReportService, ReportService>();
             services.AddSingleton<IExportService, ExportService>();
 
             // Регистрация ViewModels

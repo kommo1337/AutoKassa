@@ -301,7 +301,7 @@ namespace AutoKassa.ViewModels
 
         #region Логика настройки
 
-        private void Continue()
+        private async void Continue()
         {
             // Валидация всех полей
             ValidatePassword();
@@ -322,7 +322,7 @@ namespace AutoKassa.ViewModels
                 var answerHash = _passwordService.HashPassword(Answer.Trim().ToLower()); // Приводим к нижнему регистру для проверки
 
                 // Сохраняем в настройки
-                _settingsService.SetPassword(
+                await _settingsService.SetPasswordAsync(
                     passwordHash,
                     SelectedQuestion.Question,
                     answerHash,

@@ -3,104 +3,140 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:reports="clr-namespace:AutoKassa.ViewModels.Reports"
              xmlns:reportsViews="clr-namespace:AutoKassa.Views.Reports"
+             xmlns:views="clr-namespace:AutoKassa.Views"
              Background="{StaticResource BackgroundBrush}">
 
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+        <!-- Main content (blurs when modal open) -->
+        <Grid x:Name="MainContent">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentReport.IsModalOpen}" Value="True">
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <BlurEffect Radius="6"/>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
 
-        <!-- ШАПКА С ВКЛАДКАМИ -->
-        <Border Grid.Row="0"
-                Background="{StaticResource CardBgBrush}"
-                BorderBrush="{StaticResource BorderLightBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="24,0">
-            <Grid Height="60">
-                <!-- Заголовок -->
-                <TextBlock Text="Отчёты"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           VerticalAlignment="Center"/>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-                <!-- Pill-вкладки по центру -->
-                <Border HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="#F1F3F5"
-                        CornerRadius="10"
-                        Padding="4">
-                    <StackPanel Orientation="Horizontal">
+            <!-- ШАПКА С ВКЛАДКАМИ -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource CardBgBrush}"
+                    BorderBrush="{StaticResource BorderLightBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="24,0">
+                <Grid Height="60">
+                    <!-- Заголовок -->
+                    <TextBlock Text="Отчёты"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center"/>
 
-                        <!-- Баланс -->
-                        <Button Content="Баланс за период"
-                                Command="{Binding ShowBalanceReportCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsBalanceActive}" Value="True">
-                                            <Setter Property="Background" Value="White"/>
-                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                            <Setter Property="FontWeight" Value="SemiBold"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
+                    <!-- Pill-вкладки по центру -->
+                    <Border HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Background="#F1F3F5"
+                            CornerRadius="10"
+                            Padding="4">
+                        <StackPanel Orientation="Horizontal">
 
-                        <!-- По категориям -->
-                        <Button Content="По категориям"
-                                Command="{Binding ShowCategoryReportCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsCategoryActive}" Value="True">
-                                            <Setter Property="Background" Value="White"/>
-                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                            <Setter Property="FontWeight" Value="SemiBold"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
+                            <!-- Баланс -->
+                            <Button Content="Баланс за период"
+                                    Command="{Binding ShowBalanceReportCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBalanceActive}" Value="True">
+                                                <Setter Property="Background" Value="White"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
 
-                        <!-- Детализация -->
-                        <Button Content="Детализация операций"
-                                Command="{Binding ShowTransactionDetailReportCommand}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsDetailActive}" Value="True">
-                                            <Setter Property="Background" Value="White"/>
-                                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                                            <Setter Property="FontWeight" Value="SemiBold"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
+                            <!-- По категориям -->
+                            <Button Content="По категориям"
+                                    Command="{Binding ShowCategoryReportCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCategoryActive}" Value="True">
+                                                <Setter Property="Background" Value="White"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
 
-                    </StackPanel>
+                            <!-- Детализация -->
+                            <Button Content="Детализация операций"
+                                    Command="{Binding ShowTransactionDetailReportCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDetailActive}" Value="True">
+                                                <Setter Property="Background" Value="White"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- КОНТЕНТ -->
+            <ContentControl Grid.Row="1"
+                            Content="{Binding CurrentReport}"
+                            Margin="24,20,24,24">
+                <ContentControl.Resources>
+                    <DataTemplate DataType="{x:Type reports:BalanceReportViewModel}">
+                        <reportsViews:BalanceReportView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type reports:CategoryReportViewModel}">
+                        <reportsViews:CategoryReportView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="{x:Type reports:TransactionDetailReportViewModel}">
+                        <reportsViews:TransactionDetailReportView/>
+                    </DataTemplate>
+                </ContentControl.Resources>
+            </ContentControl>
+        </Grid>
+
+        <!-- ===== MODAL OVERLAY (редактирование операции) ===== -->
+        <Grid Panel.ZIndex="100"
+              Visibility="{Binding CurrentReport.IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Rectangle Fill="#66000000"/>
+            <Grid MaxWidth="470" MaxHeight="750"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  UseLayoutRounding="True" SnapsToDevicePixels="True">
+                <Border Background="White" CornerRadius="20">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="48" ShadowDepth="10" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Background="White" CornerRadius="20" ClipToBounds="True">
+                    <views:TransactionEditView DataContext="{Binding CurrentReport.EditViewModel}"/>
                 </Border>
             </Grid>
-        </Border>
-
-        <!-- КОНТЕНТ -->
-        <ContentControl Grid.Row="1"
-                        Content="{Binding CurrentReport}"
-                        Margin="24,20,24,24">
-            <ContentControl.Resources>
-                <DataTemplate DataType="{x:Type reports:BalanceReportViewModel}">
-                    <reportsViews:BalanceReportView/>
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type reports:CategoryReportViewModel}">
-                    <reportsViews:CategoryReportView/>
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type reports:TransactionDetailReportViewModel}">
-                    <reportsViews:TransactionDetailReportView/>
-                </DataTemplate>
-            </ContentControl.Resources>
-        </ContentControl>
+        </Grid>
     </Grid>
 </UserControl>

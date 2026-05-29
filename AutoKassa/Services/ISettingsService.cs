@@ -10,14 +10,9 @@ namespace AutoKassa.Services
     public interface ISettingsService
     {
         /// <summary>
-        /// Получить настройки приложения
+        /// Получить настройки приложения (из кеша, без I/O при предзагрузке)
         /// </summary>
         AppSettings GetSettings();
-
-        /// <summary>
-        /// Сохранить настройки приложения
-        /// </summary>
-        void SaveSettings(AppSettings settings);
 
         /// <summary>
         /// Проверить, установлен ли пароль
@@ -25,24 +20,9 @@ namespace AutoKassa.Services
         bool IsPasswordSet();
 
         /// <summary>
-        /// Установить пароль
-        /// </summary>
-        void SetPassword(string passwordHash, SecurityQuestion? questionId, string answerHash, string customQuestion = null);
-
-        /// <summary>
-        /// Обновить пароль
-        /// </summary>
-        void UpdatePassword(string newPasswordHash);
-
-        /// <summary>
         /// Получить таймаут автоблокировки (в минутах)
         /// </summary>
         int GetAutoLockTimeout();
-
-        /// <summary>
-        /// Установить таймаут автоблокировки
-        /// </summary>
-        void SetAutoLockTimeout(int minutes);
 
         /// <summary>
         /// Получить текущую тему
@@ -50,31 +30,46 @@ namespace AutoKassa.Services
         string GetTheme();
 
         /// <summary>
-        /// Установить тему
-        /// </summary>
-        void SetTheme(string theme);
-
-        /// <summary>
         /// Получить тип операции по умолчанию
         /// </summary>
         OperationType GetDefaultOperationType();
 
         /// <summary>
-        /// Установить тип операции по умолчанию
-        /// </summary>
-        void SetDefaultOperationType(OperationType type);
-
-        /// <summary>
         /// Получить ID категории по умолчанию для типа операции
         /// </summary>
-        int? GetDefaultCategoryId(OperationType type);
+        Task<int?> GetDefaultCategoryIdAsync(OperationType type);
+
+        /// <summary>
+        /// Установить пароль
+        /// </summary>
+        Task SetPasswordAsync(string passwordHash, SecurityQuestion? questionId, string answerHash, string customQuestion = null);
+
+        /// <summary>
+        /// Обновить пароль
+        /// </summary>
+        Task UpdatePasswordAsync(string newPasswordHash);
+
+        /// <summary>
+        /// Установить таймаут автоблокировки
+        /// </summary>
+        Task SetAutoLockTimeoutAsync(int minutes);
+
+        /// <summary>
+        /// Установить тему
+        /// </summary>
+        Task SetThemeAsync(string theme);
+
+        /// <summary>
+        /// Установить тип операции по умолчанию
+        /// </summary>
+        Task SetDefaultOperationTypeAsync(OperationType type);
 
         /// <summary>
         /// Установить категорию по умолчанию для типа операции
         /// </summary>
-        void SetDefaultCategoryId(OperationType type, int? categoryId);
+        Task SetDefaultCategoryIdAsync(OperationType type, int? categoryId);
 
-        #region Новые асинхронные методы
+        #region Асинхронные методы
 
         /// <summary>
         /// Получить настройки асинхронно
@@ -125,14 +120,14 @@ namespace AutoKassa.Services
         Task RunAutoBackupIfDueAsync();
 
         /// <summary>
-        /// Получить дату последнего резервного копирования
+        /// Получить дату последнего резервного копирования (async)
         /// </summary>
-        DateTime? GetLastBackupDate();
+        Task<DateTime?> GetLastBackupDateAsync();
 
         /// <summary>
-        /// Получить путь к файлу базы данных
+        /// Получить путь к файлу базы данных (async)
         /// </summary>
-        string? GetDatabasePath();
+        Task<string?> GetDatabasePathAsync();
 
         #endregion
     }

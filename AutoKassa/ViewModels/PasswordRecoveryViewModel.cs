@@ -150,7 +150,7 @@ namespace AutoKassa.ViewModels
             return !string.IsNullOrEmpty(Answer) && !IsAnswerVerified;
         }
 
-        private void VerifyAnswer()
+        private async void VerifyAnswer()
         {
             if (string.IsNullOrEmpty(Answer))
             {
@@ -158,7 +158,7 @@ namespace AutoKassa.ViewModels
                 return;
             }
 
-            var settings = _settingsService.GetSettings();
+            var settings = await _settingsService.GetSettingsAsync();
             var normalizedAnswer = Answer.Trim().ToLower();
 
             if (_passwordService.VerifyPassword(normalizedAnswer, settings.SecurityAnswerHash))
@@ -184,7 +184,7 @@ namespace AutoKassa.ViewModels
                    NewPassword == ConfirmNewPassword;
         }
 
-        private void ResetPassword()
+        private async void ResetPassword()
         {
             if (NewPassword.Length < 6)
             {
@@ -202,7 +202,7 @@ namespace AutoKassa.ViewModels
             {
                 // Сохраняем новый пароль
                 var newPasswordHash = _passwordService.HashPassword(NewPassword);
-                _settingsService.UpdatePassword(newPasswordHash);
+                await _settingsService.UpdatePasswordAsync(newPasswordHash);
 
                 _dialogService.ShowInfo("Пароль успешно изменен!");
 

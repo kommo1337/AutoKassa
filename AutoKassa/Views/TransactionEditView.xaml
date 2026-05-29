@@ -229,7 +229,8 @@
                                  HorizontalContentAlignment="Center"
                                  Foreground="#1A1D23"
                                  TabIndex="0"
-                                 PreviewTextInput="AmountTextBox_PreviewTextInput">
+                                 PreviewTextInput="AmountTextBox_PreviewTextInput"
+                                 PreviewKeyDown="AmountTextBox_PreviewKeyDown">
                             <TextBox.InputBindings>
                                 <KeyBinding Key="Enter" Command="{Binding SaveCommand}"/>
                             </TextBox.InputBindings>

@@ -109,6 +109,18 @@ namespace AutoKassa.Services
                 .HasIndex(t => new { t.Date, t.IsDeleted })
                 .HasDatabaseName("IX_Transaction_Date_IsDeleted");
 
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => new { t.Date, t.Type, t.IsDeleted })
+                .HasDatabaseName("IX_Transaction_Date_Type_IsDeleted");
+
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => new { t.Type, t.IsDeleted, t.Date })
+                .HasDatabaseName("IX_Transaction_Type_IsDeleted_Date");
+
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => t.CreatedAt)
+                .HasDatabaseName("IX_Transaction_CreatedAt");
+
             // ========== SEED DATA ==========
             SeedData(modelBuilder);
         }

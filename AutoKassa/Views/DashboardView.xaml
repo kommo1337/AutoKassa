@@ -9,6 +9,12 @@
              FontFamily="Segoe UI"
              TextOptions.TextFormattingMode="Display">
 
+    <UserControl.InputBindings>
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding OpenAddTransactionCommand}"/>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding CloseModalCommand}"/>
+    </UserControl.InputBindings>
+
     <UserControl.Resources>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <converters:OperationTypeToColorConverter x:Key="OperationTypeToColorConverter"/>
@@ -603,7 +609,7 @@
 
                     <!-- Список групп по датам -->
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
+                        <Grid>
                             <!-- Пустое состояние -->
                             <StackPanel HorizontalAlignment="Center" Margin="0,48,0,0"
                                         Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}">
@@ -615,9 +621,15 @@
                                            HorizontalAlignment="Center" Margin="0,6,0,0"/>
                             </StackPanel>
 
-                            <!-- Группы по датам -->
-                            <ItemsControl ItemsSource="{Binding GroupedTransactions}">
-                                <ItemsControl.ItemTemplate>
+                            <!-- Группы по датам — ListBox с виртуализацией для производительности -->
+                            <ListBox ItemsSource="{Binding GroupedTransactions}"
+                                     Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}}"
+                                     VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.VirtualizationMode="Recycling"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     Focusable="False"
+                                     BorderThickness="0" Background="Transparent">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:DateGroup}">
                                         <StackPanel Margin="0,0,0,4">
                                             <!-- Заголовок дня -->
@@ -741,9 +753,21 @@
                                             </ItemsControl>
                                         </StackPanel>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
+                                </ListBox.ItemTemplate>
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <ContentPresenter/>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
+                        </Grid>
                     </ScrollViewer>
                 </Grid>
                 </Border>
@@ -905,7 +929,7 @@
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,28,38"
                 Cursor="Hand"
-                ToolTip="Добавить операцию"
+                ToolTip="Добавить операцию (Ctrl+N)"
                 Panel.ZIndex="50">
             <Button.Template>
                 <ControlTemplate TargetType="Button">

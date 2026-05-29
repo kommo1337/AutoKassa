@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using AutoKassa.Helpers;
@@ -51,7 +52,7 @@ namespace AutoKassa.ViewModels.Reports
             SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
             SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
 
-            MarkInitialized();
+            // Инициализация отложена до первого отображения через InitializeAsync
         }
 
         #region Свойства
@@ -152,11 +153,12 @@ namespace AutoKassa.ViewModels.Reports
         /// <summary>
         /// Загрузка данных отчета
         /// </summary>
-        protected override async Task LoadDataAsync()
-        {
-            Report = await _reportService.GenerateBalanceReportAsync(DateFrom, DateTo, SelectedPaymentType);
+        protected override bool CheckHasData() => Report?.DailyBalances?.Any() == true;
 
-            // Обновляем график
+        protected override async Task LoadDataAsync(CancellationToken ct = default)
+        {
+            Report = await _reportService.GenerateBalanceReportAsync(DateFrom, DateTo, SelectedPaymentType, ct);
+
             UpdateChart();
         }
 
@@ -168,6 +170,11 @@ namespace AutoKassa.ViewModels.Reports
             if (Report == null || Report.DailyBalances == null || !Report.DailyBalances.Any())
                 return;
 
+            PlotModel = BuildChartModel(Report);
+        }
+
+        private static PlotModel BuildChartModel(BalanceReport report)
+        {
             // Создаём новую модель графика
             var model = new PlotModel
             {
@@ -214,7 +221,7 @@ namespace AutoKassa.ViewModels.Reports
                 Fill = OxyColor.FromAColor(100, OxyColor.Parse("#4CAF50")),
                 StrokeThickness = 2
             };
-            foreach (var daily in Report.DailyBalances)
+            foreach (var daily in report.DailyBalances)
             {
                 incomeSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(daily.Date), (double)daily.Income));
             }
@@ -228,7 +235,7 @@ namespace AutoKassa.ViewModels.Reports
                 Fill = OxyColor.FromAColor(100, OxyColor.Parse("#F44336")),
                 StrokeThickness = 2
             };
-            foreach (var daily in Report.DailyBalances)
+            foreach (var daily in report.DailyBalances)
             {
                 expenseSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(daily.Date), (double)daily.Expense));
             }
@@ -246,13 +253,13 @@ namespace AutoKassa.ViewModels.Reports
                 MarkerStroke = OxyColors.White,
                 MarkerStrokeThickness = 2
             };
-            foreach (var daily in Report.DailyBalances)
+            foreach (var daily in report.DailyBalances)
             {
                 balanceSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(daily.Date), (double)daily.Balance));
             }
             model.Series.Add(balanceSeries);
 
-            PlotModel = model;
+            return model;
         }
 
         /// <summary>

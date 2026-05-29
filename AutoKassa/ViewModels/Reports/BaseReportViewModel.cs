@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows.Threading;
 using AutoKassa.Helpers;
 using AutoKassa.Services;
+using AutoKassa.ViewModels;
 
 namespace AutoKassa.ViewModels.Reports
 {
@@ -13,11 +16,17 @@ namespace AutoKassa.ViewModels.Reports
     {
         protected readonly IDialogService _dialogService;
         protected readonly IToastNotificationService _toastService;
+        private CancellationTokenSource? _cts;
         private bool _isLoading;
-        private bool _hasData;
+        private bool _hasData = true;
         private bool _initialized;
         private bool _suppressRefresh;
         private string _activePeriodPreset;
+        private bool _isModalOpen;
+        private TransactionEditViewModel _editViewModel;
+
+        private DispatcherTimer _refreshTimer;
+        private static readonly TimeSpan DebounceInterval = TimeSpan.FromMilliseconds(50);
 
         protected BaseReportViewModel(IDialogService dialogService, IToastNotificationService toastService)
         {
@@ -39,23 +48,40 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
-        /// Помечает VM как инициализированную и запускает первый отчёт.
-        /// Вызывать в конце конструктора наследника.
+        /// Инициализировать VM и сформировать первый отчёт.
+        /// Вызывать при первом отображении экрана, а не в конструкторе.
         /// </summary>
-        protected void MarkInitialized()
+        public virtual Task InitializeAsync()
         {
             _initialized = true;
-            RunAsync(GenerateReportAsync);
+            return GenerateReportAsync();
         }
 
         /// <summary>
         /// Автоматически перегенерировать отчёт при изменении фильтра.
-        /// Не срабатывает до вызова MarkInitialized() или внутри BatchUpdate.
+        /// Не срабатывает до вызова InitializeAsync() или внутри BatchUpdate.
+        /// С задержкой 400 мс (debounce) для защиты от лавинообразных перестроений.
         /// </summary>
         protected void AutoRefresh()
         {
             if (_initialized && !_suppressRefresh)
-                RunAsync(GenerateReportAsync);
+            {
+                if (_refreshTimer == null)
+                {
+                    _refreshTimer = new DispatcherTimer(DebounceInterval, DispatcherPriority.Background,
+                        (s, e) =>
+                        {
+                            _refreshTimer?.Stop();
+                            var newCts = new CancellationTokenSource();
+                            var oldCts = Interlocked.Exchange(ref _cts, newCts);
+                            oldCts?.Cancel();
+                            oldCts?.Dispose();
+                            RunAsync(GenerateReportAsync);
+                        }, Dispatcher.CurrentDispatcher);
+                }
+                _refreshTimer.Stop();
+                _refreshTimer.Start();
+            }
         }
 
         /// <summary>
@@ -87,6 +113,24 @@ namespace AutoKassa.ViewModels.Reports
         {
             get => _hasData;
             set => SetProperty(ref _hasData, value);
+        }
+
+        /// <summary>
+        /// Открыто ли модальное окно редактирования операции
+        /// </summary>
+        public bool IsModalOpen
+        {
+            get => _isModalOpen;
+            set => SetProperty(ref _isModalOpen, value);
+        }
+
+        /// <summary>
+        /// ViewModel модального окна редактирования операции
+        /// </summary>
+        public TransactionEditViewModel EditViewModel
+        {
+            get => _editViewModel;
+            set => SetProperty(ref _editViewModel, value);
         }
 
         /// <summary>
@@ -145,16 +189,31 @@ namespace AutoKassa.ViewModels.Reports
         /// <summary>
         /// Сформировать отчет
         /// </summary>
+        protected override void OnDispose()
+        {
+            _refreshTimer?.Stop();
+            var cts = Interlocked.Exchange(ref _cts, null);
+            cts?.Cancel();
+            cts?.Dispose();
+            base.OnDispose();
+        }
+
         protected async Task GenerateReportAsync()
         {
+            var cts = Interlocked.CompareExchange(ref _cts, null, null) ?? new CancellationTokenSource();
+            var ct = cts.Token;
+
             try
             {
                 IsLoading = true;
-                HasData = false;
 
-                await LoadDataAsync();
+                await LoadDataAsync(ct);
 
-                HasData = true;
+                HasData = CheckHasData();
+            }
+            catch (OperationCanceledException)
+            {
+                // Фильтр изменился — игнорируем устаревший запрос
             }
             catch (Exception ex)
             {
@@ -168,9 +227,15 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
+        /// Проверить, есть ли данные для отображения после загрузки.
+        /// Переопределяется в наследниках для корректного показа плейсхолдера.
+        /// </summary>
+        protected virtual bool CheckHasData() => true;
+
+        /// <summary>
         /// Загрузить данные отчета (переопределяется в наследниках)
         /// </summary>
-        protected abstract Task LoadDataAsync();
+        protected abstract Task LoadDataAsync(CancellationToken ct = default);
 
         /// <summary>
         /// Экспорт в PDF (переопределяется в наследниках)

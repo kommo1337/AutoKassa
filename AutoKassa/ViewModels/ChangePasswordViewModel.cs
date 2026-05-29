@@ -164,12 +164,12 @@ namespace AutoKassa.ViewModels
                    string.IsNullOrEmpty(ConfirmPasswordError);
         }
 
-        private void Save()
+        private async void Save()
         {
             try
             {
                 // Проверяем текущий пароль
-                var settings = _settingsService.GetSettings();
+                var settings = await _settingsService.GetSettingsAsync();
                 if (!BCrypt.Net.BCrypt.Verify(CurrentPassword, settings.PasswordHash))
                 {
                     CurrentPasswordError = "Неверный текущий пароль";
@@ -178,7 +178,7 @@ namespace AutoKassa.ViewModels
 
                 // Хешируем и сохраняем новый пароль
                 var newPasswordHash = BCrypt.Net.BCrypt.HashPassword(NewPassword);
-                _settingsService.UpdatePassword(newPasswordHash);
+                await _settingsService.UpdatePasswordAsync(newPasswordHash);
 
                 _toastService.ShowSuccess("Пароль успешно изменен");
                 OnClose?.Invoke(true);

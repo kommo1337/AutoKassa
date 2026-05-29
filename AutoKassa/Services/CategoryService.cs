@@ -29,7 +29,8 @@ namespace AutoKassa.Services
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
-                .ToListAsync();
+                .ToListAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -43,7 +44,8 @@ namespace AutoKassa.Services
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
-                .ToListAsync();
+                .ToListAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -61,7 +63,8 @@ namespace AutoKassa.Services
             return await query
                 .OrderBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
-                .ToListAsync();
+                .ToListAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -69,7 +72,7 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<Category> GetByIdAsync(int id)
         {
-            return await _context.Categories.FindAsync(id);
+            return await _context.Categories.FindAsync(id).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -80,14 +83,14 @@ namespace AutoKassa.Services
             if (string.IsNullOrWhiteSpace(category.Name))
                 throw new ArgumentException("Название категории не может быть пустым", nameof(category));
 
-            if (await ExistsAsync(category.Name, category.Type))
+            if (await ExistsAsync(category.Name, category.Type).ConfigureAwait(false))
                 throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
 
             category.CreatedAt = DateTime.Now;
             category.IsActive = true;
 
             _context.Categories.Add(category);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Добавлена категория ID={Id}, название={Name}, тип={Type}", category.Id, category.Name, category.Type);
             return category;
@@ -101,8 +104,11 @@ namespace AutoKassa.Services
             if (string.IsNullOrWhiteSpace(category.Name))
                 throw new ArgumentException("Название категории не может быть пустым", nameof(category));
 
-            _context.Entry(category).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            if (await ExistsAsync(category.Name, category.Type, category.Id).ConfigureAwait(false))
+                throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
+
+            _context.Update(category);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Обновлена категория ID={Id}, название={Name}", category.Id, category.Name);
         }
@@ -112,11 +118,11 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<bool> DeleteAsync(int id)
         {
-            var category = await _context.Categories.FindAsync(id);
+            var category = await _context.Categories.FindAsync(id).ConfigureAwait(false);
             if (category == null) return false;
 
             // Нельзя удалить категорию, установленную по умолчанию в настройках
-            var settings = await _context.AppSettings.FirstOrDefaultAsync();
+            var settings = await _context.AppSettings.FirstOrDefaultAsync().ConfigureAwait(false);
             if (settings?.DefaultIncomeCategoryId == id || settings?.DefaultExpenseCategoryId == id)
             {
                 _log.Warning("Попытка удалить дефолтную категорию ID={Id} — отклонено", id);
@@ -125,7 +131,8 @@ namespace AutoKassa.Services
 
             // Проверяем, есть ли связанные операции (включая удаленные)
             var hasTransactions = await _context.Transactions
-                .AnyAsync(t => t.CategoryId == id);
+                .AnyAsync(t => t.CategoryId == id)
+                .ConfigureAwait(false);
 
             if (hasTransactions)
             {
@@ -134,7 +141,7 @@ namespace AutoKassa.Services
             }
 
             _context.Categories.Remove(category);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Удалена категория ID={Id}", id);
             return true;
@@ -145,11 +152,11 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task DeactivateAsync(int id)
         {
-            var category = await _context.Categories.FindAsync(id);
+            var category = await _context.Categories.FindAsync(id).ConfigureAwait(false);
             if (category != null)
             {
                 category.IsActive = false;
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync().ConfigureAwait(false);
             }
         }
 
@@ -160,7 +167,8 @@ namespace AutoKassa.Services
         {
             return await _context.Transactions
                 .Where(t => t.CategoryId == categoryId && !t.IsDeleted)
-                .CountAsync();
+                .CountAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -168,28 +176,33 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<bool> ExistsAsync(string name, OperationType type, int? excludeId = null)
         {
-            var query = _context.Categories
-                .Where(c => c.Name == name && c.Type == type);
+            var categories = await _context.Categories
+                .Where(c => c.Type == type)
+                .Select(c => new { c.Id, c.Name })
+                .ToListAsync()
+                .ConfigureAwait(false);
 
-            if (excludeId.HasValue)
-            {
-                query = query.Where(c => c.Id != excludeId.Value);
-            }
-
-            return await query.AnyAsync();
+            return categories.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+                                       (!excludeId.HasValue || c.Id != excludeId.Value));
         }
 
         public async Task ReorderAsync(List<(int Id, int SortOrder)> updates)
         {
+            var ids = updates.Select(u => u.Id).ToList();
+            var categories = await _context.Categories
+                .Where(c => ids.Contains(c.Id))
+                .ToListAsync()
+                .ConfigureAwait(false);
+
+            var categoryDict = categories.ToDictionary(c => c.Id);
             foreach (var (id, sortOrder) in updates)
             {
-                var category = await _context.Categories.FindAsync(id);
-                if (category != null)
+                if (categoryDict.TryGetValue(id, out var category))
                 {
                     category.SortOrder = sortOrder;
                 }
             }
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync().ConfigureAwait(false);
         }
     }
 }

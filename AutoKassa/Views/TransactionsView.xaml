@@ -1179,10 +1179,27 @@
                         </StackPanel>
 
                         <!-- Grouped list -->
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <ItemsControl ItemsSource="{Binding GroupedTransactions}">
-                                <ItemsControl.ItemTemplate>
+                        <ListBox ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}}"
+                                 ItemsSource="{Binding GroupedTransactions}"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 Focusable="False"
+                                 BorderThickness="0" Background="Transparent">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>
                                             <!-- Day header -->
@@ -1679,9 +1696,8 @@
                                             </ItemsControl>
                                         </StackPanel>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
 
                         <!-- Loading overlay -->
                         <Grid Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"

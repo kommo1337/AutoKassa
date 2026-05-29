@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using AutoKassa.Helpers;
@@ -52,12 +53,7 @@ namespace AutoKassa.ViewModels.Reports
             SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
             SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
 
-            RunAsync(async () =>
-            {
-                await LoadCategoriesAsync();
-                MarkInitialized();
-                await GenerateReportAsync();
-            });
+            // Инициализация отложена до первого отображения через InitializeAsync
         }
 
         public override string ReportName => "Детализация операций";
@@ -171,24 +167,32 @@ namespace AutoKassa.ViewModels.Reports
             AutoRefresh();
         }
 
-        protected override async Task LoadDataAsync()
+        public override async Task InitializeAsync()
+        {
+            await LoadCategoriesAsync();
+            await base.InitializeAsync();
+        }
+
+        protected override bool CheckHasData() => Report?.Transactions?.Any() == true;
+
+        protected override async Task LoadDataAsync(CancellationToken ct = default)
         {
             var categoryId = SelectedCategory?.Id > 0 ? SelectedCategory.Id : (int?)null;
             Report = await _reportService.GenerateTransactionDetailReportAsync(
-                DateFrom, DateTo, SelectedOperationType, categoryId, SelectedPaymentType);
-            BuildGroups();
+                DateFrom, DateTo, SelectedOperationType, categoryId, SelectedPaymentType, ct);
+
+            GroupedTransactions = BuildGroups(Report);
         }
 
-        private void BuildGroups()
+        private static List<TransactionDetailGroup> BuildGroups(TransactionDetailReport report)
         {
-            if (Report?.Transactions == null || Report.Transactions.Count == 0)
+            if (report?.Transactions == null || report.Transactions.Count == 0)
             {
-                GroupedTransactions = new List<TransactionDetailGroup>();
-                return;
+                return new List<TransactionDetailGroup>();
             }
 
             var today = DateTime.Today;
-            GroupedTransactions = Report.Transactions
+            return report.Transactions
                 .GroupBy(t => t.Date.Date)
                 .OrderByDescending(g => g.Key)
                 .Select(g =>

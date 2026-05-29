@@ -491,11 +491,13 @@ namespace AutoKassa.ViewModels
             {
                 var categories = await _categoryService.GetActiveAsync();
 
-                Categories.Clear();
-                Categories.Add(new Category { Id = 0, Name = "Все категории" });
+                var newCategories = new ObservableCollection<Category>();
+                newCategories.Add(new Category { Id = 0, Name = "Все категории" });
 
                 foreach (var category in categories)
-                    Categories.Add(category);
+                    newCategories.Add(category);
+
+                Categories = newCategories;
 
                 OnPropertyChanged(nameof(InlineCategories));
                 OnPropertyChanged(nameof(FilteredCategories));
@@ -525,9 +527,7 @@ namespace AutoKassa.ViewModels
                 var transactions = await _transactionService.GetTransactionsAsync(filters, ct);
                 var totalCount   = await _transactionService.GetTotalCountAsync(filters, ct);
 
-                Transactions.Clear();
-                foreach (var t in transactions)
-                    Transactions.Add(t);
+                Transactions = new ObservableCollection<Transaction>(transactions);
 
                 TotalCount = totalCount;
                 OnPropertyChanged(nameof(CanLoadMore));
@@ -558,8 +558,9 @@ namespace AutoKassa.ViewModels
 
                 var transactions = await _transactionService.GetTransactionsAsync(filters);
 
-                foreach (var t in transactions)
-                    Transactions.Add(t);
+                var combined = Transactions.ToList();
+                combined.AddRange(transactions);
+                Transactions = new ObservableCollection<Transaction>(combined);
 
                 OnPropertyChanged(nameof(DisplayInfo));
                 OnPropertyChanged(nameof(CanLoadMore));
@@ -618,7 +619,7 @@ namespace AutoKassa.ViewModels
                 foreach (var item in oldGroup.Items)
                     item.SelectionChanged = null;
 
-            GroupedTransactions.Clear();
+            var newGroups = new ObservableCollection<SelectableDateGroup>();
             var grouped = Transactions.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
 
             foreach (var g in grouped)
@@ -639,8 +640,10 @@ namespace AutoKassa.ViewModels
                     Items = items
                 };
                 group.InitInline(_categories, GroupInlineSaveAsync, _toastService);
-                GroupedTransactions.Add(group);
+                newGroups.Add(group);
             }
+
+            GroupedTransactions = newGroups;
 
             OnPropertyChanged(nameof(HasTransactions));
             RefreshSelectionState();

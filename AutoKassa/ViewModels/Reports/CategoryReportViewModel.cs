@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using AutoKassa.Helpers;
@@ -31,10 +32,6 @@ namespace AutoKassa.ViewModels.Reports
         private ObservableCollection<DonutSliceItem> _donutSlices = new();
         private PaymentType? _selectedPaymentType;
         private ObservableCollection<ExpandableCategoryItem> _expandableItems = new();
-
-        // Modal edit
-        private bool _isModalOpen;
-        private TransactionEditViewModel _editViewModel;
 
         public CategoryReportViewModel(
             IReportService reportService,
@@ -82,7 +79,7 @@ namespace AutoKassa.ViewModels.Reports
                     await DeleteTransactionAsync(t);
             });
 
-            MarkInitialized();
+            // Инициализация отложена до первого отображения через InitializeAsync
         }
 
         #region Properties
@@ -157,18 +154,6 @@ namespace AutoKassa.ViewModels.Reports
             set => SetProperty(ref _expandableItems, value);
         }
 
-        public bool IsModalOpen
-        {
-            get => _isModalOpen;
-            set => SetProperty(ref _isModalOpen, value);
-        }
-
-        public TransactionEditViewModel EditViewModel
-        {
-            get => _editViewModel;
-            set => SetProperty(ref _editViewModel, value);
-        }
-
         public List<OperationTypeItem> OperationTypes { get; } = new List<OperationTypeItem>
         {
             new OperationTypeItem { Type = OperationType.Expense, Name = "Расходы" },
@@ -225,9 +210,11 @@ namespace AutoKassa.ViewModels.Reports
             AutoRefresh();
         }
 
-        protected override async Task LoadDataAsync()
+        protected override bool CheckHasData() => Report?.CategoryItems?.Any() == true;
+
+        protected override async Task LoadDataAsync(CancellationToken ct = default)
         {
-            Report = await _reportService.GenerateCategoryReportAsync(DateFrom, DateTo, SelectedOperationType, SelectedPaymentType);
+            Report = await _reportService.GenerateCategoryReportAsync(DateFrom, DateTo, SelectedOperationType, SelectedPaymentType, ct);
             UpdateChart();
             BuildExpandableItems();
         }

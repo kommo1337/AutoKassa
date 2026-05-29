@@ -25,6 +25,7 @@ namespace AutoKassa.Services
         public async Task<List<Transaction>> GetTransactionsAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
             var query = _context.Transactions
+                .AsNoTracking()
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted);
 
@@ -33,19 +34,19 @@ namespace AutoKassa.Services
 
             // SQLite LOWER() не поддерживает Unicode (кириллицу), поэтому
             // поиск по описанию выполняется в памяти, после SQL-фильтрации.
+            // Для защиты от RAM-всплеска на больших таблицах ограничиваем выборку.
             if (!string.IsNullOrWhiteSpace(filters.SearchText))
             {
-                var all = await query.ToListAsync(ct);
-                return all
+                var candidates = await query.ToListAsync(ct).ConfigureAwait(false);
+                var filtered = candidates
                     .Where(t => t.Description != null &&
                                 t.Description.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase))
-                    .Skip(filters.Skip)
-                    .Take(filters.Take)
                     .ToList();
+                return filtered.Skip(filters.Skip).Take(filters.Take).ToList();
             }
 
             query = query.Skip(filters.Skip).Take(filters.Take);
-            return await query.ToListAsync(ct);
+            return await query.ToListAsync(ct).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -54,28 +55,30 @@ namespace AutoKassa.Services
         public async Task<int> GetTotalCountAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
             var query = _context.Transactions
+                .AsNoTracking()
                 .Where(t => !t.IsDeleted);
 
             query = ApplyFilters(query, filters);
 
             if (!string.IsNullOrWhiteSpace(filters.SearchText))
             {
-                var all = await query.Select(t => t.Description).ToListAsync(ct);
-                return all.Count(d => d != null &&
-                                      d.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase));
+                var descriptions = await query.Select(t => t.Description).ToListAsync(ct).ConfigureAwait(false);
+                return descriptions.Count(d => d != null &&
+                                               d.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase));
             }
 
-            return await query.CountAsync(ct);
+            return await query.CountAsync(ct).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Получить операцию по ID
+        /// Получить операцию по ID (tracked, для редактирования)
         /// </summary>
         public async Task<Transaction> GetByIdAsync(int id)
         {
             return await _context.Transactions
                 .Include(t => t.Category)
-                .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
+                .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -87,7 +90,8 @@ namespace AutoKassa.Services
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
 
             var categoryExists = await _context.Categories
-                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive);
+                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive)
+                .ConfigureAwait(false);
             if (!categoryExists)
                 throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
 
@@ -95,10 +99,10 @@ namespace AutoKassa.Services
             transaction.IsDeleted = false;
 
             _context.Transactions.Add(transaction);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             // Загружаем категорию
-            await _context.Entry(transaction).Reference(t => t.Category).LoadAsync();
+            await _context.Entry(transaction).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
 
             _log.Information("Добавлена операция ID={Id}, тип={Type}, сумма={Amount}", transaction.Id, transaction.Type, transaction.Amount);
             return transaction;
@@ -113,17 +117,18 @@ namespace AutoKassa.Services
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
 
             var categoryExists = await _context.Categories
-                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive);
+                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive)
+                .ConfigureAwait(false);
             if (!categoryExists)
                 throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
 
             transaction.UpdatedAt = DateTime.Now;
 
-            _context.Entry(transaction).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            _context.Update(transaction);
+            await _context.SaveChangesAsync().ConfigureAwait(false);
 
             // Обновляем категорию
-            await _context.Entry(transaction).Reference(t => t.Category).LoadAsync();
+            await _context.Entry(transaction).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
 
             _log.Information("Обновлена операция ID={Id}, сумма={Amount}", transaction.Id, transaction.Amount);
         }
@@ -133,12 +138,12 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task DeleteAsync(int id)
         {
-            var transaction = await _context.Transactions.FindAsync(id);
+            var transaction = await _context.Transactions.FindAsync(id).ConfigureAwait(false);
             if (transaction != null)
             {
                 transaction.IsDeleted = true;
                 transaction.UpdatedAt = DateTime.Now;
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync().ConfigureAwait(false);
                 _log.Information("Удалена операция ID={Id}", id);
             }
         }
@@ -148,12 +153,12 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task RestoreAsync(int id)
         {
-            var transaction = await _context.Transactions.FindAsync(id);
+            var transaction = await _context.Transactions.FindAsync(id).ConfigureAwait(false);
             if (transaction != null)
             {
                 transaction.IsDeleted = false;
                 transaction.UpdatedAt = DateTime.Now;
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync().ConfigureAwait(false);
                 _log.Information("Восстановлена операция ID={Id}", id);
             }
         }
@@ -164,12 +169,14 @@ namespace AutoKassa.Services
         public async Task<List<Transaction>> GetRecentAsync(int count = 10)
         {
             return await _context.Transactions
+                .AsNoTracking()
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted)
                 .OrderByDescending(t => t.Date)
                 .ThenByDescending(t => t.CreatedAt)
                 .Take(count)
-                .ToListAsync();
+                .ToListAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -185,7 +192,8 @@ namespace AutoKassa.Services
             var rows = await query
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount), Count = g.Count() })
-                .ToListAsync(ct);
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
             var incomeRow  = rows.FirstOrDefault(r => r.Type == OperationType.Income);
             var expenseRow = rows.FirstOrDefault(r => r.Type == OperationType.Expense);
@@ -215,7 +223,8 @@ namespace AutoKassa.Services
                     Expense = (decimal)g.Where(t => t.Type == OperationType.Expense).Sum(t => (double)t.Amount)
                 })
                 .OrderBy(x => x.Date)
-                .ToListAsync(ct);
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
             return rows.Select(r => new DailyTotalsItem
             {
@@ -233,7 +242,7 @@ namespace AutoKassa.Services
         {
             var dateTo = to.Date.AddDays(1);
             var query = _context.Transactions
-                .Include(t => t.Category)
+                .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date < dateTo);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
@@ -242,7 +251,8 @@ namespace AutoKassa.Services
                 .Select(g => new { Name = g.Key, Total = g.Sum(t => (double)t.Amount) })
                 .OrderByDescending(x => x.Total)
                 .Take(count)
-                .ToListAsync(ct);
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
 
             return rows.Select(r => (r.Name, (decimal)r.Total)).ToList();
         }
@@ -284,9 +294,6 @@ namespace AutoKassa.Services
             {
                 query = query.Where(t => t.CategoryId == filters.CategoryId.Value);
             }
-
-            // Поиск по описанию выполняется в памяти (см. GetTransactionsAsync/GetTotalCountAsync):
-            // SQLite LOWER() не поддерживает Unicode, поэтому фильтрация по SearchText здесь пропущена.
 
             // Фильтр по сумме
             if (filters.AmountFrom.HasValue)

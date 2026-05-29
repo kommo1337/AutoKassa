@@ -106,6 +106,8 @@ namespace AutoKassa.ViewModels
             SelectPeriodCommand = new RelayCommand(period => SelectPeriod((PeriodType)period));
             ApplyCustomPeriodCommand = new RelayCommand(async _ => await LoadDataAsync());
             OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
+            RefreshCommand = new RelayCommand(_ => RunAsync(LoadDataAsync));
+            CloseModalCommand = new RelayCommand(_ => { if (IsModalOpen) IsModalOpen = false; });
 
             // Команды операций (параметр = конкретная транзакция или null → используем SelectedTransaction)
             OpenTransactionCommand = new RelayCommand(
@@ -462,6 +464,8 @@ namespace AutoKassa.ViewModels
         public ICommand SelectPeriodCommand { get; }
         public ICommand ApplyCustomPeriodCommand { get; }
         public ICommand OpenAddTransactionCommand { get; }
+        public ICommand RefreshCommand { get; }
+        public ICommand CloseModalCommand { get; }
         public ICommand OpenTransactionCommand { get; }
         public ICommand EditTransactionCommand { get; }
         public ICommand DeleteTransactionCommand { get; }
@@ -525,16 +529,16 @@ namespace AutoKassa.ViewModels
             var cardTask = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, PaymentType.NonCash, ct);
             await Task.WhenAll(allTask, cashTask, cardTask);
 
-            var (income, expense, _, _) = allTask.Result;
+            var (income, expense, _, _) = await allTask;
             TotalIncome  = income;
             TotalExpense = expense;
             Profit       = income - expense;
             Profitability = income > 0 ? ((income - expense) / income) * 100 : 0;
 
-            var (ci, ce, _, _) = cashTask.Result;
+            var (ci, ce, _, _) = await cashTask;
             CashIncome = ci; CashExpense = ce;
             CashProfit = ci - ce;
-            var (ni, ne, _, _) = cardTask.Result;
+            var (ni, ne, _, _) = await cardTask;
             NonCashIncome = ni; NonCashExpense = ne;
             NonCashProfit = ni - ne;
 
@@ -573,27 +577,21 @@ namespace AutoKassa.ViewModels
             };
             var list = await _transactionService.GetTransactionsAsync(filters, ct);
 
-            RecentTransactions.Clear();
-            foreach (var t in list)
-                RecentTransactions.Add(t);
+            RecentTransactions = new ObservableCollection<Transaction>(list);
             HasTransactions = RecentTransactions.Any();
 
             // Группировка по дням из загруженных записей
-            GroupedTransactions.Clear();
             var grouped = list
                 .GroupBy(t => t.Date.Date)
                 .OrderByDescending(g => g.Key);
 
-            foreach (var g in grouped)
-            {
-                var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
-                GroupedTransactions.Add(new DateGroup
+            GroupedTransactions = new ObservableCollection<DateGroup>(
+                grouped.Select(g => new DateGroup
                 {
                     Date     = g.Key,
-                    DayTotal = dayTotal,
+                    DayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount),
                     Items    = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
-                });
-            }
+                }));
 
             // Статистика — SQL-агрегация вместо in-memory по всем записям
             var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
@@ -603,21 +601,19 @@ namespace AutoKassa.ViewModels
 
             await Task.WhenAll(totalsTask, dailyTask, topExpTask, topIncTask);
 
-            var (_, _, incCount, expCount) = totalsTask.Result;
-            var dailyGroups = dailyTask.Result;
+            var (_, _, incCount, expCount) = await totalsTask;
+            var dailyGroups = await dailyTask;
 
             StatsCount      = await _transactionService.GetTotalCountAsync(new TransactionFilterParameters { DateFrom = DateFrom, DateTo = DateTo, Take = 1 }, ct);
             StatsDays       = dailyGroups.Count;
             StatsAvgExpense = expCount > 0 ? TotalExpense / expCount : 0;
             StatsAvgIncome  = incCount > 0 ? TotalIncome  / incCount : 0;
 
-            TopExpenses.Clear();
-            foreach (var (name, total) in topExpTask.Result)
-                TopExpenses.Add(new CategorySummaryItem { Name = name, Total = total });
+            TopExpenses = new ObservableCollection<CategorySummaryItem>(
+                (await topExpTask).Select(x => new CategorySummaryItem { Name = x.Name, Total = x.Total }));
 
-            TopIncomes.Clear();
-            foreach (var (name, total) in topIncTask.Result)
-                TopIncomes.Add(new CategorySummaryItem { Name = name, Total = total });
+            TopIncomes = new ObservableCollection<CategorySummaryItem>(
+                (await topIncTask).Select(x => new CategorySummaryItem { Name = x.Name, Total = x.Total }));
         }
 
         /// <summary>
@@ -644,13 +640,13 @@ namespace AutoKassa.ViewModels
             var cardTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.NonCash, ct);
             await Task.WhenAll(allTask, cashTask, cardTask);
 
-            var (allIncome, allExpense, _, _) = allTask.Result;
+            var (allIncome, allExpense, _, _) = await allTask;
             CurrentCashBalance = settings.InitialBalance + allIncome - allExpense;
 
-            var (cashInc, cashExp, _, _) = cashTask.Result;
+            var (cashInc, cashExp, _, _) = await cashTask;
             CashBalance = settings.InitialBalance + cashInc - cashExp;
 
-            var (cardInc, cardExp, _, _) = cardTask.Result;
+            var (cardInc, cardExp, _, _) = await cardTask;
             NonCashBalance = cardInc - cardExp;
         }
 
@@ -660,8 +656,15 @@ namespace AutoKassa.ViewModels
         private async Task LoadChartDataAsync(CancellationToken ct = default)
         {
             var groupedData = await _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct: ct);
+            var chartSettings = await _settingsService.GetSettingsAsync();
 
-            // Создание модели графика
+            // Построение модели графика в пуле потоков, чтобы не блокировать UI
+            var model = await Task.Run(() => BuildChartModel(groupedData, chartSettings), ct);
+            ChartModel = model;
+        }
+
+        private static PlotModel BuildChartModel(List<DailyTotalsItem> groupedData, AppSettings chartSettings)
+        {
             var model = new PlotModel
             {
                 PlotAreaBorderThickness = new OxyThickness(0),
@@ -717,7 +720,6 @@ namespace AutoKassa.ViewModels
             };
 
             // Накопительный баланс
-            var chartSettings = await _settingsService.GetSettingsAsync();
             decimal runningIncome = 0;
             decimal runningExpense = 0;
             decimal initialBalance = chartSettings.InitialBalance;
@@ -738,7 +740,7 @@ namespace AutoKassa.ViewModels
             model.Series.Add(expenseSeries);
             model.Series.Add(profitSeries);
 
-            ChartModel = model;
+            return model;
         }
 
         /// <summary>
@@ -872,6 +874,11 @@ namespace AutoKassa.ViewModels
             var cts = System.Threading.Interlocked.Exchange(ref _loadCts, null);
             cts?.Cancel();
             cts?.Dispose();
+
+            if (QuickAdd != null)
+            {
+                QuickAdd.OnTransactionAdded = null;
+            }
         }
 
         #endregion

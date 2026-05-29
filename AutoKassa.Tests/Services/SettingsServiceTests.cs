@@ -34,11 +34,11 @@ namespace AutoKassa.Tests.Services
         }
 
         [Fact]
-        public void SaveSettings_PersistsChanges()
+        public async Task SaveSettings_PersistsChanges()
         {
             var settings = _svc.GetSettings();
             settings.AutoLockTimeout = 99;
-            _svc.SaveSettings(settings);
+            await _svc.SaveSettingsAsync(settings);
 
             // Создаём новый сервис для проверки persistance
             var svc2 = new SettingsService(_factory);
@@ -50,7 +50,7 @@ namespace AutoKassa.Tests.Services
         {
             var settings = _svc.GetSettings();
             settings.PasswordHash = "preserved-hash";
-            _svc.SaveSettings(settings);
+            await _svc.SaveSettingsAsync(settings);
 
             await _svc.ResetToDefaultsAsync();
 
@@ -63,7 +63,7 @@ namespace AutoKassa.Tests.Services
             var settings = _svc.GetSettings();
             settings.AutoLockTimeout = 999;
             settings.Theme = "Dark";
-            _svc.SaveSettings(settings);
+            await _svc.SaveSettingsAsync(settings);
 
             await _svc.ResetToDefaultsAsync();
 
@@ -73,41 +73,41 @@ namespace AutoKassa.Tests.Services
         }
 
         [Fact]
-        public void IsPasswordSet_ReturnsFalse_WhenEmpty()
+        public async Task IsPasswordSet_ReturnsFalse_WhenEmpty()
         {
             var settings = _svc.GetSettings();
             settings.PasswordHash = string.Empty;
-            _svc.SaveSettings(settings);
+            await _svc.SaveSettingsAsync(settings);
 
             _svc.IsPasswordSet().Should().BeFalse();
         }
 
         [Fact]
-        public void IsPasswordSet_ReturnsTrue_WhenHashSet()
+        public async Task IsPasswordSet_ReturnsTrue_WhenHashSet()
         {
             var settings = _svc.GetSettings();
             settings.PasswordHash = "$2a$10$somevalidhash";
-            _svc.SaveSettings(settings);
+            await _svc.SaveSettingsAsync(settings);
 
             _svc.IsPasswordSet().Should().BeTrue();
         }
 
         [Fact]
-        public void SetDefaultCategoryId_Income_SetsCorrectField()
+        public async Task SetDefaultCategoryId_Income_SetsCorrectField()
         {
-            _svc.SetDefaultCategoryId(OperationType.Income, 42);
+            await _svc.SetDefaultCategoryIdAsync(OperationType.Income, 42);
 
-            _svc.GetDefaultCategoryId(OperationType.Income).Should().Be(42);
-            _svc.GetDefaultCategoryId(OperationType.Expense).Should().BeNull();
+            (await _svc.GetDefaultCategoryIdAsync(OperationType.Income)).Should().Be(42);
+            (await _svc.GetDefaultCategoryIdAsync(OperationType.Expense)).Should().BeNull();
         }
 
         [Fact]
-        public void SetDefaultCategoryId_Expense_SetsCorrectField()
+        public async Task SetDefaultCategoryId_Expense_SetsCorrectField()
         {
-            _svc.SetDefaultCategoryId(OperationType.Expense, 7);
+            await _svc.SetDefaultCategoryIdAsync(OperationType.Expense, 7);
 
-            _svc.GetDefaultCategoryId(OperationType.Expense).Should().Be(7);
-            _svc.GetDefaultCategoryId(OperationType.Income).Should().BeNull();
+            (await _svc.GetDefaultCategoryIdAsync(OperationType.Expense)).Should().Be(7);
+            (await _svc.GetDefaultCategoryIdAsync(OperationType.Income)).Should().BeNull();
         }
 
         [Fact]
@@ -120,9 +120,9 @@ namespace AutoKassa.Tests.Services
         }
 
         [Fact]
-        public void SetTheme_PersistsAndUpdatesCachedSettings()
+        public async Task SetTheme_PersistsAndUpdatesCachedSettings()
         {
-            _svc.SetTheme("Dark");
+            await _svc.SetThemeAsync("Dark");
 
             _svc.GetTheme().Should().Be("Dark");
 
