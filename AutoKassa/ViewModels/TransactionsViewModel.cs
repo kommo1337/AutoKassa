@@ -4,6 +4,7 @@ using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -19,13 +20,16 @@ namespace AutoKassa.ViewModels
         Custom
     }
 
-    public class TransactionsViewModel : ViewModelBase
+    public class TransactionsViewModel : ViewModelBase, INavigationAware
     {
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ISettingsService _settingsService;
+        private readonly IDataChangeService _dataChangeService;
+        private bool _isInitialized;
+        private bool _needsRefresh;
 
         private ObservableCollection<Transaction> _transactions;
         private ObservableCollection<Category> _categories;
@@ -37,6 +41,7 @@ namespace AutoKassa.ViewModels
         private int _pageSize = 100;
         private CancellationTokenSource _loadCts;
         private CancellationTokenSource _searchDebounceCts;
+        private CancellationTokenSource _navigateCts;
         private decimal _totalIncome;
         private decimal _totalExpense;
         private static readonly CultureInfo RuCulture = new("ru-RU");
@@ -78,13 +83,15 @@ namespace AutoKassa.ViewModels
             ICategoryService categoryService,
             IDialogService dialogService,
             IToastNotificationService toastService,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IDataChangeService dataChangeService)
         {
             _transactionService = transactionService;
             _categoryService = categoryService;
             _dialogService = dialogService;
             _toastService = toastService;
             _settingsService = settingsService;
+            _dataChangeService = dataChangeService;
 
             Transactions = new ObservableCollection<Transaction>();
             Categories = new ObservableCollection<Category>();
@@ -140,7 +147,35 @@ namespace AutoKassa.ViewModels
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now;
 
-            RunAsync(InitializeAsync);
+            _dataChangeService.DataChanged += OnDataChanged;
+        }
+
+        public void OnNavigatedTo()
+        {
+            if (!_isInitialized || _needsRefresh)
+            {
+                _needsRefresh = false;
+                _isInitialized = true;
+
+                var cts = new CancellationTokenSource();
+                var old = Interlocked.Exchange(ref _navigateCts, cts);
+                old?.Cancel();
+                old?.Dispose();
+
+                RunAsync(async () =>
+                {
+                    try { await Task.Delay(50, cts.Token); }
+                    catch (OperationCanceledException) { return; }
+                    await InitializeAsync();
+                });
+            }
+        }
+
+        public void OnNavigatedFrom() { }
+
+        private void OnDataChanged()
+        {
+            _needsRefresh = true;
         }
 
         #region Properties — transactions
@@ -527,11 +562,14 @@ namespace AutoKassa.ViewModels
                 var transactions = await _transactionService.GetTransactionsAsync(filters, ct);
                 var totalCount   = await _transactionService.GetTotalCountAsync(filters, ct);
 
-                Transactions = new ObservableCollection<Transaction>(transactions);
+                // Обновляем in-place вместо пересоздания — убирает полную перестройку UI
+                Transactions.Clear();
+                foreach (var t in transactions)
+                    Transactions.Add(t);
 
                 TotalCount = totalCount;
                 OnPropertyChanged(nameof(CanLoadMore));
-                RebuildGroupsAndTotals();
+                await RebuildGroupsAndTotalsAsync();
             }
             catch (OperationCanceledException) { /* фильтр изменился — игнорируем */ }
             catch (Exception ex)
@@ -558,13 +596,12 @@ namespace AutoKassa.ViewModels
 
                 var transactions = await _transactionService.GetTransactionsAsync(filters);
 
-                var combined = Transactions.ToList();
-                combined.AddRange(transactions);
-                Transactions = new ObservableCollection<Transaction>(combined);
+                foreach (var t in transactions)
+                    Transactions.Add(t);
 
                 OnPropertyChanged(nameof(DisplayInfo));
                 OnPropertyChanged(nameof(CanLoadMore));
-                RebuildGroupsAndTotals();
+                await RebuildGroupsAndTotalsAsync();
             }
             catch (Exception ex)
             {
@@ -609,7 +646,7 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(IsExpenseFilter));
         }
 
-        private void RebuildGroupsAndTotals()
+        private async Task RebuildGroupsAndTotalsAsync()
         {
             TotalIncome = Transactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
             TotalExpense = Transactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
@@ -619,31 +656,41 @@ namespace AutoKassa.ViewModels
                 foreach (var item in oldGroup.Items)
                     item.SelectionChanged = null;
 
-            var newGroups = new ObservableCollection<SelectableDateGroup>();
-            var grouped = Transactions.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
+            // Тяжелая группировка и создание обёрток — в пуле потоков
+            var transactionsSnapshot = Transactions.ToList();
+            var categories = _categories;
 
-            foreach (var g in grouped)
+            var newGroups = await Task.Run(() =>
             {
-                var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
-                var items = new ObservableCollection<SelectableTransaction>(
-                    g.OrderByDescending(t => t.CreatedAt).Select(t =>
-                    {
-                        var st = new SelectableTransaction(t);
-                        st.SelectionChanged = RefreshSelectionState;
-                        return st;
-                    }));
+                var groups = new List<SelectableDateGroup>();
+                var grouped = transactionsSnapshot.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
 
-                var group = new SelectableDateGroup
+                foreach (var g in grouped)
                 {
-                    Date = g.Key,
-                    DayTotal = dayTotal,
-                    Items = items
-                };
-                group.InitInline(_categories, GroupInlineSaveAsync, _toastService);
-                newGroups.Add(group);
-            }
+                    var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
+                    var items = new ObservableCollection<SelectableTransaction>(
+                        g.OrderByDescending(t => t.CreatedAt).Select(t => new SelectableTransaction(t)));
 
-            GroupedTransactions = newGroups;
+                    var group = new SelectableDateGroup
+                    {
+                        Date = g.Key,
+                        DayTotal = dayTotal,
+                        Items = items
+                    };
+                    group.InitInline(categories, GroupInlineSaveAsync, _toastService);
+                    groups.Add(group);
+                }
+                return groups;
+            });
+
+            // Обновляем UI-коллекцию in-place
+            GroupedTransactions.Clear();
+            foreach (var group in newGroups)
+            {
+                foreach (var item in group.Items)
+                    item.SelectionChanged = RefreshSelectionState;
+                GroupedTransactions.Add(group);
+            }
 
             OnPropertyChanged(nameof(HasTransactions));
             RefreshSelectionState();
@@ -684,6 +731,7 @@ namespace AutoKassa.ViewModels
                     await _transactionService.DeleteAsync(id);
 
                 await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
 
                 var count = deletedIds.Count;
                 _toastService.ShowDeleteWithUndo(
@@ -784,7 +832,7 @@ namespace AutoKassa.ViewModels
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -796,7 +844,7 @@ namespace AutoKassa.ViewModels
 
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(SelectedTransaction);
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -814,7 +862,8 @@ namespace AutoKassa.ViewModels
                 await _transactionService.DeleteAsync(deletedId);
                 Transactions.Remove(t);
                 TotalCount--;
-                RebuildGroupsAndTotals();
+                await RebuildGroupsAndTotalsAsync();
+                _dataChangeService?.NotifyDataChanged();
 
                 _toastService.ShowDeleteWithUndo(
                     "Операция удалена",
@@ -901,6 +950,7 @@ namespace AutoKassa.ViewModels
                 InlineAmountText = string.Empty;
                 InlineDescription = string.Empty;
                 await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
                 _toastService.ShowSuccess("Операция добавлена");
             }
             catch (Exception ex)
@@ -941,6 +991,7 @@ namespace AutoKassa.ViewModels
 
                 await _transactionService.AddAsync(transaction);
                 await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
                 _toastService.ShowSuccess("Операция добавлена");
             }
             catch (Exception ex)
@@ -951,12 +1002,17 @@ namespace AutoKassa.ViewModels
 
         protected override void OnDispose()
         {
-            var cts = System.Threading.Interlocked.Exchange(ref _loadCts, null);
+            _dataChangeService.DataChanged -= OnDataChanged;
+
+            var cts = Interlocked.Exchange(ref _loadCts, null);
             cts?.Cancel();
             cts?.Dispose();
-            var sCts = System.Threading.Interlocked.Exchange(ref _searchDebounceCts, null);
+            var sCts = Interlocked.Exchange(ref _searchDebounceCts, null);
             sCts?.Cancel();
             sCts?.Dispose();
+            var navCts = Interlocked.Exchange(ref _navigateCts, null);
+            navCts?.Cancel();
+            navCts?.Dispose();
         }
 
         #endregion

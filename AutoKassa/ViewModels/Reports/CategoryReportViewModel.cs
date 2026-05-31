@@ -23,6 +23,7 @@ namespace AutoKassa.ViewModels.Reports
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly ISettingsService _settingsService;
+        private readonly IDataChangeService _dataChangeService;
 
         private DateTime _dateFrom;
         private DateTime _dateTo;
@@ -40,13 +41,15 @@ namespace AutoKassa.ViewModels.Reports
             IToastNotificationService toastService,
             ITransactionService transactionService,
             ICategoryService categoryService,
-            ISettingsService settingsService) : base(dialogService, toastService)
+            ISettingsService settingsService,
+            IDataChangeService dataChangeService) : base(dialogService, toastService)
         {
             _reportService = reportService;
             _exportService = exportService;
             _transactionService = transactionService;
             _categoryService = categoryService;
             _settingsService = settingsService;
+            _dataChangeService = dataChangeService;
 
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now.Date;
@@ -274,7 +277,7 @@ namespace AutoKassa.ViewModels.Reports
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(transaction);
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(GenerateReportAsync); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(GenerateReportAsync); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;

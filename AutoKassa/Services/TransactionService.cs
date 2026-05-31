@@ -12,6 +12,12 @@ namespace AutoKassa.Services
     {
         private static readonly ILogger _log = Log.ForContext<TransactionService>();
 
+        /// <summary>
+        /// Максимальное количество записей, загружаемых в память для текстового поиска.
+        /// Защита от RAM-всплеска при большом количестве операций.
+        /// </summary>
+        private const int MaxInMemoryFilterLimit = 5000;
+
         private readonly AppDbContext _context;
 
         public TransactionService(AppDbContext context)
@@ -37,7 +43,7 @@ namespace AutoKassa.Services
             // Для защиты от RAM-всплеска на больших таблицах ограничиваем выборку.
             if (!string.IsNullOrWhiteSpace(filters.SearchText))
             {
-                var candidates = await query.ToListAsync(ct).ConfigureAwait(false);
+                var candidates = await query.Take(MaxInMemoryFilterLimit).ToListAsync(ct).ConfigureAwait(false);
                 var filtered = candidates
                     .Where(t => t.Description != null &&
                                 t.Description.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase))
@@ -62,9 +68,11 @@ namespace AutoKassa.Services
 
             if (!string.IsNullOrWhiteSpace(filters.SearchText))
             {
-                var descriptions = await query.Select(t => t.Description).ToListAsync(ct).ConfigureAwait(false);
-                return descriptions.Count(d => d != null &&
-                                               d.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase));
+                var descriptions = await query.Select(t => t.Description).Take(MaxInMemoryFilterLimit).ToListAsync(ct).ConfigureAwait(false);
+                var count = descriptions.Count(d => d != null &&
+                                                    d.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase));
+                // Если достигли лимита, возвращаем лимит как приближённое значение.
+                return count >= MaxInMemoryFilterLimit ? MaxInMemoryFilterLimit : count;
             }
 
             return await query.CountAsync(ct).ConfigureAwait(false);
@@ -219,8 +227,8 @@ namespace AutoKassa.Services
                 .Select(g => new
                 {
                     Date    = g.Key,
-                    Income  = (decimal)g.Where(t => t.Type == OperationType.Income).Sum(t => (double)t.Amount),
-                    Expense = (decimal)g.Where(t => t.Type == OperationType.Expense).Sum(t => (double)t.Amount)
+                    Income  = (decimal)g.Sum(t => t.Type == OperationType.Income ? (double)t.Amount : 0),
+                    Expense = (decimal)g.Sum(t => t.Type == OperationType.Expense ? (double)t.Amount : 0)
                 })
                 .OrderBy(x => x.Date)
                 .ToListAsync(ct)

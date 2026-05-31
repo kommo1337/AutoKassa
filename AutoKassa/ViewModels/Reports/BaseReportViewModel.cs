@@ -20,6 +20,19 @@ namespace AutoKassa.ViewModels.Reports
         private bool _isLoading;
         private bool _hasData = true;
         private bool _initialized;
+
+        /// <summary>
+        /// Был ли отчёт инициализирован (InitializeAsync вызывался)
+        /// </summary>
+        public bool IsInitialized => _initialized;
+
+        /// <summary>
+        /// Сбросить флаг инициализации, чтобы при следующем показе отчёт перегенерировался
+        /// </summary>
+        public void Invalidate()
+        {
+            _initialized = false;
+        }
         private bool _suppressRefresh;
         private string _activePeriodPreset;
         private bool _isModalOpen;

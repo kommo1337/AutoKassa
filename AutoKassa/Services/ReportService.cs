@@ -20,6 +20,11 @@ namespace AutoKassa.Services
         /// </summary>
         private const int MaxDetailTransactions = 5000;
 
+        /// <summary>
+        /// Максимальное количество операций, загружаемых в память для отчёта «Структура по категориям».
+        /// </summary>
+        private const int MaxCategoryTransactions = 5000;
+
         private readonly AppDbContext _context;
         private readonly ISettingsService _settingsService;
 
@@ -68,8 +73,8 @@ namespace AutoKassa.Services
                 .Select(g => new
                 {
                     Date    = g.Key,
-                    Income  = (decimal)g.Where(t => t.Type == OperationType.Income).Sum(t => (double)t.Amount),
-                    Expense = (decimal)g.Where(t => t.Type == OperationType.Expense).Sum(t => (double)t.Amount)
+                    Income  = (decimal)g.Sum(t => t.Type == OperationType.Income ? (double)t.Amount : 0),
+                    Expense = (decimal)g.Sum(t => t.Type == OperationType.Expense ? (double)t.Amount : 0)
                 })
                 .OrderBy(x => x.Date)
                 .ToListAsync(ct)
@@ -163,7 +168,7 @@ namespace AutoKassa.Services
             // AsNoTracking + Include выше уже минимизируют накладные расходы EF.
             // Группируем по CategoryId (а не по ссылке на entity), т.к. при AsNoTracking EF создаёт
             // отдельные экземпляры Category для каждой строки и GroupBy по ссылке дал бы неверный результат.
-            var transactions = await query.ToListAsync(ct).ConfigureAwait(false);
+            var transactions = await query.Take(MaxCategoryTransactions).ToListAsync(ct).ConfigureAwait(false);
             var categoryGroups = transactions
                 .GroupBy(t => t.CategoryId)
                 .Select(g => new

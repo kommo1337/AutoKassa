@@ -251,7 +251,7 @@
             </Border>
             <Border Background="Transparent" CornerRadius="12" Padding="20">
                 <Grid>
-                <oxy:PlotView Model="{Binding PlotModel}" Background="Transparent"/>
+                <oxy:PlotView x:Name="Plot" Model="{Binding PlotModel}" Background="Transparent"/>
 
                 <Grid Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
                       Background="#AAFFFFFF">

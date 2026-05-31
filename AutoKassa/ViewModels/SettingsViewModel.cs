@@ -7,18 +7,23 @@ using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    public class SettingsViewModel : ViewModelBase
+    public class SettingsViewModel : ViewModelBase, INavigationAware
     {
         private readonly ISettingsService _settingsService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ICategoryService _categoryService;
         private readonly ITransactionService _transactionService;
+        private readonly IDataChangeService _dataChangeService;
+        private bool _isInitialized;
+        private bool _needsRefresh;
+        private CancellationTokenSource _navigateCts;
 
         #region Поля
 
@@ -99,13 +104,15 @@ namespace AutoKassa.ViewModels
             IDialogService dialogService,
             IToastNotificationService toastService,
             ICategoryService categoryService,
-            ITransactionService transactionService)
+            ITransactionService transactionService,
+            IDataChangeService dataChangeService)
         {
             _settingsService = settingsService;
             _dialogService = dialogService;
             _toastService = toastService;
             _categoryService = categoryService;
             _transactionService = transactionService;
+            _dataChangeService = dataChangeService;
 
             SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => HasUnsavedChanges);
             CancelCommand = new RelayCommand(_ => Cancel());
@@ -117,7 +124,35 @@ namespace AutoKassa.ViewModels
             CreateBackupCommand = new RelayCommand(async _ => await CreateBackupAsync());
             RestoreBackupCommand = new RelayCommand(async _ => await RestoreBackupAsync());
 
-            RunAsync(LoadSettingsAsync);
+            _dataChangeService.DataChanged += OnDataChanged;
+        }
+
+        public void OnNavigatedTo()
+        {
+            if (!_isInitialized || _needsRefresh)
+            {
+                _needsRefresh = false;
+                _isInitialized = true;
+
+                var cts = new CancellationTokenSource();
+                var old = Interlocked.Exchange(ref _navigateCts, cts);
+                old?.Cancel();
+                old?.Dispose();
+
+                RunAsync(async () =>
+                {
+                    try { await Task.Delay(50, cts.Token); }
+                    catch (OperationCanceledException) { return; }
+                    await LoadSettingsAsync();
+                });
+            }
+        }
+
+        public void OnNavigatedFrom() { }
+
+        private void OnDataChanged()
+        {
+            _needsRefresh = true;
         }
 
         #region Свойства
@@ -413,8 +448,28 @@ namespace AutoKassa.ViewModels
             _requirePasswordOnStartup = settings.RequirePasswordOnStartup;
             _passwordExpireDays = settings.PasswordExpireDays;
 
-            // Уведомляем UI одним событием вместо 18 отдельных
-            OnPropertyChanged(string.Empty);
+            // Уведомляем UI о каждом изменённом свойстве вместо массового string.Empty.
+            // Это убирает лишний пересчёт скрытых (Collapsed) элементов и ускоряет переключение.
+            OnPropertyChanged(nameof(AutoLockEnabled));
+            OnPropertyChanged(nameof(AutoLockMinutes));
+            OnPropertyChanged(nameof(ShowNotifications));
+            OnPropertyChanged(nameof(InitialBalance));
+            OnPropertyChanged(nameof(ShowOperationsInSidebar));
+            OnPropertyChanged(nameof(DefaultPageSize));
+            OnPropertyChanged(nameof(ConfirmDelete));
+            OnPropertyChanged(nameof(DefaultOperationType));
+            OnPropertyChanged(nameof(DefaultIncomeCategoryId));
+            OnPropertyChanged(nameof(DefaultExpenseCategoryId));
+            OnPropertyChanged(nameof(DefaultPaymentType));
+            OnPropertyChanged(nameof(SelectedDefaultPeriod));
+            OnPropertyChanged(nameof(AutoGenerateReports));
+            OnPropertyChanged(nameof(BackupEnabled));
+            OnPropertyChanged(nameof(AutoBackupDays));
+            OnPropertyChanged(nameof(BackupPath));
+            OnPropertyChanged(nameof(BackupKeepCount));
+            OnPropertyChanged(nameof(RequirePasswordOnStartup));
+            OnPropertyChanged(nameof(PasswordExpireDays));
+            OnPropertyChanged(nameof(HasUnsavedChanges));
         }
 
         private async Task SaveAsync()
@@ -430,6 +485,7 @@ namespace AutoKassa.ViewModels
 
                 _originalSettings = CloneSettings(_currentSettings);
                 HasUnsavedChanges = false;
+                _dataChangeService?.NotifyDataChanged();
 
                 _toastService.ShowSuccess("Настройки сохранены");
             }
@@ -523,6 +579,7 @@ namespace AutoKassa.ViewModels
 
                 LoadPropertiesFromSettings(_currentSettings);
                 HasUnsavedChanges = false;
+                _dataChangeService?.NotifyDataChanged();
 
                 _toastService.ShowSuccess("Настройки сброшены");
             }
@@ -588,6 +645,7 @@ namespace AutoKassa.ViewModels
                     _originalSettings = CloneSettings(_currentSettings);
                     LoadPropertiesFromSettings(_currentSettings);
                     HasUnsavedChanges = false;
+                    _dataChangeService?.NotifyDataChanged();
 
                     _toastService.ShowSuccess("Настройки импортированы");
                 }
@@ -720,6 +778,14 @@ namespace AutoKassa.ViewModels
         {
             if (!IsLoading)
                 HasUnsavedChanges = true;
+        }
+
+        protected override void OnDispose()
+        {
+            var navCts = Interlocked.Exchange(ref _navigateCts, null);
+            navCts?.Cancel();
+            navCts?.Dispose();
+            base.OnDispose();
         }
 
         private AppSettings CloneSettings(AppSettings source)

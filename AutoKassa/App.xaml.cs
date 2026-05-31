@@ -173,6 +173,7 @@ namespace AutoKassa
             services.AddTransient<ICategoryService, CategoryService>();
             services.AddTransient<IReportService, ReportService>();
             services.AddSingleton<IExportService, ExportService>();
+            services.AddSingleton<IDataChangeService, DataChangeService>();
 
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();

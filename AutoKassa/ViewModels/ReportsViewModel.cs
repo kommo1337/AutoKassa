@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Windows.Input;
 using AutoKassa.Helpers;
 using AutoKassa.Services;
@@ -5,18 +6,23 @@ using AutoKassa.ViewModels.Reports;
 
 namespace AutoKassa.ViewModels
 {
-    public class ReportsViewModel : ViewModelBase
+    public class ReportsViewModel : ViewModelBase, INavigationAware
     {
+        private readonly IDataChangeService _dataChangeService;
+        private readonly Dictionary<Type, BaseReportViewModel> _reportCache = new();
         private BaseReportViewModel _currentReport;
+        private bool _isInitialized;
+        private CancellationTokenSource _navigateCts;
 
-        public ReportsViewModel()
+        public ReportsViewModel(IDataChangeService dataChangeService)
         {
+            _dataChangeService = dataChangeService;
+
             ShowBalanceReportCommand           = new RelayCommand(_ => ShowBalanceReport());
             ShowCategoryReportCommand          = new RelayCommand(_ => ShowCategoryReport());
             ShowTransactionDetailReportCommand = new RelayCommand(_ => ShowTransactionDetailReport());
 
-            // По умолчанию открываем отчёт «Баланс» сразу при переходе на вкладку
-            ShowBalanceReport();
+            _dataChangeService.DataChanged += OnDataChanged;
         }
 
         public BaseReportViewModel CurrentReport
@@ -39,28 +45,91 @@ namespace AutoKassa.ViewModels
         public ICommand ShowCategoryReportCommand          { get; }
         public ICommand ShowTransactionDetailReportCommand { get; }
 
+        public void OnNavigatedTo()
+        {
+            if (!_isInitialized)
+            {
+                _isInitialized = true;
+
+                var cts = new CancellationTokenSource();
+                var old = Interlocked.Exchange(ref _navigateCts, cts);
+                old?.Cancel();
+                old?.Dispose();
+
+                RunAsync(async () =>
+                {
+                    try { await Task.Delay(50, cts.Token); }
+                    catch (OperationCanceledException) { return; }
+                    ShowBalanceReport();
+                });
+            }
+            else if (CurrentReport != null && !CurrentReport.IsInitialized)
+            {
+                var cts = new CancellationTokenSource();
+                var old = Interlocked.Exchange(ref _navigateCts, cts);
+                old?.Cancel();
+                old?.Dispose();
+
+                RunAsync(async () =>
+                {
+                    try { await Task.Delay(50, cts.Token); }
+                    catch (OperationCanceledException) { return; }
+                    await CurrentReport.InitializeAsync();
+                });
+            }
+        }
+
+        public void OnNavigatedFrom() { }
+
+        private void OnDataChanged()
+        {
+            foreach (var report in _reportCache.Values)
+                report.Invalidate();
+        }
+
         private void ShowBalanceReport()
         {
-            (_currentReport as IDisposable)?.Dispose();
-            var vm = App.GetService<BalanceReportViewModel>();
+            if (!_reportCache.TryGetValue(typeof(BalanceReportViewModel), out var vm))
+            {
+                vm = App.GetService<BalanceReportViewModel>();
+                _reportCache[typeof(BalanceReportViewModel)] = vm;
+            }
             CurrentReport = vm;
-            RunAsync(vm.InitializeAsync);
+            if (!vm.IsInitialized)
+                RunAsync(vm.InitializeAsync);
         }
 
         private void ShowCategoryReport()
         {
-            (_currentReport as IDisposable)?.Dispose();
-            var vm = App.GetService<CategoryReportViewModel>();
+            if (!_reportCache.TryGetValue(typeof(CategoryReportViewModel), out var vm))
+            {
+                vm = App.GetService<CategoryReportViewModel>();
+                _reportCache[typeof(CategoryReportViewModel)] = vm;
+            }
             CurrentReport = vm;
-            RunAsync(vm.InitializeAsync);
+            if (!vm.IsInitialized)
+                RunAsync(vm.InitializeAsync);
         }
 
         private void ShowTransactionDetailReport()
         {
-            (_currentReport as IDisposable)?.Dispose();
-            var vm = App.GetService<TransactionDetailReportViewModel>();
+            if (!_reportCache.TryGetValue(typeof(TransactionDetailReportViewModel), out var vm))
+            {
+                vm = App.GetService<TransactionDetailReportViewModel>();
+                _reportCache[typeof(TransactionDetailReportViewModel)] = vm;
+            }
             CurrentReport = vm;
-            RunAsync(vm.InitializeAsync);
+            if (!vm.IsInitialized)
+                RunAsync(vm.InitializeAsync);
+        }
+
+        protected override void OnDispose()
+        {
+            _dataChangeService.DataChanged -= OnDataChanged;
+            var navCts = Interlocked.Exchange(ref _navigateCts, null);
+            navCts?.Cancel();
+            navCts?.Dispose();
+            base.OnDispose();
         }
     }
 }

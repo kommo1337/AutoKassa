@@ -4,6 +4,7 @@
              xmlns:reports="clr-namespace:AutoKassa.ViewModels.Reports"
              xmlns:reportsViews="clr-namespace:AutoKassa.Views.Reports"
              xmlns:views="clr-namespace:AutoKassa.Views"
+
              Background="{StaticResource BackgroundBrush}">
 
     <Grid>
@@ -122,8 +123,17 @@
         </Grid>
 
         <!-- ===== MODAL OVERLAY (редактирование операции) ===== -->
-        <Grid Panel.ZIndex="100"
-              Visibility="{Binding CurrentReport.IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+        <Grid Panel.ZIndex="100">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentReport.IsModalOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Rectangle Fill="#66000000"/>
             <Grid MaxWidth="470" MaxHeight="750"
                   HorizontalAlignment="Center" VerticalAlignment="Center"

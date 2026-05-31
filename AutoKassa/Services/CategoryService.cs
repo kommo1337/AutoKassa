@@ -176,7 +176,19 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<bool> ExistsAsync(string name, OperationType type, int? excludeId = null)
         {
+            // Быстрая проверка exact match на стороне БД (O(1) SQL-запрос).
+            var exactMatch = await _context.Categories
+                .AsNoTracking()
+                .AnyAsync(c => c.Type == type && c.Name == name &&
+                               (!excludeId.HasValue || c.Id != excludeId.Value))
+                .ConfigureAwait(false);
+
+            if (exactMatch) return true;
+
+            // Fallback: case-insensitive проверка в памяти для unicode/кириллицы,
+            // т.к. SQLite LOWER() / COLLATE не гарантируют корректное поведение с кириллицей.
             var categories = await _context.Categories
+                .AsNoTracking()
                 .Where(c => c.Type == type)
                 .Select(c => new { c.Id, c.Name })
                 .ToListAsync()

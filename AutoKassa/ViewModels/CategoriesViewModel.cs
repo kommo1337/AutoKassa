@@ -3,15 +3,20 @@ using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    public class CategoriesViewModel : ViewModelBase
+    public class CategoriesViewModel : ViewModelBase, INavigationAware
     {
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
+        private readonly IDataChangeService _dataChangeService;
+        private bool _isInitialized;
+        private bool _needsRefresh;
+        private CancellationTokenSource _navigateCts;
 
         private ObservableCollection<Category> _incomeCategories;
         private ObservableCollection<Category> _expenseCategories;
@@ -24,11 +29,13 @@ namespace AutoKassa.ViewModels
         public CategoriesViewModel(
             ICategoryService categoryService,
             IDialogService dialogService,
-            IToastNotificationService toastService)
+            IToastNotificationService toastService,
+            IDataChangeService dataChangeService)
         {
             _categoryService = categoryService;
             _dialogService = dialogService;
             _toastService = toastService;
+            _dataChangeService = dataChangeService;
 
             IncomeCategories = new ObservableCollection<Category>();
             ExpenseCategories = new ObservableCollection<Category>();
@@ -38,7 +45,35 @@ namespace AutoKassa.ViewModels
             DeleteCommand = new RelayCommand(async _ => await DeleteCategoryAsync(), _ => SelectedCategory != null);
             FilterCommand = new RelayCommand<string>(type => ApplyFilter(type));
 
-            RunAsync(LoadCategoriesAsync);
+            _dataChangeService.DataChanged += OnDataChanged;
+        }
+
+        public void OnNavigatedTo()
+        {
+            if (!_isInitialized || _needsRefresh)
+            {
+                _needsRefresh = false;
+                _isInitialized = true;
+
+                var cts = new CancellationTokenSource();
+                var old = Interlocked.Exchange(ref _navigateCts, cts);
+                old?.Cancel();
+                old?.Dispose();
+
+                RunAsync(async () =>
+                {
+                    try { await Task.Delay(50, cts.Token); }
+                    catch (OperationCanceledException) { return; }
+                    await LoadCategoriesAsync();
+                });
+            }
+        }
+
+        public void OnNavigatedFrom() { }
+
+        private void OnDataChanged()
+        {
+            _needsRefresh = true;
         }
 
         #region Properties
@@ -161,6 +196,7 @@ namespace AutoKassa.ViewModels
                 IsModalOpen = false;
                 ManagerViewModel = null;
                 RunAsync(LoadCategoriesAsync);
+                _dataChangeService?.NotifyDataChanged();
             };
             ManagerViewModel = vm;
             IsModalOpen = true;
@@ -180,6 +216,7 @@ namespace AutoKassa.ViewModels
                 {
                     await _categoryService.DeactivateAsync(category.Id);
                     await LoadCategoriesAsync();
+                    _dataChangeService?.NotifyDataChanged();
                     _toastService.ShowInfo($"Категория \u00ab{category.Name}\u00bb скрыта из списков выбора");
                 }
                 catch (Exception ex)
@@ -195,6 +232,7 @@ namespace AutoKassa.ViewModels
                     if (deleted)
                     {
                         await LoadCategoriesAsync();
+                        _dataChangeService?.NotifyDataChanged();
                         _toastService.ShowDeleteWithUndo(
                             $"Категория \u00ab{category.Name}\u00bb удалена",
                             async () =>
@@ -208,6 +246,7 @@ namespace AutoKassa.ViewModels
                                 };
                                 await _categoryService.AddAsync(restored);
                                 await LoadCategoriesAsync();
+                                _dataChangeService?.NotifyDataChanged();
                             });
                     }
                     else

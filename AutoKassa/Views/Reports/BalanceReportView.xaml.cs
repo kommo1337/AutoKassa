@@ -9,6 +9,7 @@ namespace AutoKassa.Views.Reports
         public BalanceReportView()
         {
             InitializeComponent();
+            Unloaded += (_, _) => Plot.Model = null;
         }
 
         private void QuickFilter_Click(object sender, RoutedEventArgs e)

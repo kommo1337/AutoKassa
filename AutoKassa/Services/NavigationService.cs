@@ -1,4 +1,4 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AutoKassa.Services
@@ -6,6 +6,7 @@ namespace AutoKassa.Services
     public class NavigationService : INavigationService
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly Dictionary<Type, ViewModelBase> _viewModelCache = new();
         private ViewModelBase _currentView;
 
         public NavigationService(IServiceProvider serviceProvider)
@@ -36,8 +37,27 @@ namespace AutoKassa.Services
         /// </summary>
         public void NavigateTo<TViewModel>() where TViewModel : ViewModelBase
         {
-            var viewModel = _serviceProvider.GetRequiredService<TViewModel>();
-            CurrentView = viewModel;
+            var oldView = _currentView;
+
+            if (!_viewModelCache.TryGetValue(typeof(TViewModel), out var viewModel))
+            {
+                viewModel = _serviceProvider.GetRequiredService<TViewModel>();
+                _viewModelCache[typeof(TViewModel)] = viewModel;
+            }
+
+            // Не делаем ничего, если уже на этой вкладке
+            if (oldView == viewModel)
+                return;
+
+            if (oldView is INavigationAware oldNav)
+                oldNav.OnNavigatedFrom();
+
+            _currentView = viewModel;
+
+            if (viewModel is INavigationAware newNav)
+                newNav.OnNavigatedTo();
+
+            CurrentViewChanged?.Invoke();
         }
 
         /// <summary>
@@ -46,13 +66,31 @@ namespace AutoKassa.Services
         /// </summary>
         public void NavigateTo<TViewModel>(object parameter) where TViewModel : ViewModelBase
         {
-            var viewModel = _serviceProvider.GetRequiredService<TViewModel>();
+            var oldView = _currentView;
+
+            if (!_viewModelCache.TryGetValue(typeof(TViewModel), out var viewModel))
+            {
+                viewModel = _serviceProvider.GetRequiredService<TViewModel>();
+                _viewModelCache[typeof(TViewModel)] = viewModel;
+            }
+
+            // Не делаем ничего, если уже на этой вкладке
+            if (oldView == viewModel)
+                return;
 
             // Если ViewModel имеет метод Initialize, вызываем его с параметром
             var initializeMethod = viewModel.GetType().GetMethod("Initialize");
             initializeMethod?.Invoke(viewModel, new[] { parameter });
 
-            CurrentView = viewModel;
+            if (oldView is INavigationAware oldNav)
+                oldNav.OnNavigatedFrom();
+
+            _currentView = viewModel;
+
+            if (viewModel is INavigationAware newNav)
+                newNav.OnNavigatedTo();
+
+            CurrentViewChanged?.Invoke();
         }
     }
 }

@@ -6,6 +6,7 @@ using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -13,13 +14,16 @@ namespace AutoKassa.ViewModels
     /// <summary>
     /// ViewModel для главного экрана (Dashboard)
     /// </summary>
-    public class DashboardViewModel : ViewModelBase
+    public class DashboardViewModel : ViewModelBase, INavigationAware
     {
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ISettingsService _settingsService;
+        private readonly IDataChangeService _dataChangeService;
+        private bool _isInitialized;
+        private bool _needsRefresh;
 
         #region Поля
 
@@ -38,7 +42,7 @@ namespace AutoKassa.ViewModels
         private PeriodType _selectedPeriod = PeriodType.Month;
         private DateTime _dateFrom;
         private DateTime _dateTo;
-        private bool _isCustomPeriodVisible;
+        private bool _isPeriodPickerOpen;
 
         // Последние операции
         private ObservableCollection<Transaction> _recentTransactions;
@@ -53,6 +57,9 @@ namespace AutoKassa.ViewModels
         private ObservableCollection<DateGroup> _groupedTransactions;
         private ObservableCollection<CategorySummaryItem> _topExpenses;
         private ObservableCollection<CategorySummaryItem> _topIncomes;
+
+        // Debounce навигации — не запускаем загрузку, если пользователь быстро ушёл
+        private CancellationTokenSource _navigateCts;
         private int _statsCount;
         private int _statsDays;
         private decimal _statsAvgExpense;
@@ -79,6 +86,10 @@ namespace AutoKassa.ViewModels
         private bool _isModalOpen;
         private TransactionEditViewModel _editViewModel;
 
+        // Кэш графика — не пересоздаём модель, если данные не изменились
+        private PlotModel? _cachedChartModel;
+        private (DateTime From, DateTime To, decimal InitialBalance) _cachedChartKey;
+
         #endregion
 
         public DashboardViewModel(
@@ -86,13 +97,15 @@ namespace AutoKassa.ViewModels
             ICategoryService categoryService,
             IDialogService dialogService,
             IToastNotificationService toastService,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IDataChangeService dataChangeService)
         {
             _transactionService = transactionService;
             _categoryService = categoryService;
             _dialogService = dialogService;
             _toastService = toastService;
             _settingsService = settingsService;
+            _dataChangeService = dataChangeService;
 
             RecentTransactions = new ObservableCollection<Transaction>();
             GroupedTransactions = new ObservableCollection<DateGroup>();
@@ -100,11 +113,16 @@ namespace AutoKassa.ViewModels
             TopIncomes = new ObservableCollection<CategorySummaryItem>();
 
             QuickAdd = new QuickAddViewModel(transactionService, categoryService, dialogService, toastService);
-            QuickAdd.OnTransactionAdded = async () => await LoadDataAsync();
+            QuickAdd.OnTransactionAdded = async () =>
+            {
+                await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
+            };
 
             // Команды периода
             SelectPeriodCommand = new RelayCommand(period => SelectPeriod((PeriodType)period));
-            ApplyCustomPeriodCommand = new RelayCommand(async _ => await LoadDataAsync());
+            ApplyCustomPeriodCommand = new RelayCommand(async _ => await ApplyCustomPeriodAsync());
+            TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
             OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
             RefreshCommand = new RelayCommand(_ => RunAsync(LoadDataAsync));
             CloseModalCommand = new RelayCommand(_ => { if (IsModalOpen) IsModalOpen = false; });
@@ -123,8 +141,35 @@ namespace AutoKassa.ViewModels
             // Установка начального периода
             SetPeriodDates(PeriodType.Month);
 
-            // Загрузка данных
-            RunAsync(InitializeAsync);
+            _dataChangeService.DataChanged += OnDataChanged;
+        }
+
+        public void OnNavigatedTo()
+        {
+            if (!_isInitialized || _needsRefresh)
+            {
+                _needsRefresh = false;
+                _isInitialized = true;
+
+                var cts = new CancellationTokenSource();
+                var old = Interlocked.Exchange(ref _navigateCts, cts);
+                old?.Cancel();
+                old?.Dispose();
+
+                RunAsync(async () =>
+                {
+                    try { await Task.Delay(50, cts.Token); }
+                    catch (OperationCanceledException) { return; }
+                    await InitializeAsync();
+                });
+            }
+        }
+
+        public void OnNavigatedFrom() { }
+
+        private void OnDataChanged()
+        {
+            _needsRefresh = true;
         }
 
         #region Свойства сводки
@@ -261,11 +306,11 @@ namespace AutoKassa.ViewModels
             {
                 if (SetProperty(ref _selectedPeriod, value))
                 {
-                    IsCustomPeriodVisible = value == PeriodType.Custom;
                     OnPropertyChanged(nameof(IsTodaySelected));
                     OnPropertyChanged(nameof(IsWeekSelected));
                     OnPropertyChanged(nameof(IsMonthSelected));
                     OnPropertyChanged(nameof(IsYearSelected));
+                    OnPropertyChanged(nameof(IsAllTimeSelected));
                     OnPropertyChanged(nameof(IsCustomSelected));
                 }
             }
@@ -275,6 +320,7 @@ namespace AutoKassa.ViewModels
         public bool IsWeekSelected => SelectedPeriod == PeriodType.Week;
         public bool IsMonthSelected => SelectedPeriod == PeriodType.Month;
         public bool IsYearSelected => SelectedPeriod == PeriodType.Year;
+        public bool IsAllTimeSelected => SelectedPeriod == PeriodType.AllTime;
         public bool IsCustomSelected => SelectedPeriod == PeriodType.Custom;
 
         /// <summary>
@@ -296,13 +342,27 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Видимость выбора произвольного периода
+        /// Открыт ли Popup выбора периода
         /// </summary>
-        public bool IsCustomPeriodVisible
+        public bool IsPeriodPickerOpen
         {
-            get => _isCustomPeriodVisible;
-            set => SetProperty(ref _isCustomPeriodVisible, value);
+            get => _isPeriodPickerOpen;
+            set => SetProperty(ref _isPeriodPickerOpen, value);
         }
+
+        /// <summary>
+        /// Текст кнопки выбранного периода (для кнопки как в транзакциях)
+        /// </summary>
+        public string PeriodButtonLabel => SelectedPeriod switch
+        {
+            PeriodType.Today => "Сегодня",
+            PeriodType.Week => "Неделя",
+            PeriodType.Month => "Месяц",
+            PeriodType.Year => "Год",
+            PeriodType.AllTime => "Всё время",
+            PeriodType.Custom => "Период",
+            _ => "Период"
+        };
 
         #endregion
 
@@ -463,6 +523,7 @@ namespace AutoKassa.ViewModels
 
         public ICommand SelectPeriodCommand { get; }
         public ICommand ApplyCustomPeriodCommand { get; }
+        public ICommand TogglePeriodPickerCommand { get; }
         public ICommand OpenAddTransactionCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand CloseModalCommand { get; }
@@ -577,21 +638,30 @@ namespace AutoKassa.ViewModels
             };
             var list = await _transactionService.GetTransactionsAsync(filters, ct);
 
-            RecentTransactions = new ObservableCollection<Transaction>(list);
-            HasTransactions = RecentTransactions.Any();
+            // Обновляем коллекции in-place вместо пересоздания — это убирает полную перестройку UI
+            RecentTransactions.Clear();
+            foreach (var t in list)
+                RecentTransactions.Add(t);
+            HasTransactions = RecentTransactions.Count > 0;
 
-            // Группировка по дням из загруженных записей
-            var grouped = list
-                .GroupBy(t => t.Date.Date)
-                .OrderByDescending(g => g.Key);
+            // Группировка по дням — выполняем в пуле потоков, чтобы не блокировать UI
+            var grouped = await Task.Run(() =>
+            {
+                return list
+                    .GroupBy(t => t.Date.Date)
+                    .OrderByDescending(g => g.Key)
+                    .Select(g => new DateGroup
+                    {
+                        Date     = g.Key,
+                        DayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount),
+                        Items    = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
+                    })
+                    .ToList();
+            }, ct);
 
-            GroupedTransactions = new ObservableCollection<DateGroup>(
-                grouped.Select(g => new DateGroup
-                {
-                    Date     = g.Key,
-                    DayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount),
-                    Items    = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
-                }));
+            GroupedTransactions.Clear();
+            foreach (var g in grouped)
+                GroupedTransactions.Add(g);
 
             // Статистика — SQL-агрегация вместо in-memory по всем записям
             var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
@@ -609,11 +679,21 @@ namespace AutoKassa.ViewModels
             StatsAvgExpense = expCount > 0 ? TotalExpense / expCount : 0;
             StatsAvgIncome  = incCount > 0 ? TotalIncome  / incCount : 0;
 
-            TopExpenses = new ObservableCollection<CategorySummaryItem>(
+            UpdateCollection(TopExpenses,
                 (await topExpTask).Select(x => new CategorySummaryItem { Name = x.Name, Total = x.Total }));
-
-            TopIncomes = new ObservableCollection<CategorySummaryItem>(
+            UpdateCollection(TopIncomes,
                 (await topIncTask).Select(x => new CategorySummaryItem { Name = x.Name, Total = x.Total }));
+        }
+
+        /// <summary>
+        /// Обновляет ObservableCollection in-place: Clear + Add.
+        /// Это избегает полной перестройки визуального дерева списка.
+        /// </summary>
+        private static void UpdateCollection<T>(ObservableCollection<T> collection, IEnumerable<T> items)
+        {
+            collection.Clear();
+            foreach (var item in items)
+                collection.Add(item);
         }
 
         /// <summary>
@@ -651,15 +731,24 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Загрузка данных для графика — SQL-агрегация по дням
+        /// Загрузка данных для графика — SQL-агрегация по дням.
+        /// Модель кэшируется по ключу (период + начальный баланс), чтобы не перерисовывать
+        /// OxyPlot при каждом переключении на Dashboard без изменения данных.
         /// </summary>
         private async Task LoadChartDataAsync(CancellationToken ct = default)
         {
             var groupedData = await _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct: ct);
             var chartSettings = await _settingsService.GetSettingsAsync();
 
+            var key = (DateFrom, DateTo, chartSettings.InitialBalance);
+            if (_cachedChartModel != null && _cachedChartKey.Equals(key))
+                return;
+
             // Построение модели графика в пуле потоков, чтобы не блокировать UI
             var model = await Task.Run(() => BuildChartModel(groupedData, chartSettings), ct);
+
+            _cachedChartModel = model;
+            _cachedChartKey = key;
             ChartModel = model;
         }
 
@@ -750,11 +839,19 @@ namespace AutoKassa.ViewModels
         {
             SelectedPeriod = period;
             SetPeriodDates(period);
+            IsPeriodPickerOpen = false;
 
             if (period != PeriodType.Custom)
             {
                 RunAsync(LoadDataAsync);
             }
+        }
+
+        private async Task ApplyCustomPeriodAsync()
+        {
+            SelectedPeriod = PeriodType.Custom;
+            IsPeriodPickerOpen = false;
+            await LoadDataAsync();
         }
 
         /// <summary>
@@ -784,10 +881,17 @@ namespace AutoKassa.ViewModels
                     PeriodLabel = "ЗА ГОД";
                     break;
 
+                case PeriodType.AllTime:
+                    DateFrom = new DateTime(2000, 1, 1);
+                    DateTo = DateTime.Today;
+                    PeriodLabel = "ЗА ВСЁ ВРЕМЯ";
+                    break;
+
                 case PeriodType.Custom:
                     PeriodLabel = "ЗА ПЕРИОД";
                     break;
             }
+            OnPropertyChanged(nameof(PeriodButtonLabel));
         }
 
         /// <summary>
@@ -797,7 +901,7 @@ namespace AutoKassa.ViewModels
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -813,7 +917,7 @@ namespace AutoKassa.ViewModels
 
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(t);
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); };
+            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -871,9 +975,15 @@ namespace AutoKassa.ViewModels
 
         protected override void OnDispose()
         {
+            _dataChangeService.DataChanged -= OnDataChanged;
+
             var cts = System.Threading.Interlocked.Exchange(ref _loadCts, null);
             cts?.Cancel();
             cts?.Dispose();
+
+            var navCts = Interlocked.Exchange(ref _navigateCts, null);
+            navCts?.Cancel();
+            navCts?.Dispose();
 
             if (QuickAdd != null)
             {
@@ -893,6 +1003,7 @@ namespace AutoKassa.ViewModels
         Week,
         Month,
         Year,
+        AllTime,
         Custom
     }
 
