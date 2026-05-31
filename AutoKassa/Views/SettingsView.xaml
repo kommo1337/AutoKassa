@@ -199,7 +199,7 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Бок��вая навигация -->
+            <!-- Боковая навигация -->
             <Grid Grid.Column="0" Margin="0,0,20,0" VerticalAlignment="Top">
                 <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
                     <Border.Effect>
@@ -303,7 +303,7 @@
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Показывать уведомл��ния" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Показывать уведомления" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <CheckBox Grid.Column="1" IsChecked="{Binding ShowNotifications}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
 
@@ -338,12 +338,12 @@
                             </Style>
                         </ContentControl.Style>
                         <StackPanel>
-                            <TextBlock Text="Настро��ки операций" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="Настройки операций" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Показывать «Категории» в ме��ю" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Показывать «Категории» в меню" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
                                     <TextBlock Text="Добавить кнопку Категории в боковое меню"
                                                FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
                                 </StackPanel>
@@ -352,7 +352,7 @@
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Записей н�� странице" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Записей на странице" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1"
                                          Text="{Binding DefaultPageSize, UpdateSourceTrigger=PropertyChanged}"
                                          Padding="10,8" TextAlignment="Center"/>
@@ -520,11 +520,11 @@
                             </Style>
                         </ContentControl.Style>
                         <StackPanel>
-                            <TextBlock Text="Безопасност��" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="Безопасность" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Требовать пароль при зап��ске" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="Требовать пароль при запуске" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <CheckBox Grid.Column="1" IsChecked="{Binding RequirePasswordOnStartup}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
 
