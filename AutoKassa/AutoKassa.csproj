@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <ApplicationIcon>autokassalogo.ico</ApplicationIcon>
     <Version>1.0.0</Version>
+    <SatelliteResourceLanguages>ru</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
