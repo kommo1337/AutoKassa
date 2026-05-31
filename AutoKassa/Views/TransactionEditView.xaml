@@ -116,9 +116,9 @@
 
     <Grid>
     <!-- Main edit content -->
-    <Border ClipToBounds="True">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                  Padding="0,0,0,0">
+    <Border Background="White" CornerRadius="16" ClipToBounds="True">
+    <ScrollViewer VerticalScrollBarVisibility="Visible" HorizontalScrollBarVisibility="Disabled"
+                  Margin="4" Padding="0,0,0,0">
         <ScrollViewer.Resources>
             <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinVerticalScrollBar}"/>
         </ScrollViewer.Resources>
@@ -517,20 +517,23 @@
                              TextWrapping="Wrap"
                              AcceptsReturn="False"
                              Height="64"
-                             VerticalContentAlignment="Top"
                              MaxLength="500"
                              Foreground="#344054"
                              TabIndex="5"/>
                     <TextBlock Text="Комментарий..." FontSize="13" Foreground="#98A2B3"
-                               Margin="14,13,0,0" VerticalAlignment="Top"
+                               Margin="12,0,0,0" VerticalAlignment="Center"
                                IsHitTestVisible="False">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Text, ElementName=DescriptionTextBox}" Value="">
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Text, ElementName=DescriptionTextBox}" Value=""/>
+                                            <Condition Binding="{Binding IsKeyboardFocused, ElementName=DescriptionTextBox}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </TextBlock.Style>
