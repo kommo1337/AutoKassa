@@ -111,6 +111,7 @@
 
     <UserControl.InputBindings>
         <KeyBinding Key="Enter" Modifiers="Ctrl" Command="{Binding SaveCommand}"/>
+        <KeyBinding Key="Enter" Modifiers="Shift" Command="{Binding SaveAndAddNextCommand}"/>
         <KeyBinding Key="Escape" Command="{Binding CancelCommand}"/>
     </UserControl.InputBindings>
 

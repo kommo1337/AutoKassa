@@ -2,7 +2,12 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:oxy="http://oxyplot.org/wpf"
+             xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
              Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
+    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -206,6 +211,8 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="1"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="1"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
@@ -233,6 +240,25 @@
                 <Rectangle Grid.Column="5" Fill="{StaticResource BorderLightBrush}"/>
 
                 <StackPanel Grid.Column="6" Margin="20,0">
+                    <TextBlock Text="Прибыль" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                    <TextBlock Text="{Binding Report.Profit, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Report.Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <Rectangle Grid.Column="7" Fill="{StaticResource BorderLightBrush}"/>
+
+                <StackPanel Grid.Column="8" Margin="20,0">
                     <TextBlock Text="Конечный баланс" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
                     <TextBlock Text="{Binding Report.EndBalance, Converter={StaticResource DecimalToStringConverter}}"
                                FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>

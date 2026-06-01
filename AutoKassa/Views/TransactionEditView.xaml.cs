@@ -20,14 +20,27 @@ namespace AutoKassa.Views
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
-            if (e.NewValue is TransactionEditViewModel)
+            if (e.OldValue is TransactionEditViewModel oldVm)
+                oldVm.RequestFocusAmount -= OnRequestFocusAmount;
+
+            if (e.NewValue is TransactionEditViewModel newVm)
             {
+                newVm.RequestFocusAmount += OnRequestFocusAmount;
                 Dispatcher.InvokeAsync(() =>
                 {
                     AmountTextBox?.Focus();
                     AmountTextBox?.SelectAll();
                 }, System.Windows.Threading.DispatcherPriority.Loaded);
             }
+        }
+
+        private void OnRequestFocusAmount()
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                AmountTextBox?.Focus();
+                AmountTextBox?.SelectAll();
+            }, System.Windows.Threading.DispatcherPriority.Render);
         }
 
         private void AmountTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)

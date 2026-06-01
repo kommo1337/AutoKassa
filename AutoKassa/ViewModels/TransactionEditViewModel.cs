@@ -57,6 +57,7 @@ namespace AutoKassa.ViewModels
             _toastService = toastService;
 
             SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
+            SaveAndAddNextCommand = new RelayCommand(async _ => await SaveAndAddNextAsync(), _ => CanSave() && !IsEditMode);
             CancelCommand = new RelayCommand(_ => Cancel());
             SelectCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
             SelectNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
@@ -265,6 +266,7 @@ namespace AutoKassa.ViewModels
         #region Commands
 
         public ICommand SaveCommand { get; }
+        public ICommand SaveAndAddNextCommand { get; }
         public ICommand CancelCommand { get; }
         public ICommand SelectCashCommand { get; }
         public ICommand SelectNonCashCommand { get; }
@@ -447,6 +449,48 @@ namespace AutoKassa.ViewModels
             }
         }
 
+        private async System.Threading.Tasks.Task SaveAndAddNextAsync()
+        {
+            ValidateAmount();
+            ValidateCategory();
+
+            if (HasErrors) return;
+
+            try
+            {
+                var transaction = new Transaction
+                {
+                    Date = Date,
+                    Amount = Amount,
+                    Type = Type,
+                    CategoryId = SelectedCategory.Id,
+                    Description = Description,
+                    PaymentType = SelectedPaymentType
+                };
+
+                await _transactionService.AddAsync(transaction);
+
+                _toastService.ShowSuccess("Операция добавлена");
+                OnSavedKeepOpen?.Invoke();
+
+                // Сброс полей для следующей операции
+                _amount = 0;
+                AmountText = "";
+                Description = string.Empty;
+                ClearErrors(nameof(Amount));
+                OnPropertyChanged(nameof(AmountError));
+                Calculator.Clear();
+                Calculator.IsOpen = false;
+                CaptureSnapshot();
+
+                RequestFocusAmount?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+            }
+        }
+
         private System.Windows.Threading.DispatcherTimer _cancelToastTimer;
         private bool _isCancelToastVisible;
         public bool IsCancelToastVisible
@@ -513,7 +557,10 @@ namespace AutoKassa.ViewModels
         #region Events
 
         public Action OnSaved { get; set; }
+        public Action OnSavedKeepOpen { get; set; }
         public Action OnCancelled { get; set; }
+
+        public event Action RequestFocusAmount;
 
         #endregion
     }
