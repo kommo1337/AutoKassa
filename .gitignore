@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# AutoKassa portable builds
+AutoKassa_Portable.zip
+publish_portable/
