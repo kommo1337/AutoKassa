@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoKassa — Учёт финансов автосервиса</title>
+    <meta name="description" content="Бесплатное десктопное приложение для учёта доходов и расходов автосервиса. PDF/Excel отчёты, защита паролем, SQLite.">
+    <meta property="og:title" content="AutoKassa">
+    <meta property="og:description" content="Учёт финансов автосервиса — просто и наглядно">
+    <meta property="og:image" content="screenshots/dashboard.png">
+    <meta property="og:url" content="https://kommo1337.github.io/AutoKassa">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/x-icon" href="../autokassalogo.ico">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+        <div class="container nav-container">
+            <a href="#" class="logo">
+                <img src="../autokassalogo.ico" alt="AutoKassa" class="logo-img">
+                <span class="logo-text">AutoKassa</span>
+            </a>
+            <button class="nav-toggle" id="navToggle" aria-label="Меню">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="#about" class="nav-link">Описание</a></li>
+                <li><a href="#screenshots" class="nav-link">Скриншоты</a></li>
+                <li><a href="#features" class="nav-link">Функции</a></li>
+                <li><a href="#install" class="nav-link">Установка</a></li>
+                <li><a href="https://github.com/kommo1337/AutoKassa/releases" class="btn btn-primary btn-sm" target="_blank">Скачать</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-bg" aria-hidden="true"></div>
+        <div class="container hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">Учёт финансов автосервиса — <span class="accent">просто и наглядно</span></h1>
+                <p class="hero-subtitle">
+                    Бесплатное десктопное приложение для учёта доходов и расходов. 
+                    Работает локально, без облака. Отчёты, экспорт, защита паролем — всё под рукой.
+                </p>
+                <div class="hero-buttons">
+                    <a href="https://github.com/kommo1337/AutoKassa/releases/latest" class="btn btn-primary btn-lg" target="_blank">
+                        <span>⬇ Скачать v1.0.1</span>
+                    </a>
+                    <a href="https://github.com/kommo1337/AutoKassa" class="btn btn-secondary btn-lg" target="_blank">
+                        <span>Исходный код</span>
+                    </a>
+                </div>
+            </div>
+            <div class="hero-image">
+                <img src="screenshots/dashboard.png" alt="Главный экран AutoKassa" class="hero-screenshot">
+            </div>
+        </div>
+    </section>
+
+    <!-- About -->
+    <section class="section section-alt" id="about">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">О проекте</h2>
+                <p class="section-subtitle">
+                    AutoKassa создана для автосервисов, мастерских и малого бизнеса, 
+                    которым нужен простой и надёжный инструмент финансового учёта без подписок и облаков.
+                </p>
+            </div>
+            <div class="about-grid">
+                <div class="about-item fade-in">
+                    <div class="about-icon">💻</div>
+                    <h3>Локально</h3>
+                    <p>Все данные хранятся на вашем компьютере в SQLite-базе. Никаких облаков и подписок.</p>
+                </div>
+                <div class="about-item fade-in">
+                    <div class="about-icon">📊</div>
+                    <h3>Отчёты</h3>
+                    <p>PDF и Excel экспорт, дашборд с графиками, детализация по категориям и периодам.</p>
+                </div>
+                <div class="about-item fade-in">
+                    <div class="about-icon">🔒</div>
+                    <h3>Безопасность</h3>
+                    <p>Защита паролем с автоблокировкой, резервное копирование и восстановление доступа.</p>
+                </div>
+                <div class="about-item fade-in">
+                    <div class="about-icon">⚡</div>
+                    <h3>Скорость</h3>
+                    <p>Быстрый доступ к данным, мгновенная фильтрация и поиск по операциям.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section class="section" id="screenshots">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Интерфейс AutoKassa</h2>
+                <p class="section-subtitle">Современный и понятный дизайн для ежедневной работы</p>
+            </div>
+            <div class="screenshots-grid">
+                <div class="screenshot-card fade-in">
+                    <img src="screenshots/dashboard.png" alt="Главный экран" loading="lazy">
+                    <span class="screenshot-caption">Главный экран</span>
+                </div>
+                <div class="screenshot-card fade-in">
+                    <img src="screenshots/operations.png" alt="Операции" loading="lazy">
+                    <span class="screenshot-caption">Операции</span>
+                </div>
+                <div class="screenshot-card fade-in">
+                    <img src="screenshots/reports.png" alt="Отчёты" loading="lazy">
+                    <span class="screenshot-caption">Отчёты</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section section-alt" id="features">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Возможности</h2>
+                <p class="section-subtitle">Всё необходимое для учёта финансов в одном приложении</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">📊</div>
+                    <h3>Дашборд</h3>
+                    <p>Баланс, доходы, расходы и топ категорий на одном экране</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">📝</div>
+                    <h3>Операции</h3>
+                    <p>Быстрое добавление, фильтры, поиск и soft-delete</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">📂</div>
+                    <h3>Категории</h3>
+                    <p>Цветное управление доходами и расходами с сортировкой</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">📈</div>
+                    <h3>Отчёты</h3>
+                    <p>Баланс за период, детализация, структура по категориям</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">📤</div>
+                    <h3>Экспорт</h3>
+                    <p>PDF и Excel в один клик для печати и отправки</p>
+                </div>
+                <div class="feature-card fade-in">
+                    <div class="feature-icon">🔐</div>
+                    <h3>Безопасность</h3>
+                    <p>Пароль, автоблокировка, резервное копирование БД</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Requirements -->
+    <section class="section" id="requirements">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Системные требования</h2>
+            </div>
+            <div class="requirements-grid">
+                <div class="requirement-card fade-in">
+                    <h3>Минимальные</h3>
+                    <ul>
+                        <li>Windows 10 (x64)</li>
+                        <li>.NET 8.0 Desktop Runtime</li>
+                        <li>100 МБ свободного места</li>
+                        <li>2 ГБ RAM</li>
+                    </ul>
+                </div>
+                <div class="requirement-card fade-in">
+                    <h3>Рекомендуемые</h3>
+                    <ul>
+                        <li>Windows 11 (x64)</li>
+                        <li>SSD-накопитель</li>
+                        <li>200 МБ свободного места</li>
+                        <li>4 ГБ RAM</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Install -->
+    <section class="section section-alt" id="install">
+        <div class="container">
+            <div class="section-header fade-in">
+                <h2 class="section-title">Быстрый старт</h2>
+                <p class="section-subtitle">Начните работу за 3 простых шага</p>
+            </div>
+            <div class="steps">
+                <div class="step fade-in">
+                    <div class="step-number">1</div>
+                    <h3>Скачайте</h3>
+                    <p>Загрузите <code>AutoKassa_Portable.zip</code> из раздела Releases</p>
+                </div>
+                <div class="step-arrow" aria-hidden="true">→</div>
+                <div class="step fade-in">
+                    <div class="step-number">2</div>
+                    <h3>Распакуйте</h3>
+                    <p>Извлеките архив в любую удобную папку на компьютере</p>
+                </div>
+                <div class="step-arrow" aria-hidden="true">→</div>
+                <div class="step fade-in">
+                    <div class="step-number">3</div>
+                    <h3>Запустите</h3>
+                    <p>Откройте <code>AutoKassa.exe</code> — приложение готово к работе</p>
+                </div>
+            </div>
+            <div class="steps-cta fade-in">
+                <a href="https://github.com/kommo1337/AutoKassa/releases" class="btn btn-primary btn-lg" target="_blank">
+                    Перейти к загрузкам
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container footer-container">
+            <div class="footer-brand">
+                <img src="../autokassalogo.ico" alt="AutoKassa" class="footer-logo">
+                <span>AutoKassa</span>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/kommo1337/AutoKassa" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/kommo1337/AutoKassa/releases" target="_blank" rel="noopener">Releases</a>
+                <a href="https://github.com/kommo1337/AutoKassa/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+            </div>
+        </div>
+        <div class="container footer-bottom">
+            <p>© 2025 AutoKassa. Лицензия MIT.</p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
