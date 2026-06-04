@@ -6,10 +6,12 @@
 
 **Десктопное приложение для учёта финансов автосервиса**
 
+[![Build](https://img.shields.io/github/actions/workflow/status/kommo1337/AutoKassa/ci.yml?branch=master&label=build&logo=github)](https://github.com/kommo1337/AutoKassa/actions)
+[![Release](https://img.shields.io/github/v/release/kommo1337/AutoKassa?label=version&logo=github)](https://github.com/kommo1337/AutoKassa/releases)
+[![License](https://img.shields.io/github/license/kommo1337/AutoKassa?label=license)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![WPF](https://img.shields.io/badge/WPF-Windows-0078D4?logo=windows)](https://github.com/dotnet/wpf)
 [![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)](https://sqlite.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)]()
 
 </div>
 
