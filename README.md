@@ -9,7 +9,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/kommo1337/AutoKassa/ci.yml?branch=master&label=build&logo=github)](https://github.com/kommo1337/AutoKassa/actions)
 [![Release](https://img.shields.io/github/v/release/kommo1337/AutoKassa?label=version&logo=github)](https://github.com/kommo1337/AutoKassa/releases)
 [![License](https://img.shields.io/github/license/kommo1337/AutoKassa?label=license&cache_seconds=60)](LICENSE)
-[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![WPF](https://img.shields.io/badge/WPF-Windows-0078D4?logo=windows)](https://github.com/dotnet/wpf)
 [![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)](https://sqlite.org/)
 
@@ -87,9 +87,9 @@ dotnet test
 
 | Компонент | Технология |
 |-----------|-----------|
-| Платформа | .NET 8.0 |
+| Платформа | .NET 10.0 |
 | UI | WPF + XAML |
-| ORM | Entity Framework Core 8 |
+| ORM | Entity Framework Core 10 |
 | База данных | SQLite |
 | DI | Microsoft.Extensions.DependencyInjection |
 | Графики | OxyPlot.Wpf |
@@ -147,7 +147,7 @@ dotnet test --filter "FullyQualifiedName~Services"
 ## ⚠️ Требования
 
 - Windows 10/11 (x64)
-- [.NET 8.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10.0 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ---
 

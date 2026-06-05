@@ -28,17 +28,17 @@
 
 | Компонент | Технология | Версия |
 |-----------|-----------|--------|
-| Платформа | .NET | 8.0-windows |
+| Платформа | .NET | 10.0-windows |
 | UI-фреймворк | WPF | — |
-| ORM | Entity Framework Core | 8.0.22 |
+| ORM | Entity Framework Core | 10.0.8 |
 | База данных | SQLite | — |
-| DI-контейнер | Microsoft.Extensions.DependencyInjection | 10.0.1 |
+| DI-контейнер | Microsoft.Extensions.DependencyInjection | 10.0.8 |
 | Графики | OxyPlot.Wpf | 2.2.0 |
-| PDF-экспорт | QuestPDF | 2025.12.1 |
+| PDF-экспорт | QuestPDF | 2026.5.0 |
 | Excel-экспорт | ClosedXML | 0.105.0 |
-| Хеширование паролей | BCrypt.Net-Next | 4.0.3 |
-| Логирование | Serilog + File sink | 4.3.0 / 7.0.0 |
-| Тестирование | xUnit + FluentAssertions | 2.9.3 / 6.12.1 |
+| Хеширование паролей | BCrypt.Net-Next | 4.2.0 |
+| Логирование | Serilog + File sink | 4.3.1 / 7.0.0 |
+| Тестирование | xUnit + FluentAssertions | 2.9.3 / 8.10.0 |
 
 ---
 
@@ -352,7 +352,7 @@ dotnet test --filter "FullyQualifiedName~Services"
 cd AutoKassa && dotnet ef migrations add <ИмяМиграции>
 
 # Просмотр структуры БД (если установлен sqlite3)
-sqlite3 AutoKassa/bin/Debug/net8.0-windows/AutoKassa.db ".schema"
+sqlite3 AutoKassa/bin/Debug/net10.0-windows/AutoKassa.db ".schema"
 ```
 
 ---
