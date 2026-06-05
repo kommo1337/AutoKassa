@@ -132,11 +132,16 @@ namespace AutoKassa.Services
 
             transaction.UpdatedAt = DateTime.Now;
 
-            // Сбрасываем навигационное свойство, чтобы избежать конфликта отслеживания
-            // при обновлении detached entity, полученной из UI (например, после AsNoTracking).
-            transaction.Category = null;
+            // Сбрасываем навигационное свойство только для detached сущностей,
+            // чтобы избежать конфликта отслеживания при обновлении из UI (AsNoTracking).
+            // Для уже отслеживаемых сущностей это приведёт к исключению о разрыве обязательной связи.
+            var entry = _context.Entry(transaction);
+            if (entry.State == EntityState.Detached)
+            {
+                transaction.Category = null;
+                _context.Update(transaction);
+            }
 
-            _context.Update(transaction);
             await _context.SaveChangesAsync().ConfigureAwait(false);
 
             // Обновляем категорию
