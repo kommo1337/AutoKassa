@@ -131,6 +131,33 @@ namespace AutoKassa.Tests.Services
             updated.Description.Should().Be("после");
         }
 
+        [Fact]
+        public async Task UpdateAsync_DetachedEntity_DoesNotThrowTrackingConflict()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var original = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "до");
+
+            // Симулируем detached entity из UI (как после AsNoTracking)
+            var detached = new Transaction
+            {
+                Id = original.Id,
+                Date = original.Date,
+                Amount = 999m,
+                Type = original.Type,
+                CategoryId = original.CategoryId,
+                Description = "после",
+                PaymentType = original.PaymentType,
+                CreatedAt = original.CreatedAt,
+                IsDeleted = original.IsDeleted
+            };
+
+            await _svc.UpdateAsync(detached);
+
+            var updated = await _svc.GetByIdAsync(original.Id);
+            updated!.Amount.Should().Be(999m);
+            updated.Description.Should().Be("после");
+        }
+
         // ─────────────────────────────────────────
         // Фильтры GetTransactionsAsync
         // ─────────────────────────────────────────

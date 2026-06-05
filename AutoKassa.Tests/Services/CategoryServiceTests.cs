@@ -257,6 +257,31 @@ namespace AutoKassa.Tests.Services
         }
 
         [Fact]
+        public async Task UpdateAsync_DetachedEntity_DoesNotThrowTrackingConflict()
+        {
+            var original = TestDatabase.SeedExpenseCategory(_ctx, "До-Detached");
+
+            // Симулируем detached entity из UI (как после AsNoTracking)
+            var detached = new Category
+            {
+                Id = original.Id,
+                Name = "После-Detached",
+                Type = original.Type,
+                Color = "#ff0000",
+                SortOrder = original.SortOrder,
+                IsActive = original.IsActive,
+                IsSystem = original.IsSystem,
+                CreatedAt = original.CreatedAt
+            };
+
+            await _svc.UpdateAsync(detached);
+
+            var updated = await _svc.GetByIdAsync(original.Id);
+            updated!.Name.Should().Be("После-Detached");
+            updated.Color.Should().Be("#ff0000");
+        }
+
+        [Fact]
         public async Task GetOperationCountAsync_CountsOnlyNonDeletedTransactions()
         {
             var cat = TestDatabase.SeedExpenseCategory(_ctx, "Счётная");

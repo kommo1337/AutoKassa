@@ -107,7 +107,20 @@ namespace AutoKassa.Services
             if (await ExistsAsync(category.Name, category.Type, category.Id).ConfigureAwait(false))
                 throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
 
-            _context.Update(category);
+            // В WPF DbContext живёт долго (scoped), поэтому предыдущий редактируемый экземпляр
+            // может оставаться отслеживаемым в Local. Используем FindAsync, чтобы получить
+            // именно отслеживаемую сущность из контекста или БД, и обновляем её поля явно.
+            var existing = await _context.Categories.FindAsync(category.Id).ConfigureAwait(false);
+            if (existing == null)
+                throw new InvalidOperationException($"Категория ID={category.Id} не найдена");
+
+            existing.Name = category.Name;
+            existing.Type = category.Type;
+            existing.Color = category.Color;
+            existing.SortOrder = category.SortOrder;
+            existing.IsActive = category.IsActive;
+            existing.IsSystem = category.IsSystem;
+
             await _context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Обновлена категория ID={Id}, название={Name}", category.Id, category.Name);

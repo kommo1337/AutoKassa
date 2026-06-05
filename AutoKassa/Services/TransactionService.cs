@@ -130,22 +130,26 @@ namespace AutoKassa.Services
             if (!categoryExists)
                 throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
 
-            transaction.UpdatedAt = DateTime.Now;
+            // В WPF DbContext живёт долго (scoped), поэтому предыдущий редактируемый экземпляр
+            // может оставаться отслеживаемым в Local. Используем FindAsync, чтобы получить
+            // именно отслеживаемую сущность из контекста или БД, и обновляем её поля явно.
+            // Это исключает конфликт "another instance with the same key is already being tracked".
+            var existing = await _context.Transactions.FindAsync(transaction.Id).ConfigureAwait(false);
+            if (existing == null)
+                throw new InvalidOperationException($"Операция ID={transaction.Id} не найдена");
 
-            // Сбрасываем навигационное свойство только для detached сущностей,
-            // чтобы избежать конфликта отслеживания при обновлении из UI (AsNoTracking).
-            // Для уже отслеживаемых сущностей это приведёт к исключению о разрыве обязательной связи.
-            var entry = _context.Entry(transaction);
-            if (entry.State == EntityState.Detached)
-            {
-                transaction.Category = null;
-                _context.Update(transaction);
-            }
+            existing.Date = transaction.Date;
+            existing.Amount = transaction.Amount;
+            existing.Type = transaction.Type;
+            existing.PaymentType = transaction.PaymentType;
+            existing.CategoryId = transaction.CategoryId;
+            existing.Description = transaction.Description;
+            existing.UpdatedAt = DateTime.Now;
 
             await _context.SaveChangesAsync().ConfigureAwait(false);
 
-            // Обновляем категорию
-            await _context.Entry(transaction).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
+            // Обновляем навигационное свойство
+            await _context.Entry(existing).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
 
             _log.Information("Обновлена операция ID={Id}, сумма={Amount}", transaction.Id, transaction.Amount);
         }
