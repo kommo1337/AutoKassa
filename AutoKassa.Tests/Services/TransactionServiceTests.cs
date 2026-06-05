@@ -3,6 +3,7 @@ using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.Tests.Infrastructure;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace AutoKassa.Tests.Services
@@ -15,8 +16,10 @@ namespace AutoKassa.Tests.Services
 
         public TransactionServiceTests()
         {
-            (_ctx, _conn) = TestDatabase.Create();
-            _svc = new TransactionService(_ctx);
+            var (factory, conn) = TestDatabase.CreateWithFactory();
+            _conn = conn;
+            _ctx = factory.CreateDbContext();
+            _svc = new TransactionService(factory);
         }
 
         public void Dispose()
@@ -97,7 +100,7 @@ namespace AutoKassa.Tests.Services
 
             await _svc.DeleteAsync(t.Id);
 
-            var raw = await _ctx.Transactions.FindAsync(t.Id);
+            var raw = await _ctx.Transactions.AsNoTracking().FirstOrDefaultAsync(x => x.Id == t.Id);
             raw.Should().NotBeNull();
             raw!.IsDeleted.Should().BeTrue();
         }

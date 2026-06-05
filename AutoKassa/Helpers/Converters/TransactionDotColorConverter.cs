@@ -1,4 +1,5 @@
 using AutoKassa.Models.Enums;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -6,13 +7,23 @@ using System.Windows.Media;
 namespace AutoKassa.Helpers.Converters
 {
     /// <summary>
-    /// MultiValueConverter: (OperationType, string CategoryColor) → SolidColorBrush
-    /// Expense → #ef4444, Income → category color (or #22c55e as fallback)
+    /// MultiValueConverter: (OperationType, string CategoryColor) → SolidColorBrush с кешированием.
+    /// Каждая кисть создаётся один раз и замораживается (Freeze) для безопасного использования
+    /// из любого потока без пересоздания при каждом обновлении списка.
     /// </summary>
     public class TransactionDotColorConverter : IMultiValueConverter
     {
-        private static readonly SolidColorBrush ExpenseBrush = new(Color.FromRgb(0xef, 0x44, 0x44));
-        private static readonly SolidColorBrush DefaultIncomeBrush = new(Color.FromRgb(0x22, 0xc5, 0x5e));
+        private static readonly SolidColorBrush ExpenseBrush;
+        private static readonly SolidColorBrush DefaultIncomeBrush;
+        private static readonly ConcurrentDictionary<string, SolidColorBrush> IncomeBrushCache = new();
+
+        static TransactionDotColorConverter()
+        {
+            ExpenseBrush = new SolidColorBrush(Color.FromRgb(0xef, 0x44, 0x44));
+            ExpenseBrush.Freeze();
+            DefaultIncomeBrush = new SolidColorBrush(Color.FromRgb(0x22, 0xc5, 0x5e));
+            DefaultIncomeBrush.Freeze();
+        }
 
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
@@ -23,7 +34,16 @@ namespace AutoKassa.Helpers.Converters
 
                 if (values[1] is string hex && !string.IsNullOrWhiteSpace(hex))
                 {
-                    try { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)); }
+                    if (IncomeBrushCache.TryGetValue(hex, out var cached))
+                        return cached;
+
+                    try
+                    {
+                        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                        brush.Freeze();
+                        IncomeBrushCache[hex] = brush;
+                        return brush;
+                    }
                     catch { }
                 }
                 return DefaultIncomeBrush;

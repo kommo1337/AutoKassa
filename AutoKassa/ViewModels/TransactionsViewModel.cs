@@ -134,7 +134,7 @@ namespace AutoKassa.ViewModels
 
             // Inline add commands
             OpenInlineCommand = new RelayCommand(_ => OpenInline());
-            InlineSaveCommand = new RelayCommand(async _ => await InlineSaveAsync());
+            InlineSaveCommand = new RelayCommand(async _ => await InlineSaveAsync(), _ => CanInlineSave());
             InlineCancelCommand = new RelayCommand(_ => CloseInline());
             InlineToggleTypeCommand    = new RelayCommand(_ => InlineType = InlineType == OperationType.Expense ? OperationType.Income : OperationType.Expense);
             InlineSelectExpenseCommand = new RelayCommand(_ => InlineType = OperationType.Expense);
@@ -164,7 +164,7 @@ namespace AutoKassa.ViewModels
 
                 RunAsync(async () =>
                 {
-                    try { await Task.Delay(50, cts.Token); }
+                    try { await Task.Delay(1, cts.Token); }
                     catch (OperationCanceledException) { return; }
                     await InitializeAsync();
                 });
@@ -562,10 +562,8 @@ namespace AutoKassa.ViewModels
                 var transactions = await _transactionService.GetTransactionsAsync(filters, ct);
                 var totalCount   = await _transactionService.GetTotalCountAsync(filters, ct);
 
-                // Обновляем in-place вместо пересоздания — убирает полную перестройку UI
-                Transactions.Clear();
-                foreach (var t in transactions)
-                    Transactions.Add(t);
+                // Пересоздаём коллекцию одним действием вместо N уведомлений UI
+                Transactions = new ObservableCollection<Transaction>(transactions);
 
                 TotalCount = totalCount;
                 OnPropertyChanged(nameof(CanLoadMore));
@@ -648,20 +646,20 @@ namespace AutoKassa.ViewModels
 
         private async Task RebuildGroupsAndTotalsAsync()
         {
-            TotalIncome = Transactions.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
-            TotalExpense = Transactions.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
-
             // Снимаем подписки на старых элементах, чтобы они не держали ViewModel через делегат.
             foreach (var oldGroup in GroupedTransactions)
                 foreach (var item in oldGroup.Items)
                     item.SelectionChanged = null;
 
-            // Тяжелая группировка и создание обёрток — в пуле потоков
+            // Вся тяжёлая работа — в пуле потоков, чтобы не блокировать UI
             var transactionsSnapshot = Transactions.ToList();
             var categories = _categories;
 
-            var newGroups = await Task.Run(() =>
+            var (newGroups, totalIncome, totalExpense) = await Task.Run(() =>
             {
+                var income = transactionsSnapshot.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
+                var expense = transactionsSnapshot.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
+
                 var groups = new List<SelectableDateGroup>();
                 var grouped = transactionsSnapshot.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
 
@@ -680,18 +678,18 @@ namespace AutoKassa.ViewModels
                     group.InitInline(categories, GroupInlineSaveAsync, _toastService);
                     groups.Add(group);
                 }
-                return groups;
+                return (groups, income, expense);
             });
 
-            // Обновляем UI-коллекцию in-place
-            GroupedTransactions.Clear();
+            TotalIncome = totalIncome;
+            TotalExpense = totalExpense;
+
+            // Пересоздаём коллекцию одним действием вместо N уведомлений UI
             foreach (var group in newGroups)
-            {
                 foreach (var item in group.Items)
                     item.SelectionChanged = RefreshSelectionState;
-                GroupedTransactions.Add(group);
-            }
 
+            GroupedTransactions = new ObservableCollection<SelectableDateGroup>(newGroups);
             OnPropertyChanged(nameof(HasTransactions));
             RefreshSelectionState();
         }
@@ -832,8 +830,15 @@ namespace AutoKassa.ViewModels
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnSavedKeepOpen = () => { RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSaved = async () =>
+            {
+                IsModalOpen = false;
+                if (vm.SavedTransaction != null)
+                    OptimisticAddTransaction(vm.SavedTransaction);
+                await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
+            };
+            vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -845,11 +850,24 @@ namespace AutoKassa.ViewModels
 
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(SelectedTransaction);
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnSavedKeepOpen = () => { RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSaved = async () => { IsModalOpen = false; await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
+        }
+
+        /// <summary>
+        /// Оптимистично добавляет операцию в UI до завершения полной перезагрузки.
+        /// Это устраняет визуальную задержку на слабом железе.
+        /// </summary>
+        private void OptimisticAddTransaction(Transaction transaction)
+        {
+            var list = Transactions.ToList();
+            list.Insert(0, transaction);
+            Transactions = new ObservableCollection<Transaction>(list);
+            TotalCount++;
+            RebuildGroupsAndTotalsAsync().ConfigureAwait(false);
         }
 
         private async Task DeleteTransactionAsync()
@@ -917,8 +935,14 @@ namespace AutoKassa.ViewModels
                 || !string.IsNullOrWhiteSpace(InlineDescription);
         }
 
+        private bool _isInlineSaving;
+
+        private bool CanInlineSave() => !_isInlineSaving;
+
         private async Task InlineSaveAsync()
         {
+            if (_isInlineSaving) return;
+
             if (!decimal.TryParse(
                     InlineAmountText?.Replace(',', '.'),
                     NumberStyles.Any,
@@ -934,6 +958,9 @@ namespace AutoKassa.ViewModels
                 _dialogService.ShowError("Выберите категорию");
                 return;
             }
+
+            _isInlineSaving = true;
+            (InlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -959,10 +986,19 @@ namespace AutoKassa.ViewModels
             {
                 _dialogService.ShowError($"Ошибка добавления: {ex.Message}");
             }
+            finally
+            {
+                _isInlineSaving = false;
+                (InlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
+
+        private bool _isGroupInlineSaving;
 
         private async Task GroupInlineSaveAsync(SelectableDateGroup group)
         {
+            if (_isGroupInlineSaving) return;
+
             if (!decimal.TryParse(
                     group.InlineAmountText?.Replace(',', '.'),
                     System.Globalization.NumberStyles.Any,
@@ -978,6 +1014,8 @@ namespace AutoKassa.ViewModels
                 _dialogService.ShowError("Выберите категорию");
                 return;
             }
+
+            _isGroupInlineSaving = true;
 
             try
             {
@@ -999,6 +1037,10 @@ namespace AutoKassa.ViewModels
             catch (Exception ex)
             {
                 _dialogService.ShowError($"Ошибка добавления: {ex.Message}");
+            }
+            finally
+            {
+                _isGroupInlineSaving = false;
             }
         }
 

@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-06-05
+
 ## [1.0.1] - 2025-05-30
 
 ### Добавлено
@@ -32,6 +34,7 @@
 - Портативная сборка (ZIP)
 - Полный набор юнит-тестов (xUnit)
 
-[Unreleased]: https://github.com/kommo1337/AutoKassa/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/kommo1337/AutoKassa/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/kommo1337/AutoKassa/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/kommo1337/AutoKassa/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/kommo1337/AutoKassa/releases/tag/v1.0.0

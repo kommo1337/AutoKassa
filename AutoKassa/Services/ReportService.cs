@@ -25,12 +25,12 @@ namespace AutoKassa.Services
         /// </summary>
         private const int MaxCategoryTransactions = 5000;
 
-        private readonly AppDbContext _context;
+        private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private readonly ISettingsService _settingsService;
 
-        public ReportService(AppDbContext context, ISettingsService settingsService)
+        public ReportService(IDbContextFactory<AppDbContext> contextFactory, ISettingsService settingsService)
         {
-            _context = context;
+            _contextFactory = contextFactory;
             _settingsService = settingsService;
         }
 
@@ -39,6 +39,7 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<BalanceReport> GenerateBalanceReportAsync(DateTime dateFrom, DateTime dateTo, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var report = new BalanceReport
             {
                 DateFrom = dateFrom,
@@ -50,7 +51,7 @@ namespace AutoKassa.Services
 
             // Фильтр за период (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
-            var query = _context.Transactions
+            var query = context.Transactions
                 .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
             if (paymentType.HasValue)
@@ -105,9 +106,10 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<decimal> GetInitialBalanceAsync(DateTime date, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             // SQLite не поддерживает Sum для decimal — агрегируем через double на стороне БД,
             // чтобы не материализовать все транзакции в память.
-            var query = _context.Transactions
+            var query = context.Transactions
                 .Where(t => !t.IsDeleted && t.Date < date.Date);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
@@ -138,6 +140,7 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var report = new CategoryReport
             {
                 DateFrom = dateFrom,
@@ -147,7 +150,7 @@ namespace AutoKassa.Services
 
             // Фильтр за период с указанным типом (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
-            var query = _context.Transactions
+            var query = context.Transactions
                 .AsNoTracking()
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType);
@@ -225,6 +228,7 @@ namespace AutoKassa.Services
             PaymentType? paymentType = null,
             CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var report = new TransactionDetailReport
             {
                 DateFrom = dateFrom,
@@ -235,7 +239,7 @@ namespace AutoKassa.Services
 
             // Фильтр за период (включая весь последний день)
             var dateToEnd = dateTo.Date.AddDays(1);
-            var query = _context.Transactions
+            var query = context.Transactions
                 .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
 
@@ -277,7 +281,7 @@ namespace AutoKassa.Services
             // Получаем название категории для фильтра
             if (categoryId.HasValue)
             {
-                var category = await _context.Categories
+                var category = await context.Categories
                     .AsNoTracking()
                     .FirstOrDefaultAsync(c => c.Id == categoryId.Value, ct)
                     .ConfigureAwait(false);

@@ -15,8 +15,10 @@ namespace AutoKassa.Tests.Services
 
         public CategoryServiceTests()
         {
-            (_ctx, _conn) = TestDatabase.Create();
-            _svc = new CategoryService(_ctx);
+            var (factory, conn) = TestDatabase.CreateWithFactory();
+            _conn = conn;
+            _ctx = factory.CreateDbContext();
+            _svc = new CategoryService(factory);
         }
 
         public void Dispose()

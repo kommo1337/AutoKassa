@@ -18,11 +18,11 @@ namespace AutoKassa.Services
         /// </summary>
         private const int MaxInMemoryFilterLimit = 5000;
 
-        private readonly AppDbContext _context;
+        private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-        public TransactionService(AppDbContext context)
+        public TransactionService(IDbContextFactory<AppDbContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
         }
 
         /// <summary>
@@ -30,7 +30,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Transaction>> GetTransactionsAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
-            var query = _context.Transactions
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var query = context.Transactions
                 .AsNoTracking()
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted);
@@ -60,7 +61,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<int> GetTotalCountAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
-            var query = _context.Transactions
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var query = context.Transactions
                 .AsNoTracking()
                 .Where(t => !t.IsDeleted);
 
@@ -83,7 +85,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<Transaction> GetByIdAsync(int id)
         {
-            return await _context.Transactions
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Transactions
                 .Include(t => t.Category)
                 .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted)
                 .ConfigureAwait(false);
@@ -97,7 +100,9 @@ namespace AutoKassa.Services
             if (transaction.Amount <= 0)
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
 
-            var categoryExists = await _context.Categories
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            var categoryExists = await context.Categories
                 .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive)
                 .ConfigureAwait(false);
             if (!categoryExists)
@@ -106,11 +111,11 @@ namespace AutoKassa.Services
             transaction.CreatedAt = DateTime.Now;
             transaction.IsDeleted = false;
 
-            _context.Transactions.Add(transaction);
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            context.Transactions.Add(transaction);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
             // Загружаем категорию
-            await _context.Entry(transaction).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
+            await context.Entry(transaction).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
 
             _log.Information("Добавлена операция ID={Id}, тип={Type}, сумма={Amount}", transaction.Id, transaction.Type, transaction.Amount);
             return transaction;
@@ -124,17 +129,17 @@ namespace AutoKassa.Services
             if (transaction.Amount <= 0)
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
 
-            var categoryExists = await _context.Categories
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            var categoryExists = await context.Categories
                 .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive)
                 .ConfigureAwait(false);
             if (!categoryExists)
                 throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
 
-            // В WPF DbContext живёт долго (scoped), поэтому предыдущий редактируемый экземпляр
-            // может оставаться отслеживаемым в Local. Используем FindAsync, чтобы получить
-            // именно отслеживаемую сущность из контекста или БД, и обновляем её поля явно.
-            // Это исключает конфликт "another instance with the same key is already being tracked".
-            var existing = await _context.Transactions.FindAsync(transaction.Id).ConfigureAwait(false);
+            // Каждый вызов использует свой DbContext (unit of work), поэтому конфликтов
+            // отслеживания быть не может. Загружаем сущность явно и обновляем поля.
+            var existing = await context.Transactions.FindAsync(transaction.Id).ConfigureAwait(false);
             if (existing == null)
                 throw new InvalidOperationException($"Операция ID={transaction.Id} не найдена");
 
@@ -146,10 +151,10 @@ namespace AutoKassa.Services
             existing.Description = transaction.Description;
             existing.UpdatedAt = DateTime.Now;
 
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
             // Обновляем навигационное свойство
-            await _context.Entry(existing).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
+            await context.Entry(existing).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
 
             _log.Information("Обновлена операция ID={Id}, сумма={Amount}", transaction.Id, transaction.Amount);
         }
@@ -159,12 +164,13 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task DeleteAsync(int id)
         {
-            var transaction = await _context.Transactions.FindAsync(id).ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var transaction = await context.Transactions.FindAsync(id).ConfigureAwait(false);
             if (transaction != null)
             {
                 transaction.IsDeleted = true;
                 transaction.UpdatedAt = DateTime.Now;
-                await _context.SaveChangesAsync().ConfigureAwait(false);
+                await context.SaveChangesAsync().ConfigureAwait(false);
                 _log.Information("Удалена операция ID={Id}", id);
             }
         }
@@ -174,12 +180,13 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task RestoreAsync(int id)
         {
-            var transaction = await _context.Transactions.FindAsync(id).ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var transaction = await context.Transactions.FindAsync(id).ConfigureAwait(false);
             if (transaction != null)
             {
                 transaction.IsDeleted = false;
                 transaction.UpdatedAt = DateTime.Now;
-                await _context.SaveChangesAsync().ConfigureAwait(false);
+                await context.SaveChangesAsync().ConfigureAwait(false);
                 _log.Information("Восстановлена операция ID={Id}", id);
             }
         }
@@ -189,7 +196,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Transaction>> GetRecentAsync(int count = 10)
         {
-            return await _context.Transactions
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Transactions
                 .AsNoTracking()
                 .Include(t => t.Category)
                 .Where(t => !t.IsDeleted)
@@ -205,8 +213,9 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var dateTo = to.Date.AddDays(1);
-            var query = _context.Transactions
+            var query = context.Transactions
                 .Where(t => !t.IsDeleted && t.Date >= from && t.Date < dateTo);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
@@ -230,8 +239,9 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var dateTo = to.Date.AddDays(1);
-            var query = _context.Transactions
+            var query = context.Transactions
                 .Where(t => !t.IsDeleted && t.Date >= from && t.Date < dateTo);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
@@ -261,8 +271,9 @@ namespace AutoKassa.Services
         public async Task<List<(string Name, decimal Total)>> GetTopCategoriesAsync(
             DateTime from, DateTime to, OperationType type, int count, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var dateTo = to.Date.AddDays(1);
-            var query = _context.Transactions
+            var query = context.Transactions
                 .AsNoTracking()
                 .Where(t => !t.IsDeleted && t.Type == type && t.Date >= from && t.Date < dateTo);
             if (paymentType.HasValue)

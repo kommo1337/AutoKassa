@@ -28,6 +28,11 @@ namespace AutoKassa.ViewModels
 
         public CalculatorViewModel Calculator { get; }
 
+        /// <summary>
+        /// Последняя сохранённая транзакция (для оптимистичного обновления UI).
+        /// </summary>
+        public Transaction? SavedTransaction { get; private set; }
+
         private readonly ISettingsService _settingsService;
         private readonly IToastNotificationService _toastService;
 
@@ -403,14 +408,22 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(SelectedCategory));
         }
 
-        private bool CanSave() => !HasErrors && !string.IsNullOrEmpty(_amountText);
+        private bool _isSaving;
+
+        private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText);
 
         private async System.Threading.Tasks.Task SaveAsync()
         {
+            if (_isSaving) return;
+
             ValidateAmount();
             ValidateCategory();
 
             if (HasErrors) return;
+
+            _isSaving = true;
+            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -438,23 +451,38 @@ namespace AutoKassa.ViewModels
                     };
 
                     await _transactionService.AddAsync(transaction);
+                    SavedTransaction = transaction;
                 }
 
                 _toastService.ShowSuccess(IsEditMode ? "Операция сохранена" : "Операция добавлена");
-                OnSaved?.Invoke();
+
+                if (OnSaved != null)
+                    await OnSaved();
             }
             catch (Exception ex)
             {
                 _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
             }
+            finally
+            {
+                _isSaving = false;
+                (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
 
         private async System.Threading.Tasks.Task SaveAndAddNextAsync()
         {
+            if (_isSaving) return;
+
             ValidateAmount();
             ValidateCategory();
 
             if (HasErrors) return;
+
+            _isSaving = true;
+            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -471,7 +499,9 @@ namespace AutoKassa.ViewModels
                 await _transactionService.AddAsync(transaction);
 
                 _toastService.ShowSuccess("Операция добавлена");
-                OnSavedKeepOpen?.Invoke();
+
+                if (OnSavedKeepOpen != null)
+                    await OnSavedKeepOpen();
 
                 // Сброс полей для следующей операции
                 _amount = 0;
@@ -488,6 +518,12 @@ namespace AutoKassa.ViewModels
             catch (Exception ex)
             {
                 _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+            }
+            finally
+            {
+                _isSaving = false;
+                (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 
@@ -556,9 +592,9 @@ namespace AutoKassa.ViewModels
 
         #region Events
 
-        public Action OnSaved { get; set; }
-        public Action OnSavedKeepOpen { get; set; }
-        public Action OnCancelled { get; set; }
+        public Func<Task>? OnSaved { get; set; }
+        public Func<Task>? OnSavedKeepOpen { get; set; }
+        public Action? OnCancelled { get; set; }
 
         public event Action RequestFocusAmount;
 

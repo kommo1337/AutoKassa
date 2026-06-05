@@ -20,7 +20,12 @@ namespace AutoKassa.ViewModels
         /// <summary>
         /// Вызывается после успешного добавления операции
         /// </summary>
-        public Action OnTransactionAdded { get; set; }
+        public Func<Task>? OnTransactionAdded { get; set; }
+
+        /// <summary>
+        /// Последняя сохранённая транзакция (для оптимистичного обновления UI).
+        /// </summary>
+        public Transaction? SavedTransaction { get; private set; }
 
         #region Поля
 
@@ -154,10 +159,17 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        private bool CanAdd() => _quickAmount > 0 && SelectedCategory != null;
+        private bool _isSaving;
+
+        private bool CanAdd() => !_isSaving && _quickAmount > 0 && SelectedCategory != null;
 
         private async Task AddAsync()
         {
+            if (_isSaving) return;
+
+            _isSaving = true;
+            (AddQuickTransactionCommand as RelayCommand)?.RaiseCanExecuteChanged();
+
             try
             {
                 var transaction = new Transaction
@@ -172,22 +184,32 @@ namespace AutoKassa.ViewModels
                 };
 
                 await _transactionService.AddAsync(transaction);
+                SavedTransaction = transaction;
                 _toastService.ShowSuccess("Операция добавлена успешно");
 
                 ClearForm();
-                try
+
+                if (OnTransactionAdded != null)
                 {
-                    OnTransactionAdded?.Invoke();
-                }
-                catch (Exception handlerEx)
-                {
-                    Serilog.Log.ForContext<QuickAddViewModel>()
-                        .Error(handlerEx, "Ошибка в обработчике OnTransactionAdded");
+                    try
+                    {
+                        await OnTransactionAdded();
+                    }
+                    catch (Exception handlerEx)
+                    {
+                        Serilog.Log.ForContext<QuickAddViewModel>()
+                            .Error(handlerEx, "Ошибка в обработчике OnTransactionAdded");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _toastService.ShowError($"Ошибка: {ex.Message}");
+            }
+            finally
+            {
+                _isSaving = false;
+                (AddQuickTransactionCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 

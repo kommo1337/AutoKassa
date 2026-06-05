@@ -50,6 +50,7 @@ namespace AutoKassa.ViewModels
         private Category? _inlineCategory;
         private string _inlineDescription = string.Empty;
         private ObservableCollection<Category> _allCategories = new();
+        private bool _isSaving;
 
         // ── Основные данные группы ──────────────────────────────────────────
 
@@ -169,7 +170,21 @@ namespace AutoKassa.ViewModels
                     ? PaymentType.NonCash
                     : PaymentType.Cash);
 
-            GroupInlineSaveCommand  = new RelayCommand(async _ => await onSave(this));
+            GroupInlineSaveCommand = new RelayCommand(async _ =>
+            {
+                if (_isSaving) return;
+                _isSaving = true;
+                (GroupInlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                try
+                {
+                    await onSave(this);
+                }
+                finally
+                {
+                    _isSaving = false;
+                    (GroupInlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }, _ => !_isSaving);
             GroupInlineCancelCommand = new RelayCommand(_ =>
             {
                 var hasInput = !string.IsNullOrWhiteSpace(InlineAmountText)

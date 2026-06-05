@@ -115,6 +115,8 @@ namespace AutoKassa.ViewModels
             QuickAdd = new QuickAddViewModel(transactionService, categoryService, dialogService, toastService);
             QuickAdd.OnTransactionAdded = async () =>
             {
+                if (QuickAdd.SavedTransaction != null)
+                    OptimisticAddTransaction(QuickAdd.SavedTransaction);
                 await LoadDataAsync();
                 _dataChangeService?.NotifyDataChanged();
             };
@@ -158,7 +160,7 @@ namespace AutoKassa.ViewModels
 
                 RunAsync(async () =>
                 {
-                    try { await Task.Delay(50, cts.Token); }
+                    try { await Task.Delay(1, cts.Token); }
                     catch (OperationCanceledException) { return; }
                     await InitializeAsync();
                 });
@@ -638,11 +640,9 @@ namespace AutoKassa.ViewModels
             };
             var list = await _transactionService.GetTransactionsAsync(filters, ct);
 
-            // Обновляем коллекции in-place вместо пересоздания — это убирает полную перестройку UI
-            RecentTransactions.Clear();
-            foreach (var t in list)
-                RecentTransactions.Add(t);
-            HasTransactions = RecentTransactions.Count > 0;
+            // Пересоздаём коллекции одним действием вместо N уведомлений UI
+            RecentTransactions = new ObservableCollection<Transaction>(list);
+            HasTransactions = list.Count > 0;
 
             // Группировка по дням — выполняем в пуле потоков, чтобы не блокировать UI
             var grouped = await Task.Run(() =>
@@ -659,9 +659,7 @@ namespace AutoKassa.ViewModels
                     .ToList();
             }, ct);
 
-            GroupedTransactions.Clear();
-            foreach (var g in grouped)
-                GroupedTransactions.Add(g);
+            GroupedTransactions = new ObservableCollection<DateGroup>(grouped);
 
             // Статистика — SQL-агрегация вместо in-memory по всем записям
             var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
@@ -901,8 +899,15 @@ namespace AutoKassa.ViewModels
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnSavedKeepOpen = () => { RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSaved = async () =>
+            {
+                IsModalOpen = false;
+                if (vm.SavedTransaction != null)
+                    OptimisticAddTransaction(vm.SavedTransaction);
+                await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
+            };
+            vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
@@ -918,11 +923,64 @@ namespace AutoKassa.ViewModels
 
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(t);
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnSavedKeepOpen = () => { RunAsync(LoadDataAsync); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSaved = async () =>
+            {
+                IsModalOpen = false;
+                await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
+            };
+            vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;
+        }
+
+        /// <summary>
+        /// Оптимистично добавляет операцию в UI до завершения полной перезагрузки.
+        /// Это устраняет визуальную задержку на слабом железе.
+        /// </summary>
+        private void OptimisticAddTransaction(Transaction transaction)
+        {
+            if (transaction.Date < DateFrom || transaction.Date > DateTo)
+                return;
+
+            // Добавляем в начало RecentTransactions
+            var recent = RecentTransactions.ToList();
+            recent.Insert(0, transaction);
+            if (recent.Count > 100)
+                recent = recent.Take(100).ToList();
+            RecentTransactions = new ObservableCollection<Transaction>(recent);
+
+            // Обновляем сводку
+            if (transaction.Type == OperationType.Income)
+                TotalIncome += transaction.Amount;
+            else
+                TotalExpense += transaction.Amount;
+
+            // Обновляем группировку
+            var groups = GroupedTransactions.ToList();
+            var dateKey = transaction.Date.Date;
+            var existingGroup = groups.FirstOrDefault(g => g.Date == dateKey);
+            if (existingGroup != null)
+            {
+                var items = existingGroup.Items.ToList();
+                items.Insert(0, transaction);
+                existingGroup.Items = new ObservableCollection<Transaction>(items);
+                existingGroup.DayTotal += transaction.Type == OperationType.Income ? transaction.Amount : -transaction.Amount;
+            }
+            else
+            {
+                var newGroup = new DateGroup
+                {
+                    Date = dateKey,
+                    DayTotal = transaction.Type == OperationType.Income ? transaction.Amount : -transaction.Amount,
+                    Items = new ObservableCollection<Transaction>(new[] { transaction })
+                };
+                groups.Insert(0, newGroup);
+                groups = groups.OrderByDescending(g => g.Date).ToList();
+            }
+            GroupedTransactions = new ObservableCollection<DateGroup>(groups);
+            HasTransactions = true;
         }
 
         /// <summary>

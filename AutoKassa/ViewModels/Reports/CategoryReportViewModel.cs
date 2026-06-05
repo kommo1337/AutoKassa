@@ -277,7 +277,7 @@ namespace AutoKassa.ViewModels.Reports
         {
             var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(transaction);
-            vm.OnSaved = () => { IsModalOpen = false; RunAsync(GenerateReportAsync); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSaved = async () => { IsModalOpen = false; await GenerateReportAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
             EditViewModel = vm;
             IsModalOpen = true;

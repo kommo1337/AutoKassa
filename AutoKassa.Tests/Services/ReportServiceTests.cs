@@ -19,7 +19,7 @@ namespace AutoKassa.Tests.Services
             (_factory, _conn) = TestDatabase.CreateWithFactory();
             _settingsSvc = new SettingsService(_factory);
             _ctx = _factory.CreateDbContext();
-            _svc = new ReportService(_ctx, _settingsSvc);
+            _svc = new ReportService(_factory, _settingsSvc);
         }
 
         public void Dispose()

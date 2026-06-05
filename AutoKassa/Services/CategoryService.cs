@@ -12,11 +12,11 @@ namespace AutoKassa.Services
     {
         private static readonly ILogger _log = Log.ForContext<CategoryService>();
 
-        private readonly AppDbContext _context;
+        private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-        public CategoryService(AppDbContext context)
+        public CategoryService(IDbContextFactory<AppDbContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
         }
 
         /// <summary>
@@ -24,7 +24,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetAllAsync()
         {
-            return await _context.Categories
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Categories
                 .AsNoTracking()
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
@@ -38,7 +39,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetActiveAsync()
         {
-            return await _context.Categories
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Categories
                 .AsNoTracking()
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.Type)
@@ -53,7 +55,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetByTypeAsync(OperationType type, bool activeOnly = true)
         {
-            var query = _context.Categories.AsNoTracking().Where(c => c.Type == type);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var query = context.Categories.AsNoTracking().Where(c => c.Type == type);
 
             if (activeOnly)
             {
@@ -72,7 +75,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<Category> GetByIdAsync(int id)
         {
-            return await _context.Categories.FindAsync(id).ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Categories.FindAsync(id).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -86,11 +90,13 @@ namespace AutoKassa.Services
             if (await ExistsAsync(category.Name, category.Type).ConfigureAwait(false))
                 throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
 
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
             category.CreatedAt = DateTime.Now;
             category.IsActive = true;
 
-            _context.Categories.Add(category);
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            context.Categories.Add(category);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Добавлена категория ID={Id}, название={Name}, тип={Type}", category.Id, category.Name, category.Type);
             return category;
@@ -107,10 +113,11 @@ namespace AutoKassa.Services
             if (await ExistsAsync(category.Name, category.Type, category.Id).ConfigureAwait(false))
                 throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
 
-            // В WPF DbContext живёт долго (scoped), поэтому предыдущий редактируемый экземпляр
-            // может оставаться отслеживаемым в Local. Используем FindAsync, чтобы получить
-            // именно отслеживаемую сущность из контекста или БД, и обновляем её поля явно.
-            var existing = await _context.Categories.FindAsync(category.Id).ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            // Каждый вызов использует свой DbContext (unit of work), поэтому конфликтов
+            // отслеживания быть не может.
+            var existing = await context.Categories.FindAsync(category.Id).ConfigureAwait(false);
             if (existing == null)
                 throw new InvalidOperationException($"Категория ID={category.Id} не найдена");
 
@@ -121,7 +128,7 @@ namespace AutoKassa.Services
             existing.IsActive = category.IsActive;
             existing.IsSystem = category.IsSystem;
 
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Обновлена категория ID={Id}, название={Name}", category.Id, category.Name);
         }
@@ -131,11 +138,12 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<bool> DeleteAsync(int id)
         {
-            var category = await _context.Categories.FindAsync(id).ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var category = await context.Categories.FindAsync(id).ConfigureAwait(false);
             if (category == null) return false;
 
             // Нельзя удалить категорию, установленную по умолчанию в настройках
-            var settings = await _context.AppSettings.FirstOrDefaultAsync().ConfigureAwait(false);
+            var settings = await context.AppSettings.FirstOrDefaultAsync().ConfigureAwait(false);
             if (settings?.DefaultIncomeCategoryId == id || settings?.DefaultExpenseCategoryId == id)
             {
                 _log.Warning("Попытка удалить дефолтную категорию ID={Id} — отклонено", id);
@@ -143,7 +151,7 @@ namespace AutoKassa.Services
             }
 
             // Проверяем, есть ли связанные операции (включая удаленные)
-            var hasTransactions = await _context.Transactions
+            var hasTransactions = await context.Transactions
                 .AnyAsync(t => t.CategoryId == id)
                 .ConfigureAwait(false);
 
@@ -153,8 +161,8 @@ namespace AutoKassa.Services
                 return false;
             }
 
-            _context.Categories.Remove(category);
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            context.Categories.Remove(category);
+            await context.SaveChangesAsync().ConfigureAwait(false);
 
             _log.Information("Удалена категория ID={Id}", id);
             return true;
@@ -165,11 +173,12 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task DeactivateAsync(int id)
         {
-            var category = await _context.Categories.FindAsync(id).ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var category = await context.Categories.FindAsync(id).ConfigureAwait(false);
             if (category != null)
             {
                 category.IsActive = false;
-                await _context.SaveChangesAsync().ConfigureAwait(false);
+                await context.SaveChangesAsync().ConfigureAwait(false);
             }
         }
 
@@ -178,7 +187,8 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<int> GetOperationCountAsync(int categoryId)
         {
-            return await _context.Transactions
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Transactions
                 .Where(t => t.CategoryId == categoryId && !t.IsDeleted)
                 .CountAsync()
                 .ConfigureAwait(false);
@@ -189,8 +199,10 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<bool> ExistsAsync(string name, OperationType type, int? excludeId = null)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
             // Быстрая проверка exact match на стороне БД (O(1) SQL-запрос).
-            var exactMatch = await _context.Categories
+            var exactMatch = await context.Categories
                 .AsNoTracking()
                 .AnyAsync(c => c.Type == type && c.Name == name &&
                                (!excludeId.HasValue || c.Id != excludeId.Value))
@@ -200,7 +212,7 @@ namespace AutoKassa.Services
 
             // Fallback: case-insensitive проверка в памяти для unicode/кириллицы,
             // т.к. SQLite LOWER() / COLLATE не гарантируют корректное поведение с кириллицей.
-            var categories = await _context.Categories
+            var categories = await context.Categories
                 .AsNoTracking()
                 .Where(c => c.Type == type)
                 .Select(c => new { c.Id, c.Name })
@@ -213,8 +225,9 @@ namespace AutoKassa.Services
 
         public async Task ReorderAsync(List<(int Id, int SortOrder)> updates)
         {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var ids = updates.Select(u => u.Id).ToList();
-            var categories = await _context.Categories
+            var categories = await context.Categories
                 .Where(c => ids.Contains(c.Id))
                 .ToListAsync()
                 .ConfigureAwait(false);
@@ -227,7 +240,7 @@ namespace AutoKassa.Services
                     category.SortOrder = sortOrder;
                 }
             }
-            await _context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync().ConfigureAwait(false);
         }
     }
 }

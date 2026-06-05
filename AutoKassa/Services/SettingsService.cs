@@ -33,6 +33,10 @@ namespace AutoKassa.Services
         {
             await using var context = contextFactory.CreateDbContext();
             await context.Database.MigrateAsync();
+
+            // Включаем WAL-режим SQLite для лучшей конкурентности читателей и писателей.
+            // WAL позволяет читать из БД во время записи, что критично для стабильности на слабом железе.
+            await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
         }
 
         /// <summary>
