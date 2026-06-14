@@ -234,9 +234,13 @@
                                      Style="{StaticResource SettingsTabStyle}"
                                      IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=4}"
                                      GroupName="SettingsTabs"/>
-                        <RadioButton Content="О программе"
+                        <RadioButton Content="Кредитная карта"
                                      Style="{StaticResource SettingsTabStyle}"
                                      IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=5}"
+                                     GroupName="SettingsTabs"/>
+                        <RadioButton Content="О программе"
+                                     Style="{StaticResource SettingsTabStyle}"
+                                     IsChecked="{Binding SelectedTabIndex, Converter={StaticResource IntEqualityConverter}, ConverterParameter=6}"
                                      GroupName="SettingsTabs"/>
                     </StackPanel>
 
@@ -549,13 +553,102 @@
                         </StackPanel>
                     </ContentControl>
 
-                    <!-- ===== TAB 5: О программе ===== -->
+                    <!-- ===== TAB 5: Кредитная карта ===== -->
                     <ContentControl>
                         <ContentControl.Style>
                             <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedTabIndex}" Value="5">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                        <StackPanel>
+                            <TextBlock Text="Кредитная карта" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Кредитный лимит (₽)" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Общий лимит по основной карте"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CreditCardLimit, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Right"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Текущий долг (₽)" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Уже израсходованная сумма / начальный долг"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CreditCardCurrentDebt, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Right"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Процентная ставка (% годовых)" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="0, если неизвестна"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CreditCardInterestRate, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Right"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="День платежа" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="День ежемесячного платежа (1–31)"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CreditCardPaymentDay, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Center"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Процент минимального платежа (%)" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Рассчитывается от текущего долга"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding CreditCardMinimumPaymentPercent, StringFormat={}{0:F2}, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="10,8" TextAlignment="Right"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Дата последнего платежа" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Оставьте пустой, если платежей ещё не было"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <DatePicker Grid.Column="1"
+                                            SelectedDate="{Binding CreditCardLastPaymentDate}"
+                                            Width="160" FontSize="12"/>
+                            </Grid>
+                        </StackPanel>
+                    </ContentControl>
+
+                    <!-- ===== TAB 6: О программе ===== -->
+                    <ContentControl>
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl" BasedOn="{StaticResource SettingsSectionCard}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedTabIndex}" Value="6">
                                         <Setter Property="Visibility" Value="Visible"/>
                                     </DataTrigger>
                                 </Style.Triggers>

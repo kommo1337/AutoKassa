@@ -45,6 +45,26 @@ namespace AutoKassa.Models.Reports
         public decimal TotalExpense { get; set; }
 
         /// <summary>
+        /// Сумма кредитных покупок за период
+        /// </summary>
+        public decimal TotalCreditPurchases { get; set; }
+
+        /// <summary>
+        /// Текущий общий долг по кредитным картам
+        /// </summary>
+        public decimal TotalCreditDebt { get; set; }
+
+        /// <summary>
+        /// Фактический баланс (наличные + безналичные)
+        /// </summary>
+        public decimal FactBalance { get; set; }
+
+        /// <summary>
+        /// Условный баланс с учётом кредитного долга
+        /// </summary>
+        public decimal NetBalance { get; set; }
+
+        /// <summary>
         /// Прибыль
         /// </summary>
         public decimal Profit => TotalIncome - TotalExpense;

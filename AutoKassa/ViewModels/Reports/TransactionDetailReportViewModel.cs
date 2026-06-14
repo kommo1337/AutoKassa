@@ -49,9 +49,10 @@ namespace AutoKassa.ViewModels.Reports
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand   = new RelayCommand(_ => SetOperationType(OperationType.Income));
 
-            SetPaymentAllCommand     = new RelayCommand(_ => SelectedPaymentType = null);
-            SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
-            SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+            SetPaymentAllCommand        = new RelayCommand(_ => SelectedPaymentType = null);
+            SetPaymentCashCommand       = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
+            SetPaymentNonCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+            SetPaymentCreditCardCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
 
             // Инициализация отложена до первого отображения через InitializeAsync
         }
@@ -127,18 +128,21 @@ namespace AutoKassa.ViewModels.Reports
                     OnPropertyChanged(nameof(IsPaymentAll));
                     OnPropertyChanged(nameof(IsPaymentCash));
                     OnPropertyChanged(nameof(IsPaymentNonCash));
+                    OnPropertyChanged(nameof(IsPaymentCreditCard));
                     AutoRefresh();
                 }
             }
         }
 
-        public bool IsPaymentAll     => !SelectedPaymentType.HasValue;
-        public bool IsPaymentCash    => SelectedPaymentType == PaymentType.Cash;
-        public bool IsPaymentNonCash => SelectedPaymentType == PaymentType.NonCash;
+        public bool IsPaymentAll        => !SelectedPaymentType.HasValue;
+        public bool IsPaymentCash       => SelectedPaymentType == PaymentType.Cash;
+        public bool IsPaymentNonCash    => SelectedPaymentType == PaymentType.NonCash;
+        public bool IsPaymentCreditCard => SelectedPaymentType == PaymentType.CreditCard;
 
-        public ICommand SetPaymentAllCommand     { get; }
-        public ICommand SetPaymentCashCommand    { get; }
-        public ICommand SetPaymentNonCashCommand { get; }
+        public ICommand SetPaymentAllCommand        { get; }
+        public ICommand SetPaymentCashCommand       { get; }
+        public ICommand SetPaymentNonCashCommand    { get; }
+        public ICommand SetPaymentCreditCardCommand { get; }
 
         private void ValidateDateRange()
         {

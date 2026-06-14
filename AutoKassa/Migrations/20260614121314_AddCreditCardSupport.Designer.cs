@@ -3,6 +3,7 @@ using System;
 using AutoKassa.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AutoKassa.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260614121314_AddCreditCardSupport")]
+    partial class AddCreditCardSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -51,24 +54,6 @@ namespace AutoKassa.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("ConfirmDelete")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("CreditCardCurrentDebt")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("CreditCardInterestRate")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<DateTime?>("CreditCardLastPaymentDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("CreditCardLimit")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("CreditCardMinimumPaymentPercent")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<int>("CreditCardPaymentDay")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("CustomSecurityQuestion")
@@ -154,11 +139,6 @@ namespace AutoKassa.Migrations
                             BackupFrequency = "Weekly",
                             BackupKeepCount = 10,
                             ConfirmDelete = true,
-                            CreditCardCurrentDebt = 0m,
-                            CreditCardInterestRate = 0m,
-                            CreditCardLimit = 0m,
-                            CreditCardMinimumPaymentPercent = 5m,
-                            CreditCardPaymentDay = 10,
                             DefaultOperationType = 2,
                             DefaultPageSize = 20,
                             DefaultPaymentType = 1,

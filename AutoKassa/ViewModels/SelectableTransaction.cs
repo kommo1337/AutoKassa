@@ -48,6 +48,8 @@ namespace AutoKassa.ViewModels
         private PaymentType _inlinePaymentType = PaymentType.Cash;
         private string _inlineAmountText = string.Empty;
         private Category? _inlineCategory;
+        private CreditCard? _inlineCreditCard;
+        private ObservableCollection<CreditCard> _inlineCreditCards = new();
         private string _inlineDescription = string.Empty;
         private ObservableCollection<Category> _allCategories = new();
         private bool _isSaving;
@@ -101,6 +103,9 @@ namespace AutoKassa.ViewModels
                 {
                     OnPropertyChanged(nameof(InlineIsCash));
                     OnPropertyChanged(nameof(InlineIsNonCash));
+                    OnPropertyChanged(nameof(InlineIsCreditCard));
+                    if (value == PaymentType.CreditCard && _inlineCreditCards.Count > 0 && _inlineCreditCard == null)
+                        InlineCreditCard = _inlineCreditCards[0];
                 }
             }
         }
@@ -117,6 +122,25 @@ namespace AutoKassa.ViewModels
             set => SetProperty(ref _inlineCategory, value);
         }
 
+        public CreditCard? InlineCreditCard
+        {
+            get => _inlineCreditCard;
+            set => SetProperty(ref _inlineCreditCard, value);
+        }
+
+        public ObservableCollection<CreditCard> InlineCreditCards
+        {
+            get => _inlineCreditCards;
+            set
+            {
+                if (SetProperty(ref _inlineCreditCards, value))
+                {
+                    if (InlineIsCreditCard && _inlineCreditCard == null && value.Count > 0)
+                        InlineCreditCard = value[0];
+                }
+            }
+        }
+
         public string InlineDescription
         {
             get => _inlineDescription;
@@ -124,8 +148,9 @@ namespace AutoKassa.ViewModels
         }
 
         public bool IsInlineIncome => _inlineType == OperationType.Income;
-        public bool InlineIsCash    => _inlinePaymentType == PaymentType.Cash;
-        public bool InlineIsNonCash => _inlinePaymentType == PaymentType.NonCash;
+        public bool InlineIsCash       => _inlinePaymentType == PaymentType.Cash;
+        public bool InlineIsNonCash    => _inlinePaymentType == PaymentType.NonCash;
+        public bool InlineIsCreditCard => _inlinePaymentType == PaymentType.CreditCard;
 
         public IEnumerable<Category> GroupInlineCategories =>
             _allCategories.Where(c => c.Id > 0 && c.Type == _inlineType);
@@ -137,6 +162,9 @@ namespace AutoKassa.ViewModels
         public ICommand? GroupInlineSelectExpenseCommand     { get; private set; }
         public ICommand? GroupInlineSelectIncomeCommand      { get; private set; }
         public ICommand? GroupInlineTogglePaymentCommand     { get; private set; }
+        public ICommand? GroupInlineSelectCashCommand        { get; private set; }
+        public ICommand? GroupInlineSelectNonCashCommand     { get; private set; }
+        public ICommand? GroupInlineSelectCreditCardCommand  { get; private set; }
         public ICommand? GroupInlineSaveCommand              { get; private set; }
         public ICommand? GroupInlineCancelCommand            { get; private set; }
 
@@ -145,10 +173,12 @@ namespace AutoKassa.ViewModels
         /// и привязывает категории + делегат сохранения.
         /// </summary>
         public void InitInline(ObservableCollection<Category> categories,
+                               ObservableCollection<CreditCard> creditCards,
                                Func<SelectableDateGroup, Task> onSave,
                                IToastNotificationService? toastService = null)
         {
             _allCategories = categories;
+            InlineCreditCards = creditCards;
             GroupInlineCategory = GroupInlineCategories.FirstOrDefault();
 
             OpenGroupInlineCommand = new RelayCommand(_ =>
@@ -166,9 +196,16 @@ namespace AutoKassa.ViewModels
             GroupInlineSelectIncomeCommand  = new RelayCommand(_ => InlineType = OperationType.Income);
 
             GroupInlineTogglePaymentCommand = new RelayCommand(_ =>
-                InlinePaymentType = InlinePaymentType == PaymentType.Cash
-                    ? PaymentType.NonCash
-                    : PaymentType.Cash);
+                InlinePaymentType = InlinePaymentType switch
+                {
+                    PaymentType.Cash => PaymentType.NonCash,
+                    PaymentType.NonCash => PaymentType.CreditCard,
+                    _ => PaymentType.Cash
+                });
+
+            GroupInlineSelectCashCommand       = new RelayCommand(_ => InlinePaymentType = PaymentType.Cash);
+            GroupInlineSelectNonCashCommand    = new RelayCommand(_ => InlinePaymentType = PaymentType.NonCash);
+            GroupInlineSelectCreditCardCommand = new RelayCommand(_ => InlinePaymentType = PaymentType.CreditCard);
 
             GroupInlineSaveCommand = new RelayCommand(async _ =>
             {
@@ -212,6 +249,7 @@ namespace AutoKassa.ViewModels
             InlineAmountText  = string.Empty;
             InlineDescription = string.Empty;
             GroupInlineCategory = GroupInlineCategories.FirstOrDefault();
+            InlineCreditCard = InlineCreditCards.Count > 0 ? InlineCreditCards[0] : null;
         }
     }
 }

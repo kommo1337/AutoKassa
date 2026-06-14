@@ -11,6 +11,7 @@ namespace AutoKassa.ViewModels
     {
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
+        private readonly ICreditCardService _creditCardService;
         private readonly IDialogService _dialogService;
 
         private Transaction _transaction;
@@ -25,6 +26,8 @@ namespace AutoKassa.ViewModels
         private bool _isInitialized;
         private PaymentType _selectedPaymentType = PaymentType.Cash;
         private bool _showAllCategories;
+        private List<CreditCard> _availableCreditCards = new();
+        private CreditCard? _selectedCreditCard;
 
         public CalculatorViewModel Calculator { get; }
 
@@ -46,17 +49,20 @@ namespace AutoKassa.ViewModels
         private int? _initialCategoryId;
         private string _initialDescription = "";
         private PaymentType _initialPaymentType = PaymentType.Cash;
+        private int? _initialCreditCardId;
         private DateTime _initialDate;
 
         public TransactionEditViewModel(
             ITransactionService transactionService,
             ICategoryService categoryService,
+            ICreditCardService creditCardService,
             IDialogService dialogService,
             ISettingsService settingsService,
             IToastNotificationService toastService)
         {
             _transactionService = transactionService;
             _categoryService = categoryService;
+            _creditCardService = creditCardService;
             _dialogService = dialogService;
             _settingsService = settingsService;
             _toastService = toastService;
@@ -66,6 +72,8 @@ namespace AutoKassa.ViewModels
             CancelCommand = new RelayCommand(_ => Cancel());
             SelectCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
             SelectNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+            SelectCreditCardPaymentCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
+            SelectCreditCardCommand = new RelayCommand(p => { if (p is CreditCard c) SelectedCreditCard = c; });
             SelectExpenseTypeCommand = new RelayCommand(_ => Type = OperationType.Expense);
             SelectIncomeTypeCommand = new RelayCommand(_ => Type = OperationType.Income);
             ToggleShowAllCategoriesCommand = new RelayCommand(_ => ShowAllCategories = !ShowAllCategories);
@@ -83,6 +91,7 @@ namespace AutoKassa.ViewModels
         private async System.Threading.Tasks.Task InitializeAsync()
         {
             await LoadCategoriesAsync();
+            await LoadCreditCardsAsync();
             _isInitialized = true;
         }
 
@@ -238,6 +247,17 @@ namespace AutoKassa.ViewModels
                 {
                     OnPropertyChanged(nameof(IsCash));
                     OnPropertyChanged(nameof(IsNonCash));
+                    OnPropertyChanged(nameof(IsCreditCard));
+
+                    if (_selectedPaymentType == PaymentType.CreditCard)
+                    {
+                        if (_selectedCreditCard == null && _availableCreditCards.Count == 1)
+                            SelectedCreditCard = _availableCreditCards[0];
+                    }
+                    else
+                    {
+                        SelectedCreditCard = null;
+                    }
                 }
             }
         }
@@ -252,6 +272,34 @@ namespace AutoKassa.ViewModels
         {
             get => SelectedPaymentType == PaymentType.NonCash;
             set { if (value) SelectedPaymentType = PaymentType.NonCash; }
+        }
+
+        public bool IsCreditCard
+        {
+            get => SelectedPaymentType == PaymentType.CreditCard;
+            set { if (value) SelectedPaymentType = PaymentType.CreditCard; }
+        }
+
+        public List<CreditCard> AvailableCreditCards
+        {
+            get => _availableCreditCards;
+            set
+            {
+                if (SetProperty(ref _availableCreditCards, value))
+                    OnPropertyChanged(nameof(HasAvailableCreditCards));
+            }
+        }
+
+        public bool HasAvailableCreditCards => _availableCreditCards.Count > 0;
+
+        public CreditCard? SelectedCreditCard
+        {
+            get => _selectedCreditCard;
+            set
+            {
+                if (SetProperty(ref _selectedCreditCard, value))
+                    ValidateCreditCard();
+            }
         }
 
         public bool IsCategoryManagerOpen
@@ -275,6 +323,8 @@ namespace AutoKassa.ViewModels
         public ICommand CancelCommand { get; }
         public ICommand SelectCashCommand { get; }
         public ICommand SelectNonCashCommand { get; }
+        public ICommand SelectCreditCardPaymentCommand { get; }
+        public ICommand SelectCreditCardCommand { get; }
         public ICommand SelectExpenseTypeCommand { get; }
         public ICommand SelectIncomeTypeCommand { get; }
         public ICommand ToggleShowAllCategoriesCommand { get; }
@@ -297,10 +347,12 @@ namespace AutoKassa.ViewModels
             Type = OperationType.Expense;
             Description = string.Empty;
             SelectedPaymentType = PaymentType.Cash;
+            SelectedCreditCard = null;
             ShowAllCategories = false;
             Calculator.Clear();
             Calculator.IsOpen = false;
             ValidateCategory();
+            ValidateCreditCard();
             CaptureSnapshot();
         }
 
@@ -314,6 +366,7 @@ namespace AutoKassa.ViewModels
             Type = transaction.Type;
             Description = transaction.Description;
             SelectedPaymentType = transaction.PaymentType;
+            SelectedCreditCard = null;
             ShowAllCategories = false;
             Calculator.Clear();
             Calculator.IsOpen = false;
@@ -321,9 +374,13 @@ namespace AutoKassa.ViewModels
             RunAsync(async () =>
             {
                 await LoadCategoriesAsync();
+                await LoadCreditCardsAsync();
 
                 if (Categories != null && Categories.Count > 0)
                     SelectedCategory = Categories.FirstOrDefault(c => c.Id == transaction.CategoryId);
+
+                if (_availableCreditCards.Count > 0 && transaction.CreditCardId.HasValue)
+                    SelectedCreditCard = _availableCreditCards.FirstOrDefault(c => c.Id == transaction.CreditCardId.Value);
 
                 CaptureSnapshot();
             });
@@ -336,6 +393,7 @@ namespace AutoKassa.ViewModels
             _initialCategoryId = _selectedCategory?.Id;
             _initialDescription = _description ?? "";
             _initialPaymentType = _selectedPaymentType;
+            _initialCreditCardId = _selectedCreditCard?.Id;
             _initialDate = _date;
         }
 
@@ -345,6 +403,7 @@ namespace AutoKassa.ViewModels
             || (_selectedCategory?.Id) != _initialCategoryId
             || (_description ?? "") != _initialDescription
             || _selectedPaymentType != _initialPaymentType
+            || (_selectedCreditCard?.Id) != _initialCreditCardId
             || _date != _initialDate;
 
         private async System.Threading.Tasks.Task LoadCategoriesAsync()
@@ -371,6 +430,25 @@ namespace AutoKassa.ViewModels
             {
                 Categories = new List<Category>();
                 _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
+            }
+        }
+
+        private async System.Threading.Tasks.Task LoadCreditCardsAsync()
+        {
+            try
+            {
+                var cards = await _creditCardService.GetAllAsync();
+                AvailableCreditCards = cards.Where(c => c.IsActive).ToList();
+
+                if (_selectedPaymentType == PaymentType.CreditCard && _selectedCreditCard == null && _availableCreditCards.Count == 1)
+                    SelectedCreditCard = _availableCreditCards[0];
+
+                ValidateCreditCard();
+            }
+            catch (Exception ex)
+            {
+                AvailableCreditCards = new List<CreditCard>();
+                _dialogService.ShowError($"Ошибка загрузки кредитных карт: {ex.Message}");
             }
         }
 
@@ -408,6 +486,14 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(SelectedCategory));
         }
 
+        private void ValidateCreditCard()
+        {
+            if (_selectedPaymentType == PaymentType.CreditCard && _selectedCreditCard == null)
+                SetErrors(nameof(SelectedCreditCard), new[] { "Выберите кредитную карту" });
+            else
+                ClearErrors(nameof(SelectedCreditCard));
+        }
+
         private bool _isSaving;
 
         private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText);
@@ -418,6 +504,7 @@ namespace AutoKassa.ViewModels
 
             ValidateAmount();
             ValidateCategory();
+            ValidateCreditCard();
 
             if (HasErrors) return;
 
@@ -435,6 +522,7 @@ namespace AutoKassa.ViewModels
                     _transaction.CategoryId = SelectedCategory.Id;
                     _transaction.Description = Description;
                     _transaction.PaymentType = SelectedPaymentType;
+                    _transaction.CreditCardId = SelectedCreditCard?.Id;
 
                     await _transactionService.UpdateAsync(_transaction);
                 }
@@ -447,7 +535,8 @@ namespace AutoKassa.ViewModels
                         Type = Type,
                         CategoryId = SelectedCategory.Id,
                         Description = Description,
-                        PaymentType = SelectedPaymentType
+                        PaymentType = SelectedPaymentType,
+                        CreditCardId = SelectedCreditCard?.Id
                     };
 
                     await _transactionService.AddAsync(transaction);
@@ -477,6 +566,7 @@ namespace AutoKassa.ViewModels
 
             ValidateAmount();
             ValidateCategory();
+            ValidateCreditCard();
 
             if (HasErrors) return;
 
@@ -493,7 +583,8 @@ namespace AutoKassa.ViewModels
                     Type = Type,
                     CategoryId = SelectedCategory.Id,
                     Description = Description,
-                    PaymentType = SelectedPaymentType
+                    PaymentType = SelectedPaymentType,
+                    CreditCardId = SelectedCreditCard?.Id
                 };
 
                 await _transactionService.AddAsync(transaction);

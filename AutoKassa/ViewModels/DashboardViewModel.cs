@@ -18,6 +18,7 @@ namespace AutoKassa.ViewModels
     {
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
+        private readonly ICreditCardService _creditCardService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ISettingsService _settingsService;
@@ -79,6 +80,15 @@ namespace AutoKassa.ViewModels
         private decimal _nonCashProfit;
         private string _periodLabel = "ЗА МЕСЯЦ";
 
+        // Кредитные карты
+        private bool _hasCreditCards;
+        private decimal _totalCreditLimit;
+        private decimal _totalCreditUsed;
+        private decimal _totalCreditAvailable;
+        private decimal _totalCreditDebt;
+        private DateTime? _nextCreditPaymentDate;
+        private decimal _nextCreditPaymentAmount;
+
         // Быстрое добавление (субVM)
         private QuickAddViewModel _quickAdd;
 
@@ -95,6 +105,7 @@ namespace AutoKassa.ViewModels
         public DashboardViewModel(
             ITransactionService transactionService,
             ICategoryService categoryService,
+            ICreditCardService creditCardService,
             IDialogService dialogService,
             IToastNotificationService toastService,
             ISettingsService settingsService,
@@ -102,6 +113,7 @@ namespace AutoKassa.ViewModels
         {
             _transactionService = transactionService;
             _categoryService = categoryService;
+            _creditCardService = creditCardService;
             _dialogService = dialogService;
             _toastService = toastService;
             _settingsService = settingsService;
@@ -287,6 +299,117 @@ namespace AutoKassa.ViewModels
             get => _nonCashProfit;
             set => SetProperty(ref _nonCashProfit, value);
         }
+
+        #region Кредитные карты
+
+        /// <summary>
+        /// Есть ли активные кредитные карты
+        /// </summary>
+        public bool HasCreditCards
+        {
+            get => _hasCreditCards;
+            set => SetProperty(ref _hasCreditCards, value);
+        }
+
+        /// <summary>
+        /// Общий кредитный лимит
+        /// </summary>
+        public decimal TotalCreditLimit
+        {
+            get => _totalCreditLimit;
+            set
+            {
+                if (SetProperty(ref _totalCreditLimit, value))
+                {
+                    OnPropertyChanged(nameof(TotalCreditLimitFormatted));
+                    OnPropertyChanged(nameof(CreditUsagePercent));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Использовано кредитных средств
+        /// </summary>
+        public decimal TotalCreditUsed
+        {
+            get => _totalCreditUsed;
+            set
+            {
+                if (SetProperty(ref _totalCreditUsed, value))
+                {
+                    OnPropertyChanged(nameof(TotalCreditUsedFormatted));
+                    OnPropertyChanged(nameof(CreditUsagePercent));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Доступный кредитный остаток
+        /// </summary>
+        public decimal TotalCreditAvailable
+        {
+            get => _totalCreditAvailable;
+            set
+            {
+                if (SetProperty(ref _totalCreditAvailable, value))
+                    OnPropertyChanged(nameof(TotalCreditAvailableFormatted));
+            }
+        }
+
+        /// <summary>
+        /// Текущий общий долг по кредитным картам
+        /// </summary>
+        public decimal TotalCreditDebt
+        {
+            get => _totalCreditDebt;
+            set
+            {
+                if (SetProperty(ref _totalCreditDebt, value))
+                    OnPropertyChanged(nameof(TotalCreditDebtFormatted));
+            }
+        }
+
+        /// <summary>
+        /// Дата ближайшего платежа
+        /// </summary>
+        public DateTime? NextCreditPaymentDate
+        {
+            get => _nextCreditPaymentDate;
+            set
+            {
+                if (SetProperty(ref _nextCreditPaymentDate, value))
+                    OnPropertyChanged(nameof(NextCreditPaymentDateFormatted));
+            }
+        }
+
+        /// <summary>
+        /// Сумма ближайшего минимального платежа
+        /// </summary>
+        public decimal NextCreditPaymentAmount
+        {
+            get => _nextCreditPaymentAmount;
+            set
+            {
+                if (SetProperty(ref _nextCreditPaymentAmount, value))
+                    OnPropertyChanged(nameof(NextCreditPaymentAmountFormatted));
+            }
+        }
+
+        public string TotalCreditLimitFormatted => $"{TotalCreditLimit:N0} ₽";
+        public string TotalCreditUsedFormatted => $"{TotalCreditUsed:N0} ₽";
+        public string TotalCreditAvailableFormatted => $"{TotalCreditAvailable:N0} ₽";
+        public string TotalCreditDebtFormatted => $"{TotalCreditDebt:N0} ₽";
+        public string NextCreditPaymentDateFormatted => NextCreditPaymentDate?.ToString("dd.MM.yyyy") ?? "—";
+        public string NextCreditPaymentAmountFormatted => $"{NextCreditPaymentAmount:N0} ₽";
+
+        /// <summary>
+        /// Процент использования кредитного лимита (для ProgressBar)
+        /// </summary>
+        public double CreditUsagePercent => TotalCreditLimit > 0
+            ? (double)(TotalCreditUsed / TotalCreditLimit * 100m)
+            : 0;
+
+        #endregion
 
         public string PeriodLabel
         {
@@ -569,7 +692,8 @@ namespace AutoKassa.ViewModels
                     LoadRecentTransactionsAsync(ct),
                     LoadChartDataAsync(ct),
                     LoadTodayBalanceAsync(ct),
-                    LoadCashBalanceAsync(ct));
+                    LoadCashBalanceAsync(ct),
+                    LoadCreditMetricsAsync(ct));
             }
             catch (OperationCanceledException) { /* пользователь сменил период — игнорируем */ }
             catch (Exception ex)
@@ -726,6 +850,60 @@ namespace AutoKassa.ViewModels
 
             var (cardInc, cardExp, _, _) = await cardTask;
             NonCashBalance = cardInc - cardExp;
+        }
+
+        /// <summary>
+        /// Загрузка метрик по кредитным картам для виджетов дашборда
+        /// </summary>
+        private async Task LoadCreditMetricsAsync(CancellationToken ct = default)
+        {
+            var cards = await _creditCardService.GetAllAsync(ct);
+            var activeCards = cards.Where(c => c.IsActive).ToList();
+
+            if (activeCards.Count == 0)
+            {
+                HasCreditCards = false;
+                TotalCreditLimit = TotalCreditUsed = TotalCreditAvailable = TotalCreditDebt = 0;
+                NextCreditPaymentDate = null;
+                NextCreditPaymentAmount = 0;
+                return;
+            }
+
+            var tasks = activeCards.Select(async card => new
+            {
+                Card = card,
+                Debt = await _creditCardService.GetCurrentDebtAsync(card.Id, ct),
+                Available = await _creditCardService.GetAvailableLimitAsync(card.Id, ct),
+                MinPayment = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct),
+                NextDate = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct)
+            }).ToList();
+
+            var results = await Task.WhenAll(tasks);
+
+            TotalCreditLimit = results.Sum(r => r.Card.Limit);
+            TotalCreditAvailable = results.Sum(r => r.Available);
+            TotalCreditUsed = TotalCreditLimit - TotalCreditAvailable;
+            TotalCreditDebt = results.Sum(r => r.Debt);
+
+            var upcoming = results
+                .Where(r => r.NextDate.HasValue && r.Debt > 0)
+                .OrderBy(r => r.NextDate)
+                .FirstOrDefault();
+
+            if (upcoming != null)
+            {
+                NextCreditPaymentDate = upcoming.NextDate!.Value;
+                NextCreditPaymentAmount = results
+                    .Where(r => r.NextDate == upcoming.NextDate)
+                    .Sum(r => r.MinPayment);
+            }
+            else
+            {
+                NextCreditPaymentDate = null;
+                NextCreditPaymentAmount = 0;
+            }
+
+            HasCreditCards = true;
         }
 
         /// <summary>
@@ -897,7 +1075,7 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void OpenAddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
             vm.OnSaved = async () =>
             {
@@ -921,7 +1099,7 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(t);
             vm.OnSaved = async () =>
             {

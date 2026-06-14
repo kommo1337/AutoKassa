@@ -19,7 +19,8 @@ namespace AutoKassa.Tests.Services
             (_factory, _conn) = TestDatabase.CreateWithFactory();
             _settingsSvc = new SettingsService(_factory);
             _ctx = _factory.CreateDbContext();
-            _svc = new ReportService(_factory, _settingsSvc);
+            var creditCardService = new CreditCardService(_factory);
+            _svc = new ReportService(_factory, _settingsSvc, creditCardService);
         }
 
         public void Dispose()
@@ -439,6 +440,39 @@ namespace AutoKassa.Tests.Services
 
             report.Transactions.Should().HaveCount(1);
             report.TotalExpense.Should().Be(100m);
+        }
+
+        // ─────────────────────────────────────────
+        // Кредитные карты
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_IncludesCreditPurchasesSeparately()
+        {
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 100000m);
+
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 2000m, OperationType.Expense, PaymentType.CreditCard, day, creditCardId: card.Id);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 1000m, OperationType.Expense, PaymentType.Cash, day);
+
+            var report = await _svc.GenerateBalanceReportAsync(day, day);
+
+            report.TotalExpense.Should().Be(3000m);
+            report.TotalCreditPurchases.Should().Be(2000m);
+            report.FactBalance.Should().Be(-1000m);
+        }
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_CreditDebt_ReducesNetBalance()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 100000m, initialDebt: 5000m);
+            var day = new DateTime(2025, 6, 15);
+
+            var report = await _svc.GenerateBalanceReportAsync(day, day);
+
+            report.TotalCreditDebt.Should().Be(5000m);
+            report.NetBalance.Should().Be(report.FactBalance - 5000m);
         }
     }
 }

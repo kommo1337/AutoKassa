@@ -16,6 +16,7 @@ namespace AutoKassa.ViewModels
     public class SettingsViewModel : ViewModelBase, INavigationAware
     {
         private readonly ISettingsService _settingsService;
+        private readonly ICreditCardService _creditCardService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ICategoryService _categoryService;
@@ -62,6 +63,14 @@ namespace AutoKassa.ViewModels
         private bool _requirePasswordOnStartup;
         private int _passwordExpireDays;
 
+        // Кредитная карта
+        private decimal _creditCardLimit;
+        private decimal _creditCardCurrentDebt;
+        private decimal _creditCardInterestRate;
+        private int _creditCardPaymentDay;
+        private DateTime? _creditCardLastPaymentDate;
+        private decimal _creditCardMinimumPaymentPercent;
+
         // О программе
         private string _appVersion;
         private string _dbFileSize;
@@ -101,6 +110,7 @@ namespace AutoKassa.ViewModels
 
         public SettingsViewModel(
             ISettingsService settingsService,
+            ICreditCardService creditCardService,
             IDialogService dialogService,
             IToastNotificationService toastService,
             ICategoryService categoryService,
@@ -108,6 +118,7 @@ namespace AutoKassa.ViewModels
             IDataChangeService dataChangeService)
         {
             _settingsService = settingsService;
+            _creditCardService = creditCardService;
             _dialogService = dialogService;
             _toastService = toastService;
             _categoryService = categoryService;
@@ -309,6 +320,46 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
+        #region Кредитная карта
+
+        public decimal CreditCardLimit
+        {
+            get => _creditCardLimit;
+            set { if (SetProperty(ref _creditCardLimit, value)) MarkAsChanged(); }
+        }
+
+        public decimal CreditCardCurrentDebt
+        {
+            get => _creditCardCurrentDebt;
+            set { if (SetProperty(ref _creditCardCurrentDebt, value)) MarkAsChanged(); }
+        }
+
+        public decimal CreditCardInterestRate
+        {
+            get => _creditCardInterestRate;
+            set { if (SetProperty(ref _creditCardInterestRate, value)) MarkAsChanged(); }
+        }
+
+        public int CreditCardPaymentDay
+        {
+            get => _creditCardPaymentDay;
+            set { if (SetProperty(ref _creditCardPaymentDay, value)) MarkAsChanged(); }
+        }
+
+        public DateTime? CreditCardLastPaymentDate
+        {
+            get => _creditCardLastPaymentDate;
+            set { if (SetProperty(ref _creditCardLastPaymentDate, value)) MarkAsChanged(); }
+        }
+
+        public decimal CreditCardMinimumPaymentPercent
+        {
+            get => _creditCardMinimumPaymentPercent;
+            set { if (SetProperty(ref _creditCardMinimumPaymentPercent, value)) MarkAsChanged(); }
+        }
+
+        #endregion
+
         #region О программе (read-only)
 
         public string AppVersion
@@ -448,6 +499,13 @@ namespace AutoKassa.ViewModels
             _requirePasswordOnStartup = settings.RequirePasswordOnStartup;
             _passwordExpireDays = settings.PasswordExpireDays;
 
+            _creditCardLimit = settings.CreditCardLimit;
+            _creditCardCurrentDebt = settings.CreditCardCurrentDebt;
+            _creditCardInterestRate = settings.CreditCardInterestRate;
+            _creditCardPaymentDay = settings.CreditCardPaymentDay;
+            _creditCardLastPaymentDate = settings.CreditCardLastPaymentDate;
+            _creditCardMinimumPaymentPercent = settings.CreditCardMinimumPaymentPercent;
+
             // Уведомляем UI о каждом изменённом свойстве вместо массового string.Empty.
             // Это убирает лишний пересчёт скрытых (Collapsed) элементов и ускоряет переключение.
             OnPropertyChanged(nameof(AutoLockEnabled));
@@ -469,6 +527,12 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(BackupKeepCount));
             OnPropertyChanged(nameof(RequirePasswordOnStartup));
             OnPropertyChanged(nameof(PasswordExpireDays));
+            OnPropertyChanged(nameof(CreditCardLimit));
+            OnPropertyChanged(nameof(CreditCardCurrentDebt));
+            OnPropertyChanged(nameof(CreditCardInterestRate));
+            OnPropertyChanged(nameof(CreditCardPaymentDay));
+            OnPropertyChanged(nameof(CreditCardLastPaymentDate));
+            OnPropertyChanged(nameof(CreditCardMinimumPaymentPercent));
             OnPropertyChanged(nameof(HasUnsavedChanges));
         }
 
@@ -482,6 +546,7 @@ namespace AutoKassa.ViewModels
 
                 ApplyPropertiesToSettings(_currentSettings);
                 await _settingsService.SaveSettingsAsync(_currentSettings);
+                await SyncCreditCardAsync(_currentSettings);
 
                 _originalSettings = CloneSettings(_currentSettings);
                 HasUnsavedChanges = false;
@@ -524,6 +589,13 @@ namespace AutoKassa.ViewModels
 
             settings.RequirePasswordOnStartup = RequirePasswordOnStartup;
             settings.PasswordExpireDays = PasswordExpireDays;
+
+            settings.CreditCardLimit = CreditCardLimit;
+            settings.CreditCardCurrentDebt = CreditCardCurrentDebt;
+            settings.CreditCardInterestRate = CreditCardInterestRate;
+            settings.CreditCardPaymentDay = CreditCardPaymentDay;
+            settings.CreditCardLastPaymentDate = CreditCardLastPaymentDate;
+            settings.CreditCardMinimumPaymentPercent = CreditCardMinimumPaymentPercent;
         }
 
         private bool ValidateSettings()
@@ -555,6 +627,36 @@ namespace AutoKassa.ViewModels
             if (BackupKeepCount < 1 || BackupKeepCount > 100)
             {
                 _dialogService.ShowWarning("Количество хранимых копий должно быть от 1 до 100");
+                return false;
+            }
+
+            if (CreditCardLimit < 0)
+            {
+                _dialogService.ShowWarning("Кредитный лимит не может быть отрицательным");
+                return false;
+            }
+
+            if (CreditCardCurrentDebt < 0)
+            {
+                _dialogService.ShowWarning("Текущий долг не может быть отрицательным");
+                return false;
+            }
+
+            if (CreditCardInterestRate < 0)
+            {
+                _dialogService.ShowWarning("Процентная ставка не может быть отрицательной");
+                return false;
+            }
+
+            if (CreditCardPaymentDay < 1 || CreditCardPaymentDay > 31)
+            {
+                _dialogService.ShowWarning("День платежа должен быть от 1 до 31");
+                return false;
+            }
+
+            if (CreditCardMinimumPaymentPercent < 0 || CreditCardMinimumPaymentPercent > 100)
+            {
+                _dialogService.ShowWarning("Процент минимального платежа должен быть от 0 до 100");
                 return false;
             }
 
@@ -820,8 +922,56 @@ namespace AutoKassa.ViewModels
                 DefaultIncomeCategoryId = source.DefaultIncomeCategoryId,
                 DefaultExpenseCategoryId = source.DefaultExpenseCategoryId,
                 DefaultPaymentType = source.DefaultPaymentType,
-                InitialBalance = source.InitialBalance
+                InitialBalance = source.InitialBalance,
+                CreditCardLimit = source.CreditCardLimit,
+                CreditCardCurrentDebt = source.CreditCardCurrentDebt,
+                CreditCardInterestRate = source.CreditCardInterestRate,
+                CreditCardPaymentDay = source.CreditCardPaymentDay,
+                CreditCardLastPaymentDate = source.CreditCardLastPaymentDate,
+                CreditCardMinimumPaymentPercent = source.CreditCardMinimumPaymentPercent
             };
+        }
+
+        /// <summary>
+        /// Синхронизирует настройки основной кредитной карты с таблицей CreditCards.
+        /// </summary>
+        private async Task SyncCreditCardAsync(AppSettings settings)
+        {
+            try
+            {
+                var existing = await _creditCardService.GetByIdAsync(1);
+                if (existing != null)
+                {
+                    existing.Name = "Основная кредитная карта";
+                    existing.Limit = settings.CreditCardLimit;
+                    existing.InitialDebt = settings.CreditCardCurrentDebt;
+                    existing.InterestRate = settings.CreditCardInterestRate;
+                    existing.PaymentDay = settings.CreditCardPaymentDay;
+                    existing.LastPaymentDate = settings.CreditCardLastPaymentDate;
+                    existing.MinimumPaymentPercent = settings.CreditCardMinimumPaymentPercent;
+                    existing.IsActive = true;
+                    await _creditCardService.UpdateAsync(existing);
+                }
+                else
+                {
+                    var card = new CreditCard
+                    {
+                        Name = "Основная кредитная карта",
+                        Limit = settings.CreditCardLimit,
+                        InitialDebt = settings.CreditCardCurrentDebt,
+                        InterestRate = settings.CreditCardInterestRate,
+                        PaymentDay = settings.CreditCardPaymentDay,
+                        LastPaymentDate = settings.CreditCardLastPaymentDate,
+                        MinimumPaymentPercent = settings.CreditCardMinimumPaymentPercent,
+                        IsActive = true
+                    };
+                    await _creditCardService.CreateAsync(card);
+                }
+            }
+            catch (Exception ex)
+            {
+                _dialogService.ShowWarning($"Не удалось синхронизировать кредитную карту: {ex.Message}");
+            }
         }
 
         #endregion

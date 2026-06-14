@@ -22,6 +22,7 @@ namespace AutoKassa.ViewModels.Reports
         private readonly IExportService _exportService;
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
+        private readonly ICreditCardService _creditCardService;
         private readonly ISettingsService _settingsService;
         private readonly IDataChangeService _dataChangeService;
 
@@ -41,6 +42,7 @@ namespace AutoKassa.ViewModels.Reports
             IToastNotificationService toastService,
             ITransactionService transactionService,
             ICategoryService categoryService,
+            ICreditCardService creditCardService,
             ISettingsService settingsService,
             IDataChangeService dataChangeService) : base(dialogService, toastService)
         {
@@ -48,6 +50,7 @@ namespace AutoKassa.ViewModels.Reports
             _exportService = exportService;
             _transactionService = transactionService;
             _categoryService = categoryService;
+            _creditCardService = creditCardService;
             _settingsService = settingsService;
             _dataChangeService = dataChangeService;
 
@@ -60,9 +63,10 @@ namespace AutoKassa.ViewModels.Reports
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand = new RelayCommand(_ => SetOperationType(OperationType.Income));
 
-            SetPaymentAllCommand     = new RelayCommand(_ => SelectedPaymentType = null);
-            SetPaymentCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
-            SetPaymentNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+            SetPaymentAllCommand        = new RelayCommand(_ => SelectedPaymentType = null);
+            SetPaymentCashCommand       = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
+            SetPaymentNonCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+            SetPaymentCreditCardCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
 
             ToggleCategoryCommand = new RelayCommand(param =>
             {
@@ -180,18 +184,21 @@ namespace AutoKassa.ViewModels.Reports
                     OnPropertyChanged(nameof(IsPaymentAll));
                     OnPropertyChanged(nameof(IsPaymentCash));
                     OnPropertyChanged(nameof(IsPaymentNonCash));
+                    OnPropertyChanged(nameof(IsPaymentCreditCard));
                     AutoRefresh();
                 }
             }
         }
 
-        public bool IsPaymentAll     => !SelectedPaymentType.HasValue;
-        public bool IsPaymentCash    => SelectedPaymentType == PaymentType.Cash;
-        public bool IsPaymentNonCash => SelectedPaymentType == PaymentType.NonCash;
+        public bool IsPaymentAll        => !SelectedPaymentType.HasValue;
+        public bool IsPaymentCash       => SelectedPaymentType == PaymentType.Cash;
+        public bool IsPaymentNonCash    => SelectedPaymentType == PaymentType.NonCash;
+        public bool IsPaymentCreditCard => SelectedPaymentType == PaymentType.CreditCard;
 
-        public ICommand SetPaymentAllCommand     { get; }
-        public ICommand SetPaymentCashCommand    { get; }
-        public ICommand SetPaymentNonCashCommand { get; }
+        public ICommand SetPaymentAllCommand        { get; }
+        public ICommand SetPaymentCashCommand       { get; }
+        public ICommand SetPaymentNonCashCommand    { get; }
+        public ICommand SetPaymentCreditCardCommand { get; }
 
         public ICommand ToggleCategoryCommand { get; }
         public ICommand EditTransactionCommand { get; }
@@ -275,7 +282,7 @@ namespace AutoKassa.ViewModels.Reports
 
         private void EditTransaction(Transaction transaction)
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(transaction);
             vm.OnSaved = async () => { IsModalOpen = false; await GenerateReportAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };

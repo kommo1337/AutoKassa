@@ -10,6 +10,11 @@ namespace AutoKassa.Models.Enums
         /// <summary>
         /// Безналичные
         /// </summary>
-        NonCash = 2
+        NonCash = 2,
+
+        /// <summary>
+        /// Кредитная карта
+        /// </summary>
+        CreditCard = 3
     }
 }

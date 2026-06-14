@@ -172,6 +172,7 @@ namespace AutoKassa
             services.AddTransient<ITransactionService, TransactionService>();
             services.AddTransient<ICategoryService, CategoryService>();
             services.AddTransient<IReportService, ReportService>();
+            services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddSingleton<IExportService, ExportService>();
             services.AddSingleton<IDataChangeService, DataChangeService>();
 
@@ -187,6 +188,8 @@ namespace AutoKassa
             services.AddTransient<BalanceReportViewModel>();
             services.AddTransient<CategoryReportViewModel>();
             services.AddTransient<TransactionDetailReportViewModel>();
+            services.AddTransient<CreditCardsViewModel>();
+            services.AddTransient<CreditCardEditViewModel>();
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<ChangePasswordViewModel>();
 

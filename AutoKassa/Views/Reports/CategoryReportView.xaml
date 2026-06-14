@@ -221,7 +221,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Безналичные" Command="{Binding SetPaymentNonCashCommand}">
+                        <Button Content="Безналичные" Command="{Binding SetPaymentNonCashCommand}" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
                                     <Style.Triggers>
@@ -229,6 +229,20 @@
                                             <Setter Property="Background" Value="#3b82f6"/>
                                             <Setter Property="Foreground" Value="White"/>
                                             <Setter Property="BorderBrush" Value="#3b82f6"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Content="Кредит" Command="{Binding SetPaymentCreditCardCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsPaymentCreditCard}" Value="True">
+                                            <Setter Property="Background" Value="#6366f1"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="BorderBrush" Value="#6366f1"/>
                                             <Setter Property="FontWeight" Value="SemiBold"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -587,6 +601,9 @@
                                                                                 <Style.Triggers>
                                                                                     <DataTrigger Binding="{Binding PaymentType}" Value="NonCash">
                                                                                         <Setter Property="Text" Value="Безналичные"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding PaymentType}" Value="CreditCard">
+                                                                                        <Setter Property="Text" Value="Кредит"/>
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
                                                                             </Style>

@@ -189,6 +189,40 @@ namespace AutoKassa.Models
         [Required]
         public int DefaultPaymentType { get; set; } = 1;
 
+        /// <summary>
+        /// Кредитный лимит основной карты
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal CreditCardLimit { get; set; } = 0;
+
+        /// <summary>
+        /// Текущий долг по основной кредитной карте
+        /// </summary>
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal CreditCardCurrentDebt { get; set; } = 0;
+
+        /// <summary>
+        /// Годовая процентная ставка по кредитной карте, %
+        /// </summary>
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal CreditCardInterestRate { get; set; } = 0;
+
+        /// <summary>
+        /// День платежа по кредитной карте (1–31)
+        /// </summary>
+        public int CreditCardPaymentDay { get; set; } = 10;
+
+        /// <summary>
+        /// Дата последнего платежа по кредитной карте
+        /// </summary>
+        public DateTime? CreditCardLastPaymentDate { get; set; }
+
+        /// <summary>
+        /// Процент от долга для минимального платежа по кредитной карте
+        /// </summary>
+        [Column(TypeName = "decimal(5,2)")]
+        public decimal CreditCardMinimumPaymentPercent { get; set; } = 5;
+
         #endregion
 
         #region Настройки интерфейса

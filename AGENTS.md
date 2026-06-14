@@ -52,7 +52,7 @@ AutoKassa/
 ├── Models/                          # Сущности БД и DTO
 │   ├── Enums/
 │   │   ├── OperationType.cs        # Income=1, Expense=2
-│   │   ├── PaymentType.cs          # Cash=1, NonCash=2
+│   │   ├── PaymentType.cs          # Cash=1, NonCash=2, CreditCard=3
 │   │   └── SecurityQuestion.cs     # Секретные вопросы для восстановления пароля
 │   ├── Reports/
 │   │   ├── BalanceReport.cs
@@ -60,6 +60,8 @@ AutoKassa/
 │   │   └── TransactionDetailReport.cs
 │   ├── Transaction.cs
 │   ├── Category.cs
+│   ├── CreditCard.cs               # Кредитная карта
+│   ├── CreditCardPurchase.cs       # Покупка по кредитной карте
 │   ├── AppSettings.cs              # Single-row настройки (Id=1)
 │   ├── FavoriteReport.cs
 │   ├── FilterParameters.cs         # TransactionFilterParameters
@@ -160,11 +162,39 @@ Serilog с записью в файл `logs/autokassa-.log` (rolling по дня
 | Date | Дата операции |
 | Amount | Сумма (decimal 18,2) |
 | Type | OperationType (Income/Expense) |
-| PaymentType | PaymentType (Cash/NonCash), default = Cash |
+| PaymentType | PaymentType (Cash/NonCash/CreditCard), default = Cash |
 | CategoryId | FK → Category |
+| CreditCardId | FK → CreditCard (nullable, для кредитных покупок) |
 | Description | Описание, max 500 |
 | CreatedAt / UpdatedAt | Даты создания/изменения |
 | IsDeleted | Soft delete flag |
+
+### CreditCard (кредитная карта)
+| Поле | Описание |
+|------|----------|
+| Id | PK |
+| Name | Название карты |
+| BankName | Банк-эмитент |
+| Limit | Кредитный лимит |
+| InterestRate | Годовая ставка, % |
+| StatementDay | День выписки (1–31) |
+| PaymentDay | День платежа (1–31) |
+| LastPaymentDate | Дата последнего платежа |
+| MinimumPaymentPercent | Процент от долга для мин. платежа |
+| InitialDebt | Начальный долг из настроек |
+| IsActive | Активна ли карта |
+| CreatedAt | Дата создания |
+
+### CreditCardPurchase (покупка по кредитной карте)
+| Поле | Описание |
+|------|----------|
+| Id | PK |
+| CreditCardId | FK → CreditCard |
+| TransactionId | FK → Transaction |
+| Amount | Сумма покупки |
+| RemainingDebt | Оставшийся долг по покупке |
+| PurchaseDate | Дата покупки |
+| Notes | Примечание |
 
 ### Category (категория)
 | Поле | Описание |
@@ -318,6 +348,7 @@ dotnet test
 - Нельзя удалить категорию с привязанными операциями (даже удалёнными)
 - Системные категории (`IsSystem = true`) нельзя удалить
 - Уникальность названия категории — в рамках типа (доход/расход)
+- Добавлена системная категория расходов «Погашение кредита» (Id = 11)
 
 ### 11.3. Поиск по описанию
 SQLite `LOWER()` не поддерживает Unicode (кириллицу). Поиск по `SearchText` выполняется в памяти после SQL-фильтрации. Это сознательный компромисс.

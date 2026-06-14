@@ -116,7 +116,8 @@ namespace AutoKassa.Tests.Infrastructure
             OperationType type = OperationType.Expense,
             PaymentType paymentType = PaymentType.Cash,
             DateTime? date = null,
-            string description = "")
+            string description = "",
+            int? creditCardId = null)
         {
             var t = new Transaction
             {
@@ -126,12 +127,60 @@ namespace AutoKassa.Tests.Infrastructure
                 PaymentType = paymentType,
                 Date        = date ?? DateTime.Today,
                 Description = description,
+                CreditCardId = creditCardId,
                 CreatedAt   = DateTime.Now,
                 IsDeleted   = false
             };
             ctx.Transactions.Add(t);
             ctx.SaveChanges();
             return t;
+        }
+
+        /// <summary>
+        /// Добавить кредитную карту с заданными параметрами.
+        /// </summary>
+        public static CreditCard SeedCreditCard(
+            AppDbContext ctx,
+            string name = "Тест-карта",
+            decimal limit = 100000m,
+            decimal initialDebt = 0m,
+            decimal minimumPaymentPercent = 5m)
+        {
+            var card = new CreditCard
+            {
+                Name = name,
+                Limit = limit,
+                InitialDebt = initialDebt,
+                MinimumPaymentPercent = minimumPaymentPercent,
+                PaymentDay = 10,
+                IsActive = true,
+                CreatedAt = DateTime.Now
+            };
+            ctx.CreditCards.Add(card);
+            ctx.SaveChanges();
+            return card;
+        }
+
+        /// <summary>
+        /// Добавить покупку по кредитной карте.
+        /// </summary>
+        public static CreditCardPurchase SeedCreditCardPurchase(
+            AppDbContext ctx,
+            int creditCardId,
+            int transactionId,
+            decimal amount)
+        {
+            var purchase = new CreditCardPurchase
+            {
+                CreditCardId = creditCardId,
+                TransactionId = transactionId,
+                Amount = amount,
+                RemainingDebt = amount,
+                PurchaseDate = DateTime.Today
+            };
+            ctx.CreditCardPurchases.Add(purchase);
+            ctx.SaveChanges();
+            return purchase;
         }
     }
 }

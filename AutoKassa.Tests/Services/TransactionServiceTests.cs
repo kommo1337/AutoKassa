@@ -11,15 +11,18 @@ namespace AutoKassa.Tests.Services
     public class TransactionServiceTests : IDisposable
     {
         private readonly AppDbContext _ctx;
+        private readonly TestDbContextFactory _factory;
         private readonly Microsoft.Data.Sqlite.SqliteConnection _conn;
         private readonly TransactionService _svc;
 
         public TransactionServiceTests()
         {
             var (factory, conn) = TestDatabase.CreateWithFactory();
+            _factory = factory;
             _conn = conn;
             _ctx = factory.CreateDbContext();
-            _svc = new TransactionService(factory);
+            var creditCardService = new CreditCardService(factory);
+            _svc = new TransactionService(factory, creditCardService);
         }
 
         public void Dispose()
@@ -543,6 +546,114 @@ namespace AutoKassa.Tests.Services
 
             result[0].Date.Should().BeOnOrAfter(result[1].Date);
             result[1].Date.Should().BeOnOrAfter(result[2].Date);
+        }
+
+        // ─────────────────────────────────────────
+        // Кредитные карты
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task AddAsync_WithCreditCardPayment_CreatesPurchase()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var transaction = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            var purchase = await _ctx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
+            purchase.Should().NotBeNull();
+            purchase!.Amount.Should().Be(5000m);
+            purchase.CreditCardId.Should().Be(card.Id);
+        }
+
+        [Fact]
+        public async Task AddAsync_WithRepaymentCategory_RepaysDebt()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, initialDebt: 10000m);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            repaymentCategory.Should().NotBeNull();
+            repaymentCategory.Name.Should().Be(CreditCardService.RepaymentCategoryName);
+
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 3000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение"
+            });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var updatedCard = await checkCtx.CreditCards.FindAsync(card.Id);
+            var rawLastPaymentDate = await checkCtx.CreditCards
+                .AsNoTracking()
+                .Where(c => c.Id == card.Id)
+                .Select(c => c.LastPaymentDate)
+                .FirstOrDefaultAsync();
+            rawLastPaymentDate.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_FromCreditCardToCash_RemovesPurchase()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var transaction = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            transaction.PaymentType = PaymentType.Cash;
+            transaction.CreditCardId = null;
+            await _svc.UpdateAsync(transaction);
+
+            var purchase = await _ctx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
+            purchase.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task DeleteAsync_WithCreditCardPayment_RemovesPurchase()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var transaction = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            await _svc.DeleteAsync(transaction.Id);
+
+            var purchase = await _ctx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
+            purchase.Should().BeNull();
         }
     }
 }

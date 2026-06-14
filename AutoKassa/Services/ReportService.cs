@@ -27,11 +27,13 @@ namespace AutoKassa.Services
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private readonly ISettingsService _settingsService;
+        private readonly ICreditCardService _creditCardService;
 
-        public ReportService(IDbContextFactory<AppDbContext> contextFactory, ISettingsService settingsService)
+        public ReportService(IDbContextFactory<AppDbContext> contextFactory, ISettingsService settingsService, ICreditCardService creditCardService)
         {
             _contextFactory = contextFactory;
             _settingsService = settingsService;
+            _creditCardService = creditCardService;
         }
 
         /// <summary>
@@ -67,6 +69,12 @@ namespace AutoKassa.Services
             report.TotalIncome  = totals.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
             report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
             report.EndBalance   = report.StartBalance + report.TotalIncome - report.TotalExpense;
+
+            // Кредитные покупки и обязательства
+            report.TotalCreditPurchases = await GetCreditPurchasesAsync(context, dateFrom, dateToEnd, paymentType, ct).ConfigureAwait(false);
+            report.TotalCreditDebt = await _creditCardService.GetTotalDebtAsync(ct).ConfigureAwait(false);
+            report.FactBalance = await GetFactBalanceAsync(dateFrom, dateTo, paymentType, ct).ConfigureAwait(false);
+            report.NetBalance = report.FactBalance - report.TotalCreditDebt;
 
             // SQL-агрегация по дням
             var dailyRows = await query
@@ -299,6 +307,77 @@ namespace AutoKassa.Services
             report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
 
             return report;
+        }
+
+        /// <summary>
+        /// Получить сумму кредитных покупок за период
+        /// </summary>
+        private async Task<decimal> GetCreditPurchasesAsync(
+            AppDbContext context,
+            DateTime dateFrom,
+            DateTime dateToEnd,
+            PaymentType? paymentType,
+            CancellationToken ct)
+        {
+            if (paymentType.HasValue && paymentType.Value != PaymentType.CreditCard)
+                return 0m;
+
+            var query = context.Transactions
+                .AsNoTracking()
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == OperationType.Expense);
+
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            else
+                query = query.Where(t => t.PaymentType == PaymentType.CreditCard);
+
+            return (decimal?)await query.SumAsync(t => (double)t.Amount, ct).ConfigureAwait(false) ?? 0m;
+        }
+
+        /// <summary>
+        /// Получить фактический баланс (наличные + безналичные) за период
+        /// </summary>
+        private async Task<decimal> GetFactBalanceAsync(
+            DateTime dateFrom,
+            DateTime dateTo,
+            PaymentType? paymentType,
+            CancellationToken ct)
+        {
+            if (paymentType == PaymentType.CreditCard)
+                return 0m;
+
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var dateToEnd = dateTo.Date.AddDays(1);
+
+            // Фактический начальный баланс: наличные (с начальным балансом из настроек) + безналичные
+            var cashStart = await GetInitialBalanceAsync(dateFrom, PaymentType.Cash, ct).ConfigureAwait(false);
+            var nonCashStart = await GetInitialBalanceAsync(dateFrom, PaymentType.NonCash, ct).ConfigureAwait(false);
+            var startBalance = cashStart + nonCashStart;
+
+            // Доходы и расходы по фактическим деньгам за период
+            var query = context.Transactions
+                .AsNoTracking()
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
+
+            if (paymentType.HasValue)
+            {
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+            }
+            else
+            {
+                query = query.Where(t => t.PaymentType == PaymentType.Cash || t.PaymentType == PaymentType.NonCash);
+            }
+
+            var totals = await query
+                .GroupBy(t => t.Type)
+                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var income = totals.FirstOrDefault(r => r.Type == OperationType.Income)?.Total ?? 0m;
+            var expense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
+
+            return startBalance + income - expense;
         }
     }
 }

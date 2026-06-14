@@ -13,7 +13,13 @@ namespace AutoKassa.Helpers.Converters
         {
             if (value is PaymentType paymentType)
             {
-                return paymentType == PaymentType.Cash ? "💵" : "💳";
+                return paymentType switch
+                {
+                    PaymentType.Cash => "💵",
+                    PaymentType.NonCash => "💳",
+                    PaymentType.CreditCard => "💳",
+                    _ => "💵"
+                };
             }
             return "💵";
         }

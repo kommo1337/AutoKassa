@@ -54,6 +54,17 @@ namespace AutoKassa.Models
         public virtual Category Category { get; set; }
 
         /// <summary>
+        /// ID кредитной карты (для операций с типом оплаты "Кредитная карта")
+        /// </summary>
+        public int? CreditCardId { get; set; }
+
+        /// <summary>
+        /// Навигационное свойство - кредитная карта
+        /// </summary>
+        [ForeignKey(nameof(CreditCardId))]
+        public virtual CreditCard? CreditCard { get; set; }
+
+        /// <summary>
         /// Описание операции (опционально)
         /// </summary>
         [MaxLength(500)]

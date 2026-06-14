@@ -34,6 +34,16 @@ namespace AutoKassa.Services
         public DbSet<FavoriteReport> FavoriteReports { get; set; }
 
         /// <summary>
+        /// Таблица кредитных карт
+        /// </summary>
+        public DbSet<CreditCard> CreditCards { get; set; }
+
+        /// <summary>
+        /// Таблица покупок по кредитным картам
+        /// </summary>
+        public DbSet<CreditCardPurchase> CreditCardPurchases { get; set; }
+
+        /// <summary>
         /// Конфигурация подключения к БД
         /// </summary>
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -74,6 +84,40 @@ namespace AutoKassa.Services
                 .HasIndex(c => c.IsActive)
                 .HasDatabaseName("IX_Category_IsActive");
 
+            // ========== CREDIT CARD ==========
+
+            modelBuilder.Entity<CreditCard>()
+                .HasIndex(c => c.IsActive)
+                .HasDatabaseName("IX_CreditCard_IsActive");
+
+            // ========== CREDIT CARD PURCHASE ==========
+
+            // Связь CreditCardPurchase -> CreditCard
+            modelBuilder.Entity<CreditCardPurchase>()
+                .HasOne(p => p.CreditCard)
+                .WithMany(c => c.Purchases)
+                .HasForeignKey(p => p.CreditCardId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Связь CreditCardPurchase -> Transaction
+            modelBuilder.Entity<CreditCardPurchase>()
+                .HasOne(p => p.Transaction)
+                .WithMany()
+                .HasForeignKey(p => p.TransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditCardPurchase>()
+                .HasIndex(p => p.CreditCardId)
+                .HasDatabaseName("IX_CreditCardPurchase_CreditCardId");
+
+            modelBuilder.Entity<CreditCardPurchase>()
+                .HasIndex(p => p.TransactionId)
+                .HasDatabaseName("IX_CreditCardPurchase_TransactionId");
+
+            modelBuilder.Entity<CreditCardPurchase>()
+                .HasIndex(p => p.PurchaseDate)
+                .HasDatabaseName("IX_CreditCardPurchase_PurchaseDate");
+
             // ========== TRANSACTION ==========
 
             // Связь Transaction -> Category (один ко многим)
@@ -82,6 +126,13 @@ namespace AutoKassa.Services
                 .WithMany(c => c.Transactions)
                 .HasForeignKey(t => t.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict); // Запрет каскадного удаления
+
+            // Связь Transaction -> CreditCard
+            modelBuilder.Entity<Transaction>()
+                .HasOne(t => t.CreditCard)
+                .WithMany(c => c.Transactions)
+                .HasForeignKey(t => t.CreditCardId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // Индексы для оптимизации запросов
             modelBuilder.Entity<Transaction>()
@@ -103,6 +154,10 @@ namespace AutoKassa.Services
             modelBuilder.Entity<Transaction>()
                 .HasIndex(t => t.PaymentType)
                 .HasDatabaseName("IX_Transaction_PaymentType");
+
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => t.CreditCardId)
+                .HasDatabaseName("IX_Transactions_CreditCardId");
 
             // Составной индекс для частых запросов
             modelBuilder.Entity<Transaction>()
@@ -247,6 +302,17 @@ namespace AutoKassa.Services
                     Color = "#ef4444",
                     SortOrder = 6,
                     CreatedAt = now
+                },
+                new Category
+                {
+                    Id = 11,
+                    Name = "Погашение кредита",
+                    Type = OperationType.Expense,
+                    IsActive = true,
+                    IsSystem = true,
+                    Color = "#64748b",
+                    SortOrder = 7,
+                    CreatedAt = now
                 }
             );
 
@@ -280,7 +346,13 @@ namespace AutoKassa.Services
                     WindowHeight = 700,
                     DefaultOperationType = 2,
                     InitialBalance = 0m,
-                    DefaultPaymentType = 1
+                    DefaultPaymentType = 1,
+                    CreditCardLimit = 0m,
+                    CreditCardCurrentDebt = 0m,
+                    CreditCardInterestRate = 0m,
+                    CreditCardPaymentDay = 10,
+                    CreditCardLastPaymentDate = null,
+                    CreditCardMinimumPaymentPercent = 5m
                 }
             );
         }

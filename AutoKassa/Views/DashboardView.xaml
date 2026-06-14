@@ -54,6 +54,20 @@
             </Border>
         </DataTemplate>
 
+        <!-- Иконки типа оплаты — Кредитная карта -->
+        <DataTemplate x:Key="CreditCardPaymentIconTemplate">
+            <Border Background="#F5F3FF" CornerRadius="4" Padding="4,2"
+                    ToolTip="Кредит">
+                <Viewbox Width="13" Height="13">
+                    <Canvas Width="24" Height="24">
+                        <Path Data="M1 4a2 2 0 012-2h18a2 2 0 012 2v14a2 2 0 01-2 2H3a2 2 0 01-2-2z M1 10h22"
+                              Stroke="#6366f1" StrokeThickness="2" Fill="Transparent"
+                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    </Canvas>
+                </Viewbox>
+            </Border>
+        </DataTemplate>
+
         <!-- Стиль контекстного меню -->
         <Style x:Key="ModernContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="White"/>
@@ -767,6 +781,9 @@
                                                                                 <DataTrigger Binding="{Binding PaymentType}" Value="NonCash">
                                                                                     <Setter Property="ContentTemplate" Value="{StaticResource NonCashPaymentIconTemplate}"/>
                                                                                 </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding PaymentType}" Value="CreditCard">
+                                                                                    <Setter Property="ContentTemplate" Value="{StaticResource CreditCardPaymentIconTemplate}"/>
+                                                                                </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </ContentControl.Style>
@@ -818,6 +835,73 @@
 
             <!-- ПРАВАЯ ПАНЕЛЬ -->
             <StackPanel Grid.Column="1" Margin="0,0,0,24">
+
+                <!-- Виджет кредитной карты -->
+                <Grid Margin="0,0,0,12"
+                      Visibility="{Binding HasCreditCards, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Border Background="White" CornerRadius="12">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="10" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Background="Transparent" CornerRadius="12" Padding="16" ClipToBounds="True">
+                        <StackPanel>
+                            <TextBlock Text="Кредитная карта" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Использовано" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalCreditLimitFormatted}"
+                                           FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding TotalCreditUsedFormatted}"
+                                           FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalCreditAvailableFormatted}"
+                                           FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}"
+                                           VerticalAlignment="Bottom"/>
+                            </Grid>
+
+                            <ProgressBar Value="{Binding TotalCreditUsed}" Maximum="{Binding TotalCreditLimit}"
+                                         Height="6" BorderThickness="0" Background="#E2E8F0" Foreground="#6366f1"
+                                         Margin="0,0,0,12"/>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Текущий долг" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding TotalCreditDebtFormatted}"
+                                           FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"/>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Ближайший платёж" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                                    <TextBlock Text="{Binding NextCreditPaymentDateFormatted}"
+                                               FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding NextCreditPaymentAmountFormatted}"
+                                           FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <!-- Топ расходов -->
                 <Grid Margin="0,0,0,12">

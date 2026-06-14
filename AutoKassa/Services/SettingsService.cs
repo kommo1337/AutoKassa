@@ -242,6 +242,12 @@ namespace AutoKassa.Services
             settings.DefaultExpenseCategoryId = null;
             settings.InitialBalance = 0m;
             settings.DefaultPaymentType = 1;
+            settings.CreditCardLimit = 0m;
+            settings.CreditCardCurrentDebt = 0m;
+            settings.CreditCardInterestRate = 0m;
+            settings.CreditCardPaymentDay = 10;
+            settings.CreditCardLastPaymentDate = null;
+            settings.CreditCardMinimumPaymentPercent = 5m;
 
             // Восстанавливаем пароль
             settings.PasswordHash = currentPassword;
@@ -284,6 +290,12 @@ namespace AutoKassa.Services
                     DefaultOperationType = settings.DefaultOperationType,
                     DefaultPaymentType = settings.DefaultPaymentType,
                     InitialBalance = settings.InitialBalance,
+                    CreditCardLimit = settings.CreditCardLimit,
+                    CreditCardCurrentDebt = settings.CreditCardCurrentDebt,
+                    CreditCardInterestRate = settings.CreditCardInterestRate,
+                    CreditCardPaymentDay = settings.CreditCardPaymentDay,
+                    CreditCardLastPaymentDate = settings.CreditCardLastPaymentDate,
+                    CreditCardMinimumPaymentPercent = settings.CreditCardMinimumPaymentPercent,
                     ExportDate = DateTime.Now
                 };
 
@@ -335,6 +347,12 @@ namespace AutoKassa.Services
                 settings.DefaultOperationType = importData.DefaultOperationType;
                 settings.DefaultPaymentType = importData.DefaultPaymentType;
                 settings.InitialBalance = importData.InitialBalance;
+                settings.CreditCardLimit = importData.CreditCardLimit;
+                settings.CreditCardCurrentDebt = importData.CreditCardCurrentDebt;
+                settings.CreditCardInterestRate = importData.CreditCardInterestRate;
+                settings.CreditCardPaymentDay = importData.CreditCardPaymentDay;
+                settings.CreditCardLastPaymentDate = importData.CreditCardLastPaymentDate;
+                settings.CreditCardMinimumPaymentPercent = importData.CreditCardMinimumPaymentPercent;
 
                 await SaveSettingsAsync(settings);
                 _log.Information("Настройки импортированы из {FilePath}", filePath);
@@ -586,7 +604,13 @@ namespace AutoKassa.Services
                 WindowWidth = 1200,
                 WindowHeight = 700,
                 DefaultOperationType = (int)OperationType.Expense,
-                DefaultPaymentType = 1
+                DefaultPaymentType = 1,
+                CreditCardLimit = 0m,
+                CreditCardCurrentDebt = 0m,
+                CreditCardInterestRate = 0m,
+                CreditCardPaymentDay = 10,
+                CreditCardLastPaymentDate = null,
+                CreditCardMinimumPaymentPercent = 5m
             };
             using var context = _contextFactory.CreateDbContext();
             context.AppSettings.Add(settings);
@@ -624,6 +648,12 @@ namespace AutoKassa.Services
         public int DefaultOperationType { get; set; }
         public int DefaultPaymentType { get; set; }
         public decimal InitialBalance { get; set; }
+        public decimal CreditCardLimit { get; set; }
+        public decimal CreditCardCurrentDebt { get; set; }
+        public decimal CreditCardInterestRate { get; set; }
+        public int CreditCardPaymentDay { get; set; }
+        public DateTime? CreditCardLastPaymentDate { get; set; }
+        public decimal CreditCardMinimumPaymentPercent { get; set; }
         public DateTime ExportDate { get; set; }
     }
 }

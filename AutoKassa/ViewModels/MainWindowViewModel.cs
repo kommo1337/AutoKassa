@@ -35,6 +35,7 @@ namespace AutoKassa.ViewModels
             NavigateToTransactionsCommand = new RelayCommand(_ => NavigateToTransactions());
             NavigateToReportsCommand = new RelayCommand(_ => NavigateToReports());
             NavigateToCategoriesCommand = new RelayCommand(_ => NavigateToCategories());
+            NavigateToCreditCardsCommand = new RelayCommand(_ => NavigateToCreditCards());
             NavigateToSettingsCommand = new RelayCommand(_ => NavigateToSettings());
 
             // Команда блокировки
@@ -89,6 +90,11 @@ namespace AutoKassa.ViewModels
         public bool IsSettingsActive => CurrentView is SettingsViewModel;
 
         /// <summary>
+        /// Активна ли страница "Кредитные карты"
+        /// </summary>
+        public bool IsCreditCardsActive => CurrentView is CreditCardsViewModel;
+
+        /// <summary>
         /// Показывать кнопку "Категории" в боковом меню
         /// </summary>
         public bool ShowCategoriesInSidebar
@@ -105,6 +111,7 @@ namespace AutoKassa.ViewModels
         public ICommand NavigateToTransactionsCommand { get; }
         public ICommand NavigateToReportsCommand { get; }
         public ICommand NavigateToCategoriesCommand { get; }
+        public ICommand NavigateToCreditCardsCommand { get; }
         public ICommand NavigateToSettingsCommand { get; }
         public ICommand LockCommand { get; }
 
@@ -130,6 +137,11 @@ namespace AutoKassa.ViewModels
         private void NavigateToCategories()
         {
             _navigationService.NavigateTo<CategoriesViewModel>();
+        }
+
+        private void NavigateToCreditCards()
+        {
+            _navigationService.NavigateTo<CreditCardsViewModel>();
         }
 
         private void NavigateToSettings()
@@ -174,6 +186,7 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(IsTransactionsActive));
             OnPropertyChanged(nameof(IsReportsActive));
             OnPropertyChanged(nameof(IsCategoriesActive));
+            OnPropertyChanged(nameof(IsCreditCardsActive));
             OnPropertyChanged(nameof(IsSettingsActive));
         }
 
