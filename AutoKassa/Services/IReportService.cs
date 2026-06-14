@@ -30,5 +30,10 @@ namespace AutoKassa.Services
         /// Сформировать отчет "Детализация операций"
         /// </summary>
         Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(DateTime dateFrom, DateTime dateTo, OperationType? operationType = null, int? categoryId = null, PaymentType? paymentType = null, CancellationToken ct = default);
+
+        /// <summary>
+        /// Получить данные для окна "Сверка кассы" на указанную дату
+        /// </summary>
+        Task<ReconciliationData> GetReconciliationDataAsync(DateTime date, CancellationToken ct = default);
     }
 }

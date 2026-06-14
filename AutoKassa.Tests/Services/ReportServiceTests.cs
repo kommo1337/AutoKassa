@@ -474,5 +474,93 @@ namespace AutoKassa.Tests.Services
             report.TotalCreditDebt.Should().Be(5000m);
             report.NetBalance.Should().Be(report.FactBalance - 5000m);
         }
+
+        // ─────────────────────────────────────────
+        // GetReconciliationDataAsync
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GetReconciliationDataAsync_EmptyPeriod_ReturnsZeroTotals()
+        {
+            var day = new DateTime(2025, 6, 15);
+
+            var data = await _svc.GetReconciliationDataAsync(day);
+
+            data.CashAmount.Should().Be(0m);
+            data.NonCashAmount.Should().Be(0m);
+            data.CreditDebt.Should().Be(0m);
+            data.NextPaymentAmount.Should().Be(0m);
+            data.NextPaymentDate.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task GetReconciliationDataAsync_WithTransactions_ComputesBalances()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 5000m, OperationType.Income, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 1000m, OperationType.Expense, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 12000m, OperationType.Income, PaymentType.NonCash, day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 2000m, OperationType.Expense, PaymentType.NonCash, day);
+
+            var data = await _svc.GetReconciliationDataAsync(day);
+
+            data.CashAmount.Should().Be(4000m);
+            data.NonCashAmount.Should().Be(10000m);
+            (data.CashAmount + data.NonCashAmount).Should().Be(14000m);
+        }
+
+        [Fact]
+        public async Task GetReconciliationDataAsync_WithInitialBalance_AddsToCash()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+            await SetInitialBalanceAsync(10000m);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 5000m, OperationType.Income, PaymentType.Cash, day);
+
+            var data = await _svc.GetReconciliationDataAsync(day);
+
+            data.CashAmount.Should().Be(15000m);
+            data.NonCashAmount.Should().Be(0m);
+        }
+
+        [Fact]
+        public async Task GetReconciliationDataAsync_WithCreditDebt_ReducesNetBalance()
+        {
+            var day = new DateTime(2025, 6, 15);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 100000m, initialDebt: 3000m);
+
+            var data = await _svc.GetReconciliationDataAsync(day);
+
+            data.CreditDebt.Should().Be(3000m);
+            (data.CashAmount + data.NonCashAmount - data.CreditDebt).Should().Be(-3000m);
+            data.NextPaymentDate.Should().NotBeNull();
+            data.NextPaymentAmount.Should().Be(150m); // 5% от 3000
+        }
+
+        [Fact]
+        public async Task GetReconciliationDataAsync_IncludesPreviousDaysBalance()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var previousDay = new DateTime(2025, 6, 14);
+            var currentDay = new DateTime(2025, 6, 15);
+
+            // Операции за предыдущий день
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 10000m, OperationType.Income, PaymentType.NonCash, previousDay);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 2000m, OperationType.Expense, PaymentType.NonCash, previousDay);
+
+            // Операции за текущий день
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 3000m, OperationType.Income, PaymentType.NonCash, currentDay);
+
+            var data = await _svc.GetReconciliationDataAsync(currentDay);
+
+            // 10000 - 2000 + 3000 = 11000
+            data.NonCashAmount.Should().Be(11000m);
+            (data.CashAmount + data.NonCashAmount).Should().Be(data.CashAmount + 11000m);
+        }
     }
 }

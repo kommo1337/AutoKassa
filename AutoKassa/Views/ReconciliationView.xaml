@@ -1,0 +1,285 @@
+<UserControl x:Class="AutoKassa.Views.ReconciliationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:DecimalToStringConverter x:Key="DecimalToStringConverter"/>
+        <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </UserControl.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Верхняя панель -->
+        <Grid Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="Сверка кассы"
+                       FontSize="20"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <DatePicker SelectedDate="{Binding ReconciliationDate, Mode=TwoWay}"
+                            Width="130"
+                            Margin="0,0,8,0"/>
+                <Button Content="Сегодня"
+                        Command="{Binding SetTodayCommand}"
+                        Style="{StaticResource PeriodPresetButtonStyle}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Первый ряд карточек -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Наличные -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="12"
+                    Padding="20"
+                    ToolTip="Сумма наличных операций за выбранный день">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Background="#F0FFF4"
+                            CornerRadius="8"
+                            Padding="8,4"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,12">
+                        <TextBlock Text="Наличные"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </Border>
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding CashAmount, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Grid.Row="2"
+                               Text="Пересчитайте наличные деньги в кассе"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               TextWrapping="Wrap"/>
+                </Grid>
+            </Border>
+
+            <!-- Безналичные -->
+            <Border Grid.Column="2"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="12"
+                    Padding="20"
+                    ToolTip="Сумма безналичных операций за выбранный день">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Background="#EFF6FF"
+                            CornerRadius="8"
+                            Padding="8,4"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,12">
+                        <TextBlock Text="Безналичные"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </Border>
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding NonCashAmount, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Grid.Row="2"
+                               Text="Сверьте с выпиской банка / терминала"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               TextWrapping="Wrap"/>
+                </Grid>
+            </Border>
+
+            <!-- Кредитный долг -->
+            <Border Grid.Column="4"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="12"
+                    Padding="20"
+                    ToolTip="Общий текущий долг по всем кредитным картам">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Background="#F5F3FF"
+                            CornerRadius="8"
+                            Padding="8,4"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,12">
+                        <TextBlock Text="Кредитный долг"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </Border>
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding CreditDebt, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AccentRedBrush}"
+                               Margin="0,0,0,8"/>
+                    <Grid Grid.Row="2" Margin="0,0,0,4">
+                        <TextBlock Text="Нет ближайших платежей"
+                                   FontSize="13"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   Visibility="{Binding NextPaymentDate, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"/>
+                        <TextBlock FontSize="13"
+                                   Foreground="{StaticResource MutedTextBrush}"
+                                   Visibility="{Binding NextPaymentDate, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Run Text="Платёж "/>
+                            <Run Text="{Binding NextPaymentDate, StringFormat={}{0:dd.MM.yyyy}}"/>
+                            <Run Text=": "/>
+                            <Run Text="{Binding NextPaymentAmount, Converter={StaticResource DecimalToStringConverter}}"
+                                 Foreground="{StaticResource AccentRedBrush}"/>
+                        </TextBlock>
+                    </Grid>
+                    <TextBlock Grid.Row="3"
+                               Text="Проверьте покупки по кредитным картам"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"
+                               TextWrapping="Wrap"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Второй ряд карточек -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Фактический остаток -->
+            <Border Grid.Column="0"
+                    Background="{StaticResource CardBgBrush}"
+                    CornerRadius="12"
+                    Padding="20"
+                    ToolTip="Реальные деньги без учёта кредита">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0"
+                            Background="#F8FAFC"
+                            CornerRadius="8"
+                            Padding="8,4"
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,12">
+                        <TextBlock Text="Фактический остаток"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </Border>
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding FactBalance, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Grid.Row="2"
+                               Text="Наличные + Безналичные"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"/>
+                </Grid>
+            </Border>
+
+            <!-- Чистый баланс -->
+            <Border Grid.Column="2"
+                    CornerRadius="12"
+                    Padding="20"
+                    ToolTip="Деньги, которые останутся после погашения всего кредитного долга">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#F0FDF4"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding NetBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                <Setter Property="Background" Value="#FFF5F5"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0"
+                               Text="Чистый баланс"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,12"/>
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding NetBalance, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Margin="0,0,0,8">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NetBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Grid.Row="2"
+                               Text="{Binding NetBalanceFormula}"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedTextBrush}"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -29,7 +29,10 @@ namespace AutoKassa.Services
         private readonly ISettingsService _settingsService;
         private readonly ICreditCardService _creditCardService;
 
-        public ReportService(IDbContextFactory<AppDbContext> contextFactory, ISettingsService settingsService, ICreditCardService creditCardService)
+        public ReportService(
+            IDbContextFactory<AppDbContext> contextFactory,
+            ISettingsService settingsService,
+            ICreditCardService creditCardService)
         {
             _contextFactory = contextFactory;
             _settingsService = settingsService;
@@ -77,29 +80,9 @@ namespace AutoKassa.Services
             report.NetBalance = report.FactBalance - report.TotalCreditDebt;
 
             // Ближайший платёж по кредитным картам
-            var cards = await _creditCardService.GetAllAsync(ct).ConfigureAwait(false);
-            var activeCards = cards.Where(c => c.IsActive).ToList();
-            if (activeCards.Count > 0)
-            {
-                var cardPayments = await Task.WhenAll(activeCards.Select(async card => new
-                {
-                    Date = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct).ConfigureAwait(false),
-                    Amount = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct).ConfigureAwait(false)
-                })).ConfigureAwait(false);
-
-                var upcoming = cardPayments
-                    .Where(x => x.Date.HasValue)
-                    .OrderBy(x => x.Date)
-                    .FirstOrDefault();
-
-                if (upcoming != null)
-                {
-                    report.NextCreditPaymentDate = upcoming.Date!.Value;
-                    report.NextCreditPaymentAmount = cardPayments
-                        .Where(x => x.Date == upcoming.Date)
-                        .Sum(x => x.Amount);
-                }
-            }
+            var (nextPaymentDate, nextPaymentAmount) = await GetNextCreditPaymentAsync(ct).ConfigureAwait(false);
+            report.NextCreditPaymentDate = nextPaymentDate;
+            report.NextCreditPaymentAmount = nextPaymentAmount;
 
             // SQL-агрегация по дням
             var dailyRows = await query
@@ -332,6 +315,64 @@ namespace AutoKassa.Services
             report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
 
             return report;
+        }
+
+        /// <summary>
+        /// Получить данные для окна "Сверка кассы" на указанную дату.
+        /// Отображаются остатки на конец даты (как на дашборде), а не оборот за один день.
+        /// </summary>
+        public async Task<ReconciliationData> GetReconciliationDataAsync(DateTime date, CancellationToken ct = default)
+        {
+            // Остатки на конец выбранной даты.
+            // GetInitialBalanceAsync возвращает баланс на начало даты,
+            // поэтому передаём date.AddDays(1), чтобы получить остаток на конец даты.
+            var cashAmount = await GetInitialBalanceAsync(date.AddDays(1), PaymentType.Cash, ct).ConfigureAwait(false);
+            var nonCashAmount = await GetInitialBalanceAsync(date.AddDays(1), PaymentType.NonCash, ct).ConfigureAwait(false);
+
+            // Кредитный долг и ближайший платёж
+            var creditDebt = await _creditCardService.GetTotalDebtAsync(ct).ConfigureAwait(false);
+            var (nextPaymentDate, nextPaymentAmount) = await GetNextCreditPaymentAsync(ct).ConfigureAwait(false);
+
+            return new ReconciliationData
+            {
+                Date = date,
+                CashAmount = cashAmount,
+                NonCashAmount = nonCashAmount,
+                CreditDebt = creditDebt,
+                NextPaymentDate = nextPaymentDate,
+                NextPaymentAmount = nextPaymentAmount
+            };
+        }
+
+        /// <summary>
+        /// Получить ближайший платёж по кредитным картам и сумму платежей на эту дату
+        /// </summary>
+        private async Task<(DateTime? Date, decimal Amount)> GetNextCreditPaymentAsync(CancellationToken ct)
+        {
+            var cards = await _creditCardService.GetAllAsync(ct).ConfigureAwait(false);
+            var activeCards = cards.Where(c => c.IsActive).ToList();
+            if (activeCards.Count == 0)
+                return (null, 0m);
+
+            var cardPayments = await Task.WhenAll(activeCards.Select(async card => new
+            {
+                Date = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct).ConfigureAwait(false),
+                Amount = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct).ConfigureAwait(false)
+            })).ConfigureAwait(false);
+
+            var upcoming = cardPayments
+                .Where(x => x.Date.HasValue)
+                .OrderBy(x => x.Date)
+                .FirstOrDefault();
+
+            if (upcoming == null)
+                return (null, 0m);
+
+            var amount = cardPayments
+                .Where(x => x.Date == upcoming.Date)
+                .Sum(x => x.Amount);
+
+            return (upcoming.Date!.Value, amount);
         }
 
         /// <summary>

@@ -112,7 +112,8 @@
         <KeyBinding Key="D2" Modifiers="Alt" Command="{Binding NavigateToTransactionsCommand}"/>
         <KeyBinding Key="D3" Modifiers="Alt" Command="{Binding NavigateToReportsCommand}"/>
         <KeyBinding Key="D4" Modifiers="Alt" Command="{Binding NavigateToCreditCardsCommand}"/>
-        <KeyBinding Key="D5" Modifiers="Alt" Command="{Binding NavigateToSettingsCommand}"/>
+        <KeyBinding Key="D5" Modifiers="Alt" Command="{Binding NavigateToReconciliationCommand}"/>
+        <KeyBinding Key="D6" Modifiers="Alt" Command="{Binding NavigateToSettingsCommand}"/>
     </Window.InputBindings>
 
     <Grid>
@@ -412,9 +413,47 @@
                         </StackPanel>
                     </Button>
 
+                    <!-- Сверка кассы -->
+                    <Button Command="{Binding NavigateToReconciliationCommand}"
+                            ToolTip="Сверка (Alt+5)">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsReconciliationActive}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource SidebarActiveBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Viewbox Width="20" Height="20" HorizontalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                                          StrokeThickness="2" Fill="Transparent" StrokeLineJoin="Round"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="Сверка" FontSize="9" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource SidebarTextBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsReconciliationActive}" Value="True">
+                                                <Setter Property="Foreground" Value="White"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
                     <!-- Настройки -->
                     <Button Command="{Binding NavigateToSettingsCommand}"
-                            ToolTip="Настройки (Alt+5)">
+                            ToolTip="Настройки (Alt+6)">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButton}">
                                 <Style.Triggers>
@@ -505,6 +544,10 @@
 
                 <DataTemplate DataType="{x:Type vm:CreditCardsViewModel}">
                     <views:CreditCardsView/>
+                </DataTemplate>
+
+                <DataTemplate DataType="{x:Type vm:ReconciliationViewModel}">
+                    <views:ReconciliationView/>
                 </DataTemplate>
             </ContentControl.Resources>
         </ContentControl>

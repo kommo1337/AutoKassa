@@ -36,6 +36,7 @@ namespace AutoKassa.ViewModels
             NavigateToReportsCommand = new RelayCommand(_ => NavigateToReports());
             NavigateToCategoriesCommand = new RelayCommand(_ => NavigateToCategories());
             NavigateToCreditCardsCommand = new RelayCommand(_ => NavigateToCreditCards());
+            NavigateToReconciliationCommand = new RelayCommand(_ => NavigateToReconciliation());
             NavigateToSettingsCommand = new RelayCommand(_ => NavigateToSettings());
 
             // Команда блокировки
@@ -95,6 +96,11 @@ namespace AutoKassa.ViewModels
         public bool IsCreditCardsActive => CurrentView is CreditCardsViewModel;
 
         /// <summary>
+        /// Активна ли страница "Сверка кассы"
+        /// </summary>
+        public bool IsReconciliationActive => CurrentView is ReconciliationViewModel;
+
+        /// <summary>
         /// Показывать кнопку "Категории" в боковом меню
         /// </summary>
         public bool ShowCategoriesInSidebar
@@ -112,6 +118,7 @@ namespace AutoKassa.ViewModels
         public ICommand NavigateToReportsCommand { get; }
         public ICommand NavigateToCategoriesCommand { get; }
         public ICommand NavigateToCreditCardsCommand { get; }
+        public ICommand NavigateToReconciliationCommand { get; }
         public ICommand NavigateToSettingsCommand { get; }
         public ICommand LockCommand { get; }
 
@@ -142,6 +149,11 @@ namespace AutoKassa.ViewModels
         private void NavigateToCreditCards()
         {
             _navigationService.NavigateTo<CreditCardsViewModel>();
+        }
+
+        private void NavigateToReconciliation()
+        {
+            _navigationService.NavigateTo<ReconciliationViewModel>();
         }
 
         private void NavigateToSettings()
@@ -187,6 +199,7 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(IsReportsActive));
             OnPropertyChanged(nameof(IsCategoriesActive));
             OnPropertyChanged(nameof(IsCreditCardsActive));
+            OnPropertyChanged(nameof(IsReconciliationActive));
             OnPropertyChanged(nameof(IsSettingsActive));
         }
 
