@@ -76,6 +76,31 @@ namespace AutoKassa.Services
             report.FactBalance = await GetFactBalanceAsync(dateFrom, dateTo, paymentType, ct).ConfigureAwait(false);
             report.NetBalance = report.FactBalance - report.TotalCreditDebt;
 
+            // Ближайший платёж по кредитным картам
+            var cards = await _creditCardService.GetAllAsync(ct).ConfigureAwait(false);
+            var activeCards = cards.Where(c => c.IsActive).ToList();
+            if (activeCards.Count > 0)
+            {
+                var cardPayments = await Task.WhenAll(activeCards.Select(async card => new
+                {
+                    Date = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct).ConfigureAwait(false),
+                    Amount = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct).ConfigureAwait(false)
+                })).ConfigureAwait(false);
+
+                var upcoming = cardPayments
+                    .Where(x => x.Date.HasValue)
+                    .OrderBy(x => x.Date)
+                    .FirstOrDefault();
+
+                if (upcoming != null)
+                {
+                    report.NextCreditPaymentDate = upcoming.Date!.Value;
+                    report.NextCreditPaymentAmount = cardPayments
+                        .Where(x => x.Date == upcoming.Date)
+                        .Sum(x => x.Amount);
+                }
+            }
+
             // SQL-агрегация по дням
             var dailyRows = await query
                 .GroupBy(t => t.Date.Date)

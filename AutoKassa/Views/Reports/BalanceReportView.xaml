@@ -210,104 +210,192 @@
         <!-- СВОДКА -->
         <Grid Grid.Row="1" Margin="0,0,0,16"
               Visibility="{Binding HasData, Converter={StaticResource BoolToVisibilityConverter}}">
-            <Border Background="{StaticResource CardBgBrush}" CornerRadius="12">
-                <Border.Effect>
-                    <DropShadowEffect Color="#000000" Opacity="0.05" BlurRadius="8" ShadowDepth="1" Direction="270"/>
-                </Border.Effect>
-            </Border>
-            <Border Background="Transparent" CornerRadius="12" Padding="20,16">
-                <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Карточки: Деньги + Кредит -->
+            <Grid Grid.Row="0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Row="0" Grid.Column="0">
-                    <TextBlock Text="Начальный баланс" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.StartBalance, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
+                <!-- Деньги -->
+                <Border Grid.Column="0" Background="#F0FFF4" CornerRadius="12" Padding="20,16">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                <Rectangle Grid.Column="1" Fill="{StaticResource BorderLightBrush}"/>
+                        <TextBlock Grid.Row="0" Text="Деньги" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
 
-                <StackPanel Grid.Column="2" Margin="20,0">
-                    <TextBlock Text="Доходы" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.TotalIncome, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
+                        <Grid Grid.Row="1" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Начальный баланс" FontSize="12"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       ToolTip="Остаток наличных и безналичных средств на начало периода"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.StartBalance, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </Grid>
 
-                <Rectangle Grid.Column="3" Fill="{StaticResource BorderLightBrush}"/>
+                        <Grid Grid.Row="2" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <TextBlock Text="Доходы" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                           ToolTip="Поступления наличных и безналичных денег за период"/>
+                                <TextBlock Text=" +" FontSize="12" Foreground="{StaticResource AccentGreenBrush}" Margin="4,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.TotalIncome, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AccentGreenBrush}"/>
+                        </Grid>
 
-                <StackPanel Grid.Column="4" Margin="20,0">
-                    <TextBlock Text="Расходы" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.TotalExpense, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
+                        <Grid Grid.Row="3" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <TextBlock Text="Расходы" FontSize="12" Foreground="{StaticResource MutedTextBrush}"
+                                           ToolTip="Расходы наличных и безналичных денег за период"/>
+                                <TextBlock Text=" −" FontSize="12" Foreground="{StaticResource AccentRedBrush}" Margin="4,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.TotalExpense, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"/>
+                        </Grid>
 
-                <Rectangle Grid.Column="5" Fill="{StaticResource BorderLightBrush}"/>
+                        <Border Grid.Row="3" VerticalAlignment="Bottom" Height="1" Background="#86efac" Margin="0,0,0,54"/>
 
-                <StackPanel Grid.Column="6" Margin="20,0">
-                    <TextBlock Text="Прибыль" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.Profit, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="22" FontWeight="SemiBold" Margin="0,4,0,0">
+                        <Grid Grid.Row="3" Margin="0,54,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Фактический баланс" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       ToolTip="Реальные деньги: начальный баланс + доходы − расходы (без кредитки)"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.FactBalance, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- Кредит -->
+                <Border Grid.Column="2" Background="#F5F3FF" CornerRadius="12" Padding="20,16">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Text="Кредит" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Кредитные покупки за период" FontSize="12"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       ToolTip="Сумма покупок по кредитным картам за выбранный период"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.TotalCreditPurchases, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="15" FontWeight="SemiBold" Foreground="#6366f1"/>
+                        </Grid>
+
+                        <Grid Grid.Row="2" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Кредитный долг" FontSize="12"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       ToolTip="Общий текущий долг по всем кредитным картам"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.TotalCreditDebt, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"/>
+                        </Grid>
+
+                        <Border Grid.Row="2" VerticalAlignment="Bottom" Height="1" Background="#c4b5fd" Margin="0,0,0,54"/>
+
+                        <Grid Grid.Row="2" Margin="0,54,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="Ближайший платёж" FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           ToolTip="Сумма минимальных платежей по кредитным картам на ближайшую дату"/>
+                                <TextBlock Text="{Binding Report.NextCreditPaymentDate, StringFormat={}{0:dd.MM.yyyy}}"
+                                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding Report.NextCreditPaymentAmount, Converter={StaticResource DecimalToStringConverter}}"
+                                       FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Чистый баланс -->
+            <Border Grid.Row="1" Background="#F8FAFC" CornerRadius="12" Padding="20,16" Margin="0,12,0,0">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="10" ShadowDepth="1" Direction="270"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="Чистый баланс" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   ToolTip="Фактический баланс минус кредитный долг"/>
+                        <TextBlock Text="{Binding Report.NetBalanceFormula}"
+                                   FontSize="13" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding Report.NetBalance, Converter={StaticResource DecimalToStringConverter}}"
+                               FontSize="26" FontWeight="Bold" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Report.Profit, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                                    <DataTrigger Binding="{Binding Report.NetBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
                                         <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                </StackPanel>
-
-                <Rectangle Grid.Column="7" Fill="{StaticResource BorderLightBrush}"/>
-
-                <StackPanel Grid.Row="0" Grid.Column="8" Margin="20,0">
-                    <TextBlock Text="Конечный баланс" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.EndBalance, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="9" Fill="{StaticResource BorderLightBrush}" Height="1" Margin="0,12"/>
-
-                <StackPanel Grid.Row="1" Grid.Column="0">
-                    <TextBlock Text="Фактический баланс" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.FactBalance, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="2" Margin="20,0">
-                    <TextBlock Text="Кредитные покупки" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.TotalCreditPurchases, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="4" Margin="20,0">
-                    <TextBlock Text="Кредитный долг" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.TotalCreditDebt, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="6" Grid.ColumnSpan="3" Margin="20,0">
-                    <TextBlock Text="Чистый баланс" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
-                    <TextBlock Text="{Binding Report.NetBalance, Converter={StaticResource DecimalToStringConverter}}"
-                               FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>
-                </StackPanel>
-            </Grid>
+                </Grid>
             </Border>
         </Grid>
 

@@ -65,6 +65,30 @@ namespace AutoKassa.Models.Reports
         public decimal NetBalance { get; set; }
 
         /// <summary>
+        /// Дата ближайшего платежа по кредитным картам
+        /// </summary>
+        public DateTime? NextCreditPaymentDate { get; set; }
+
+        /// <summary>
+        /// Сумма ближайшего платежа по кредитным картам
+        /// </summary>
+        public decimal NextCreditPaymentAmount { get; set; }
+
+        /// <summary>
+        /// Формула расчёта чистого баланса для подсказки в интерфейсе
+        /// </summary>
+        public string NetBalanceFormula =>
+            $"{FactBalance.ToString("N2")} ₽ − {TotalCreditDebt.ToString("N2")} ₽";
+
+        /// <summary>
+        /// Информация о ближайшем платеже для отображения в интерфейсе
+        /// </summary>
+        public string NextCreditPaymentInfo =>
+            NextCreditPaymentDate.HasValue
+                ? $"{NextCreditPaymentAmount.ToString("N2")} ₽ ({NextCreditPaymentDate.Value:dd.MM.yyyy})"
+                : "—";
+
+        /// <summary>
         /// Прибыль
         /// </summary>
         public decimal Profit => TotalIncome - TotalExpense;

@@ -854,7 +854,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Использовано" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
+                                <TextBlock Text="Кредитный лимит" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding TotalCreditLimitFormatted}"
                                            FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
                             </Grid>

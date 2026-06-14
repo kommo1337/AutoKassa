@@ -819,37 +819,41 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Загрузка баланса за сегодня — SQL-агрегация
+        /// Загрузка фактического баланса за сегодня — только наличные и безналичные операции.
         /// </summary>
         private async Task LoadTodayBalanceAsync(CancellationToken ct = default)
         {
-            var (income, expense, incCount, expCount) =
-                await _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, ct: ct);
-            HasTodayTransactions = (incCount + expCount) > 0;
-            TodayBalance = income - expense;
+            var cashTask = _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, PaymentType.Cash, ct);
+            var cardTask = _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, PaymentType.NonCash, ct);
+            await Task.WhenAll(cashTask, cardTask);
+
+            var (cashInc, cashExp, cashIncCount, cashExpCount) = await cashTask;
+            var (cardInc, cardExp, cardIncCount, cardExpCount) = await cardTask;
+
+            HasTodayTransactions = (cashIncCount + cashExpCount + cardIncCount + cardExpCount) > 0;
+            TodayBalance = (cashInc - cashExp) + (cardInc - cardExp);
         }
 
         /// <summary>
-        /// Загрузка актуального остатка в кассе — начальный баланс + все доходы - все расходы за всё время
+        /// Загрузка актуального остатка в кассе — начальный баланс + наличные и безналичные операции за всё время.
+        /// Кредитные операции не участвуют, так как это долг банка, а не деньги в кассе.
         /// </summary>
         private async Task LoadCashBalanceAsync(CancellationToken ct = default)
         {
             var settings = await _settingsService.GetSettingsAsync();
             var epoch = new DateTime(2000, 1, 1);
 
-            var allTask  = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, ct: ct);
             var cashTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.Cash, ct);
             var cardTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.NonCash, ct);
-            await Task.WhenAll(allTask, cashTask, cardTask);
-
-            var (allIncome, allExpense, _, _) = await allTask;
-            CurrentCashBalance = settings.InitialBalance + allIncome - allExpense;
+            await Task.WhenAll(cashTask, cardTask);
 
             var (cashInc, cashExp, _, _) = await cashTask;
             CashBalance = settings.InitialBalance + cashInc - cashExp;
 
             var (cardInc, cardExp, _, _) = await cardTask;
             NonCashBalance = cardInc - cardExp;
+
+            CurrentCashBalance = CashBalance + NonCashBalance;
         }
 
         /// <summary>
