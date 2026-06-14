@@ -365,6 +365,9 @@ FodyWeavers.xsd
 AutoKassa_Portable.zip
 publish_portable/
 
+# Agent instructions
+AGENTS.md
+
 # Local SQLite databases & backups
 *.db
 
