@@ -364,3 +364,12 @@ FodyWeavers.xsd
 # AutoKassa portable builds
 AutoKassa_Portable.zip
 publish_portable/
+
+# Local SQLite databases & backups
+*.db
+
+# Environment variables / secrets
+.env
+
+# Temporary seed scripts
+seed_transactions.py
