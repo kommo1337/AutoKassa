@@ -111,9 +111,10 @@
         <KeyBinding Key="D1" Modifiers="Alt" Command="{Binding NavigateToDashboardCommand}"/>
         <KeyBinding Key="D2" Modifiers="Alt" Command="{Binding NavigateToTransactionsCommand}"/>
         <KeyBinding Key="D3" Modifiers="Alt" Command="{Binding NavigateToReportsCommand}"/>
-        <KeyBinding Key="D4" Modifiers="Alt" Command="{Binding NavigateToCreditCardsCommand}"/>
-        <KeyBinding Key="D5" Modifiers="Alt" Command="{Binding NavigateToReconciliationCommand}"/>
-        <KeyBinding Key="D6" Modifiers="Alt" Command="{Binding NavigateToSettingsCommand}"/>
+        <KeyBinding Key="D4" Modifiers="Alt" Command="{Binding NavigateToCounterpartiesCommand}"/>
+        <KeyBinding Key="D5" Modifiers="Alt" Command="{Binding NavigateToCreditCardsCommand}"/>
+        <KeyBinding Key="D6" Modifiers="Alt" Command="{Binding NavigateToReconciliationCommand}"/>
+        <KeyBinding Key="D7" Modifiers="Alt" Command="{Binding NavigateToSettingsCommand}"/>
     </Window.InputBindings>
 
     <Grid>
@@ -374,9 +375,47 @@
                         </StackPanel>
                     </Button>
 
+                    <!-- Долги -->
+                    <Button Command="{Binding NavigateToCounterpartiesCommand}"
+                            ToolTip="Долги (Alt+4)">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCounterpartiesActive}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource SidebarActiveBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel HorizontalAlignment="Center">
+                            <Viewbox Width="20" Height="20" HorizontalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100-8 4 4 0 000 8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75"
+                                          StrokeThickness="2" Fill="Transparent"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="Долги" FontSize="9" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource SidebarTextBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCounterpartiesActive}" Value="True">
+                                                <Setter Property="Foreground" Value="White"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+
                     <!-- Кредитные карты -->
                     <Button Command="{Binding NavigateToCreditCardsCommand}"
-                            ToolTip="Карты (Alt+4)">
+                            ToolTip="Карты (Alt+5)">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButton}">
                                 <Style.Triggers>
@@ -415,7 +454,7 @@
 
                     <!-- Сверка кассы -->
                     <Button Command="{Binding NavigateToReconciliationCommand}"
-                            ToolTip="Сверка (Alt+5)">
+                            ToolTip="Сверка (Alt+6)">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButton}">
                                 <Style.Triggers>
@@ -453,7 +492,7 @@
 
                     <!-- Настройки -->
                     <Button Command="{Binding NavigateToSettingsCommand}"
-                            ToolTip="Настройки (Alt+6)">
+                            ToolTip="Настройки (Alt+7)">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButton}">
                                 <Style.Triggers>
@@ -532,6 +571,10 @@
 
                 <DataTemplate DataType="{x:Type vm:CategoriesViewModel}">
                     <views:CategoriesView/>
+                </DataTemplate>
+
+                <DataTemplate DataType="{x:Type vm:CounterpartiesViewModel}">
+                    <views:CounterpartiesView/>
                 </DataTemplate>
 
                 <DataTemplate DataType="{x:Type vm:ReportsViewModel}">

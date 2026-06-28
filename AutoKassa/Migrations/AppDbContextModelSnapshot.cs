@@ -345,6 +345,49 @@ namespace AutoKassa.Migrations
                         });
                 });
 
+            modelBuilder.Entity("AutoKassa.Models.Counterparty", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT COLLATE NOCASE");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_Counterparty_IsActive");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Counterparty_Name");
+
+                    b.HasIndex("Type")
+                        .HasDatabaseName("IX_Counterparty_Type");
+
+                    b.ToTable("Counterparties");
+                });
+
             modelBuilder.Entity("AutoKassa.Models.CreditCard", b =>
                 {
                     b.Property<int>("Id")
@@ -434,6 +477,36 @@ namespace AutoKassa.Migrations
                     b.ToTable("CreditCardPurchases");
                 });
 
+            modelBuilder.Entity("AutoKassa.Models.DebtPayment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("DebtTransactionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RepaymentTransactionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DebtTransactionId")
+                        .HasDatabaseName("IX_DebtPayment_DebtTransactionId");
+
+                    b.HasIndex("RepaymentTransactionId")
+                        .HasDatabaseName("IX_DebtPayment_RepaymentTransactionId");
+
+                    b.HasIndex("DebtTransactionId", "RepaymentTransactionId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DebtPayment_DebtTransactionId_RepaymentTransactionId");
+
+                    b.ToTable("DebtPayments");
+                });
+
             modelBuilder.Entity("AutoKassa.Models.FavoriteReport", b =>
                 {
                     b.Property<int>("Id")
@@ -475,6 +548,9 @@ namespace AutoKassa.Migrations
                     b.Property<int>("CategoryId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("CounterpartyId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
@@ -484,8 +560,10 @@ namespace AutoKassa.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DebtStatus")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
@@ -506,6 +584,9 @@ namespace AutoKassa.Migrations
                     b.HasIndex("CategoryId")
                         .HasDatabaseName("IX_Transaction_CategoryId");
 
+                    b.HasIndex("CounterpartyId")
+                        .HasDatabaseName("IX_Transaction_CounterpartyId");
+
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_Transaction_CreatedAt");
 
@@ -514,6 +595,9 @@ namespace AutoKassa.Migrations
 
                     b.HasIndex("Date")
                         .HasDatabaseName("IX_Transaction_Date");
+
+                    b.HasIndex("DebtStatus")
+                        .HasDatabaseName("IX_Transaction_DebtStatus");
 
                     b.HasIndex("IsDeleted")
                         .HasDatabaseName("IX_Transaction_IsDeleted");
@@ -555,6 +639,25 @@ namespace AutoKassa.Migrations
                     b.Navigation("Transaction");
                 });
 
+            modelBuilder.Entity("AutoKassa.Models.DebtPayment", b =>
+                {
+                    b.HasOne("AutoKassa.Models.Transaction", "DebtTransaction")
+                        .WithMany()
+                        .HasForeignKey("DebtTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AutoKassa.Models.Transaction", "RepaymentTransaction")
+                        .WithMany()
+                        .HasForeignKey("RepaymentTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DebtTransaction");
+
+                    b.Navigation("RepaymentTransaction");
+                });
+
             modelBuilder.Entity("AutoKassa.Models.Transaction", b =>
                 {
                     b.HasOne("AutoKassa.Models.Category", "Category")
@@ -563,6 +666,11 @@ namespace AutoKassa.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AutoKassa.Models.Counterparty", "Counterparty")
+                        .WithMany("Transactions")
+                        .HasForeignKey("CounterpartyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("AutoKassa.Models.CreditCard", "CreditCard")
                         .WithMany("Transactions")
                         .HasForeignKey("CreditCardId")
@@ -570,10 +678,17 @@ namespace AutoKassa.Migrations
 
                     b.Navigation("Category");
 
+                    b.Navigation("Counterparty");
+
                     b.Navigation("CreditCard");
                 });
 
             modelBuilder.Entity("AutoKassa.Models.Category", b =>
+                {
+                    b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("AutoKassa.Models.Counterparty", b =>
                 {
                     b.Navigation("Transactions");
                 });

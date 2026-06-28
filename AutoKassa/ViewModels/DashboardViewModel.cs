@@ -19,6 +19,7 @@ namespace AutoKassa.ViewModels
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly ICreditCardService _creditCardService;
+        private readonly ICounterpartyService _counterpartyService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ISettingsService _settingsService;
@@ -106,6 +107,7 @@ namespace AutoKassa.ViewModels
             ITransactionService transactionService,
             ICategoryService categoryService,
             ICreditCardService creditCardService,
+            ICounterpartyService counterpartyService,
             IDialogService dialogService,
             IToastNotificationService toastService,
             ISettingsService settingsService,
@@ -114,6 +116,7 @@ namespace AutoKassa.ViewModels
             _transactionService = transactionService;
             _categoryService = categoryService;
             _creditCardService = creditCardService;
+            _counterpartyService = counterpartyService;
             _dialogService = dialogService;
             _toastService = toastService;
             _settingsService = settingsService;
@@ -1079,7 +1082,7 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void OpenAddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
             vm.OnSaved = async () =>
             {
@@ -1103,7 +1106,7 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(t);
             vm.OnSaved = async () =>
             {

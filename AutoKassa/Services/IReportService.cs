@@ -32,6 +32,11 @@ namespace AutoKassa.Services
         Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(DateTime dateFrom, DateTime dateTo, OperationType? operationType = null, int? categoryId = null, PaymentType? paymentType = null, CancellationToken ct = default);
 
         /// <summary>
+        /// Сформировать отчёт по долгам
+        /// </summary>
+        Task<DebtReport> GenerateDebtReportAsync(DateTime? dateFrom, DateTime? dateTo, OperationType? direction, DebtStatus? status, CancellationToken ct = default);
+
+        /// <summary>
         /// Получить данные для окна "Сверка кассы" на указанную дату
         /// </summary>
         Task<ReconciliationData> GetReconciliationDataAsync(DateTime date, CancellationToken ct = default);

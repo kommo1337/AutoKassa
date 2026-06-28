@@ -58,12 +58,14 @@ namespace AutoKassa.Services
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = context.Transactions
                 .AsNoTracking()
-                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.PaymentType != PaymentType.Debt);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
 
-            // SQL-агрегация итогов вместо загрузки всех транзакций в память
+            // SQL-агрегация итогов вместо загрузки всех транзакций в память.
+            // Долговые операции не влияют на прибыль и фактический баланс.
             var totals = await query
+                .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
                 .ToListAsync(ct)
@@ -72,6 +74,10 @@ namespace AutoKassa.Services
             report.TotalIncome  = totals.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
             report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
             report.EndBalance   = report.StartBalance + report.TotalIncome - report.TotalExpense;
+
+            // Активные долги для дашборда
+            report.TotalDebtReceivable = await GetActiveDebtAsync(context, OperationType.Income, ct).ConfigureAwait(false);
+            report.TotalDebtPayable = await GetActiveDebtAsync(context, OperationType.Expense, ct).ConfigureAwait(false);
 
             // Кредитные покупки и обязательства
             report.TotalCreditPurchases = await GetCreditPurchasesAsync(context, dateFrom, dateToEnd, paymentType, ct).ConfigureAwait(false);
@@ -84,8 +90,9 @@ namespace AutoKassa.Services
             report.NextCreditPaymentDate = nextPaymentDate;
             report.NextCreditPaymentAmount = nextPaymentAmount;
 
-            // SQL-агрегация по дням
+            // SQL-агрегация по дням (долги исключаем)
             var dailyRows = await query
+                .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Date.Date)
                 .Select(g => new
                 {
@@ -126,7 +133,7 @@ namespace AutoKassa.Services
             // SQLite не поддерживает Sum для decimal — агрегируем через double на стороне БД,
             // чтобы не материализовать все транзакции в память.
             var query = context.Transactions
-                .Where(t => !t.IsDeleted && t.Date < date.Date);
+                .Where(t => !t.IsDeleted && t.Date < date.Date && t.PaymentType != PaymentType.Debt);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
 
@@ -304,8 +311,9 @@ namespace AutoKassa.Services
                 report.FilterCategoryName = category?.Name;
             }
 
-            // SQL-агрегация итогов
+            // SQL-агрегация итогов (долги исключаем)
             var totals = await query
+                .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
                 .ToListAsync(ct)
@@ -315,6 +323,118 @@ namespace AutoKassa.Services
             report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
 
             return report;
+        }
+
+        /// <summary>
+        /// Сформировать отчёт по долгам
+        /// </summary>
+        public async Task<DebtReport> GenerateDebtReportAsync(
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            OperationType? direction,
+            DebtStatus? status,
+            CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            var from = dateFrom ?? DateTime.MinValue;
+            var to = dateTo ?? DateTime.MaxValue;
+            var dateToEnd = to.Date.AddDays(1);
+
+            var query = context.Transactions
+                .AsNoTracking()
+                .Include(t => t.Category)
+                .Include(t => t.Counterparty)
+                .Where(t => !t.IsDeleted && t.PaymentType == PaymentType.Debt && t.DebtStatus != DebtStatus.NotDebt)
+                .Where(t => t.Date >= from.Date && t.Date < dateToEnd);
+
+            if (direction.HasValue)
+                query = query.Where(t => t.Type == direction.Value);
+
+            if (status.HasValue)
+                query = query.Where(t => t.DebtStatus == status.Value);
+
+            var debts = await query
+                .OrderByDescending(t => t.Date)
+                .ThenByDescending(t => t.CreatedAt)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var debtIds = debts.Select(d => d.Id).ToList();
+
+            var repaidAmounts = await context.DebtPayments
+                .AsNoTracking()
+                .Where(dp => debtIds.Contains(dp.DebtTransactionId))
+                .Where(dp => !dp.RepaymentTransaction.IsDeleted)
+                .GroupBy(dp => dp.DebtTransactionId)
+                .Select(g => new { DebtId = g.Key, Total = (decimal)g.Sum(dp => (double)dp.Amount) })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var repaidDict = repaidAmounts.ToDictionary(r => r.DebtId, r => r.Total);
+
+            var items = debts.Select(t => new DebtItem
+            {
+                TransactionId = t.Id,
+                Date = t.Date,
+                Amount = t.Amount,
+                RepaidAmount = repaidDict.GetValueOrDefault(t.Id),
+                Status = t.DebtStatus,
+                Direction = t.Type,
+                CounterpartyId = t.CounterpartyId,
+                CounterpartyName = t.Counterparty?.Name ?? "—",
+                CounterpartyType = t.Counterparty?.Type ?? CounterpartyType.Other,
+                CategoryName = t.Category?.Name ?? "—",
+                Description = t.Description
+            }).ToList();
+
+            var report = new DebtReport
+            {
+                DateFrom = from,
+                DateTo = to,
+                Items = items,
+                TotalReceivable = items.Where(i => i.Direction == OperationType.Income && i.Status != DebtStatus.WrittenOff).Sum(i => i.Amount),
+                TotalPayable = items.Where(i => i.Direction == OperationType.Expense && i.Status != DebtStatus.WrittenOff).Sum(i => i.Amount),
+                ActiveReceivable = items.Where(i => i.Direction == OperationType.Income && i.Status == DebtStatus.Active).Sum(i => i.RemainingAmount),
+                ActivePayable = items.Where(i => i.Direction == OperationType.Expense && i.Status == DebtStatus.Active).Sum(i => i.RemainingAmount)
+            };
+
+            return report;
+        }
+
+        /// <summary>
+        /// Получить сумму активных долгов указанного направления
+        /// </summary>
+        private async Task<decimal> GetActiveDebtAsync(
+            AppDbContext context,
+            OperationType direction,
+            CancellationToken ct)
+        {
+            var debtIds = await context.Transactions
+                .AsNoTracking()
+                .Where(t => !t.IsDeleted && t.PaymentType == PaymentType.Debt && t.Type == direction && t.DebtStatus == DebtStatus.Active)
+                .Select(t => t.Id)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            if (debtIds.Count == 0)
+                return 0m;
+
+            var totalDebt = await context.Transactions
+                .AsNoTracking()
+                .Where(t => debtIds.Contains(t.Id))
+                .Select(t => (double?)t.Amount)
+                .SumAsync(ct)
+                .ConfigureAwait(false) ?? 0;
+
+            var totalRepaid = await context.DebtPayments
+                .AsNoTracking()
+                .Where(dp => debtIds.Contains(dp.DebtTransactionId) && !dp.RepaymentTransaction.IsDeleted)
+                .Select(dp => (double?)dp.Amount)
+                .SumAsync(ct)
+                .ConfigureAwait(false) ?? 0;
+
+            return (decimal)totalDebt - (decimal)totalRepaid;
         }
 
         /// <summary>

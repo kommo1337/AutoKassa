@@ -787,5 +787,263 @@ namespace AutoKassa.Services
         }
 
         #endregion
+
+        #region Debt Report
+
+        /// <summary>
+        /// Экспорт отчета по долгам в PDF
+        /// </summary>
+        public Task<string> ExportDebtReportToPdfAsync(DebtReport report)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    var fileName = $"Долги_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    var filePath = Path.Combine(_exportFolder, fileName);
+
+                    Document.Create(container =>
+                    {
+                        container.Page(page =>
+                        {
+                            page.Size(PageSizes.A4.Landscape());
+                            page.Margin(30);
+                            page.DefaultTextStyle(x => x.FontSize(10));
+                            page.Header().Element(c => ComposeDebtHeader(c, report));
+                            page.Content().Element(c => ComposeDebtContent(c, report));
+                            page.Footer().AlignCenter().Text(text =>
+                            {
+                                text.Span("AutoKassa | Сформировано: ");
+                                text.Span(DateTime.Now.ToString("dd.MM.yyyy HH:mm"));
+                            });
+                        });
+                    }).GeneratePdf(filePath);
+
+                    _log.Information("Экспорт PDF (долги): {FilePath}", filePath);
+                    return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта отчёта по долгам в PDF");
+                    throw;
+                }
+            });
+        }
+
+        private void ComposeDebtHeader(IContainer container, DebtReport report)
+        {
+            container.Column(column =>
+            {
+                column.Item().AlignCenter().Text("Отчет: Долги")
+                    .FontSize(18).Bold();
+
+                column.Item().AlignCenter().Text($"{report.DateFrom:dd.MM.yyyy} - {report.DateTo:dd.MM.yyyy}")
+                    .FontSize(12);
+
+                column.Item().PaddingVertical(10).LineHorizontal(1);
+            });
+        }
+
+        private void ComposeDebtContent(IContainer container, DebtReport report)
+        {
+            container.Column(column =>
+            {
+                // Сводка
+                column.Item().PaddingBottom(20).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Нам должны:").FontSize(11);
+                        c.Item().Text($"{report.TotalReceivable:N2} руб.").FontSize(14).Bold().FontColor(Colors.Green.Medium);
+                    });
+
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Мы должны:").FontSize(11);
+                        c.Item().Text($"{report.TotalPayable:N2} руб.").FontSize(14).Bold().FontColor(Colors.Red.Medium);
+                    });
+
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Активно к получению:").FontSize(11);
+                        c.Item().Text($"{report.ActiveReceivable:N2} руб.").FontSize(14).Bold();
+                    });
+
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text("Активно к оплате:").FontSize(11);
+                        c.Item().Text($"{report.ActivePayable:N2} руб.").FontSize(14).Bold();
+                    });
+                });
+
+                // Таблица долгов
+                if (report.Items != null && report.Items.Any())
+                {
+                    column.Item().Text("Список долгов").FontSize(12).Bold();
+                    column.Item().PaddingTop(10).Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.ConstantColumn(70);  // Дата
+                            columns.RelativeColumn(2);   // Контрагент
+                            columns.RelativeColumn();    // Тип
+                            columns.RelativeColumn(2);   // Категория
+                            columns.ConstantColumn(80);  // Сумма
+                            columns.ConstantColumn(80);  // Погашено
+                            columns.ConstantColumn(80);  // Остаток
+                            columns.ConstantColumn(90);  // Статус
+                            columns.RelativeColumn(2);   // Описание
+                        });
+
+                        table.Header(header =>
+                        {
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Дата").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Контрагент").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Тип").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Категория").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Сумма").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Погашено").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).AlignRight().Text("Остаток").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Статус").Bold();
+                            header.Cell().Background(Colors.Grey.Lighten3).Padding(5).Text("Описание").Bold();
+                        });
+
+                        foreach (var item in report.Items)
+                        {
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(item.Date.ToString("dd.MM.yyyy"));
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(item.CounterpartyName);
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(item.CounterpartyType.ToString());
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(item.CategoryName);
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .AlignRight().Text($"{item.Amount:N2}");
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .AlignRight().Text($"{item.RepaidAmount:N2}");
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .AlignRight().Text($"{item.RemainingAmount:N2}");
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(item.Status.ToString());
+
+                            table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(5)
+                                .Text(item.Description ?? "");
+                        }
+                    });
+                }
+            });
+        }
+
+        /// <summary>
+        /// Экспорт отчета по долгам в Excel
+        /// </summary>
+        public Task<string> ExportDebtReportToExcelAsync(DebtReport report)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    var fileName = $"Долги_{report.DateFrom:dd.MM.yyyy}-{report.DateTo:dd.MM.yyyy}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+                    var filePath = Path.Combine(_exportFolder, fileName);
+
+                    using var workbook = new XLWorkbook();
+                    var worksheet = workbook.Worksheets.Add("Долги");
+
+                    // Заголовок
+                    worksheet.Cell("A1").Value = "Отчет: Долги";
+                    worksheet.Cell("A1").Style.Font.Bold = true;
+                    worksheet.Cell("A1").Style.Font.FontSize = 16;
+                    worksheet.Range("A1:I1").Merge();
+
+                    worksheet.Cell("A2").Value = $"Период: {report.DateFrom:dd.MM.yyyy} - {report.DateTo:dd.MM.yyyy}";
+                    worksheet.Range("A2:I2").Merge();
+
+                    // Сводка
+                    worksheet.Cell("A4").Value = "Нам должны:";
+                    worksheet.Cell("B4").Value = report.TotalReceivable;
+                    worksheet.Cell("B4").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+                    worksheet.Cell("B4").Style.Font.FontColor = XLColor.Green;
+
+                    worksheet.Cell("A5").Value = "Мы должны:";
+                    worksheet.Cell("B5").Value = report.TotalPayable;
+                    worksheet.Cell("B5").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+                    worksheet.Cell("B5").Style.Font.FontColor = XLColor.Red;
+
+                    worksheet.Cell("A6").Value = "Активно к получению:";
+                    worksheet.Cell("B6").Value = report.ActiveReceivable;
+                    worksheet.Cell("B6").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+
+                    worksheet.Cell("A7").Value = "Активно к оплате:";
+                    worksheet.Cell("B7").Value = report.ActivePayable;
+                    worksheet.Cell("B7").Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+
+                    // Таблица долгов
+                    if (report.Items != null && report.Items.Any())
+                    {
+                        var currentRow = 9;
+
+                        worksheet.Cell(currentRow, 1).Value = "Дата";
+                        worksheet.Cell(currentRow, 2).Value = "Контрагент";
+                        worksheet.Cell(currentRow, 3).Value = "Тип контрагента";
+                        worksheet.Cell(currentRow, 4).Value = "Категория";
+                        worksheet.Cell(currentRow, 5).Value = "Сумма";
+                        worksheet.Cell(currentRow, 6).Value = "Погашено";
+                        worksheet.Cell(currentRow, 7).Value = "Остаток";
+                        worksheet.Cell(currentRow, 8).Value = "Статус";
+                        worksheet.Cell(currentRow, 9).Value = "Описание";
+
+                        var headerRange = worksheet.Range(currentRow, 1, currentRow, 9);
+                        headerRange.Style.Font.Bold = true;
+                        headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+                        headerRange.Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+                        currentRow++;
+
+                        foreach (var item in report.Items)
+                        {
+                            worksheet.Cell(currentRow, 1).Value = item.Date.ToString("dd.MM.yyyy");
+                            worksheet.Cell(currentRow, 2).Value = item.CounterpartyName;
+                            worksheet.Cell(currentRow, 3).Value = item.CounterpartyType.ToString();
+                            worksheet.Cell(currentRow, 4).Value = item.CategoryName;
+                            worksheet.Cell(currentRow, 5).Value = item.Amount;
+                            worksheet.Cell(currentRow, 5).Style.NumberFormat.Format = "#,##0.00";
+                            worksheet.Cell(currentRow, 6).Value = item.RepaidAmount;
+                            worksheet.Cell(currentRow, 6).Style.NumberFormat.Format = "#,##0.00";
+                            worksheet.Cell(currentRow, 7).Value = item.RemainingAmount;
+                            worksheet.Cell(currentRow, 7).Style.NumberFormat.Format = "#,##0.00";
+                            worksheet.Cell(currentRow, 8).Value = item.Status.ToString();
+                            worksheet.Cell(currentRow, 9).Value = item.Description ?? "";
+
+                            currentRow++;
+                        }
+
+                        var dataRange = worksheet.Range(9, 1, currentRow - 1, 9);
+                        dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                        dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                    }
+
+                    worksheet.Columns().AdjustToContents();
+
+                    workbook.SaveAs(filePath);
+                    _log.Information("Экспорт Excel (долги): {FilePath}", filePath);
+                    return filePath;
+                }
+                catch (Exception ex)
+                {
+                    _log.Error(ex, "Ошибка экспорта отчёта по долгам в Excel");
+                    throw;
+                }
+            });
+        }
+
+        #endregion
     }
 }

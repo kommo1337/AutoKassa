@@ -562,5 +562,63 @@ namespace AutoKassa.Tests.Services
             data.NonCashAmount.Should().Be(11000m);
             (data.CashAmount + data.NonCashAmount).Should().Be(data.CashAmount + 11000m);
         }
+
+        // ─────────────────────────────────────────
+        // Долги не влияют на прибыль, но отображаются отдельно
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_DebtTransactions_ExcludedFromTotals()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var client = TestDatabase.SeedCounterparty(_ctx, "Клиент");
+            var supplier = TestDatabase.SeedCounterparty(_ctx, "Поставщик");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 1000m, OperationType.Income, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 300m, OperationType.Expense, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 2000m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.Active);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 500m, OperationType.Expense, PaymentType.Debt, day, counterpartyId: supplier.Id, debtStatus: DebtStatus.Active);
+
+            var report = await _svc.GenerateBalanceReportAsync(day, day);
+
+            report.TotalIncome.Should().Be(1000m);
+            report.TotalExpense.Should().Be(300m);
+            report.TotalDebtReceivable.Should().Be(2000m);
+            report.TotalDebtPayable.Should().Be(500m);
+        }
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_RepaidDebt_IncludedInTotals()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var client = TestDatabase.SeedCounterparty(_ctx, "Клиент");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 1000m, OperationType.Income, PaymentType.Cash, day);
+
+            var report = await _svc.GenerateBalanceReportAsync(day, day);
+
+            report.TotalIncome.Should().Be(1000m);
+            report.TotalDebtReceivable.Should().Be(0m);
+        }
+
+        [Fact]
+        public async Task GenerateDebtReportAsync_ReturnsDebtDetails()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var client = TestDatabase.SeedCounterparty(_ctx, "Клиент");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 2000m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.Active);
+
+            var report = await _svc.GenerateDebtReportAsync(day, day, null, null);
+
+            report.TotalReceivable.Should().Be(2000m);
+            report.TotalPayable.Should().Be(0m);
+            report.ActiveReceivable.Should().Be(2000m);
+            report.Items.Should().ContainSingle(i => i.CounterpartyName == "Клиент" && i.Amount == 2000m);
+        }
     }
 }

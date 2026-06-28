@@ -33,6 +33,21 @@ namespace AutoKassa.Models
         public int? CategoryId { get; set; }
 
         /// <summary>
+        /// ID контрагента (null = все)
+        /// </summary>
+        public int? CounterpartyId { get; set; }
+
+        /// <summary>
+        /// Фильтр по долговым операциям (true = только долги)
+        /// </summary>
+        public bool IsDebtFilter { get; set; }
+
+        /// <summary>
+        /// Статус долга (null = все)
+        /// </summary>
+        public DebtStatus? DebtStatus { get; set; }
+
+        /// <summary>
         /// Поиск по описанию
         /// </summary>
         public string SearchText { get; set; }

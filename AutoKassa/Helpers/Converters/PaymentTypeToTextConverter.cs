@@ -18,6 +18,7 @@ namespace AutoKassa.Helpers.Converters
                     PaymentType.Cash => "Наличные",
                     PaymentType.NonCash => "Безналичные",
                     PaymentType.CreditCard => "Кредит",
+                    PaymentType.Debt => "В долг",
                     _ => "Наличные"
                 };
             }

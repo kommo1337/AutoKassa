@@ -44,6 +44,11 @@ namespace AutoKassa.Services
         Task RestoreAsync(int id);
 
         /// <summary>
+        /// Проверяет, является ли операция погашением долга.
+        /// </summary>
+        Task<bool> IsRepaymentTransactionAsync(int id, CancellationToken ct = default);
+
+        /// <summary>
         /// Получить последние N операций
         /// </summary>
         Task<List<Transaction>> GetRecentAsync(int count = 10);

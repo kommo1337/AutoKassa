@@ -35,8 +35,6 @@ namespace AutoKassa.ViewModels.Reports
         }
         private bool _suppressRefresh;
         private string _activePeriodPreset;
-        private bool _isModalOpen;
-        private TransactionEditViewModel _editViewModel;
 
         private DispatcherTimer _refreshTimer;
         private static readonly TimeSpan DebounceInterval = TimeSpan.FromMilliseconds(50);
@@ -45,6 +43,7 @@ namespace AutoKassa.ViewModels.Reports
         {
             _dialogService = dialogService;
             _toastService = toastService;
+            Modal = new ModalViewModel();
 
             // Команды
             GenerateCommand = new RelayCommand(async _ => await GenerateReportAsync());
@@ -129,22 +128,9 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
-        /// Открыто ли модальное окно редактирования операции
+        /// Универсальная модель модального оверлея отчёта.
         /// </summary>
-        public bool IsModalOpen
-        {
-            get => _isModalOpen;
-            set => SetProperty(ref _isModalOpen, value);
-        }
-
-        /// <summary>
-        /// ViewModel модального окна редактирования операции
-        /// </summary>
-        public TransactionEditViewModel EditViewModel
-        {
-            get => _editViewModel;
-            set => SetProperty(ref _editViewModel, value);
-        }
+        public ModalViewModel Modal { get; }
 
         /// <summary>
         /// Название отчета

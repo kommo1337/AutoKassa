@@ -20,11 +20,16 @@ namespace AutoKassa.Services
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private readonly ICreditCardService _creditCardService;
+        private readonly IDebtService _debtService;
 
-        public TransactionService(IDbContextFactory<AppDbContext> contextFactory, ICreditCardService creditCardService)
+        public TransactionService(
+            IDbContextFactory<AppDbContext> contextFactory,
+            ICreditCardService creditCardService,
+            IDebtService debtService)
         {
             _contextFactory = contextFactory;
             _creditCardService = creditCardService;
+            _debtService = debtService;
         }
 
         /// <summary>
@@ -115,6 +120,19 @@ namespace AutoKassa.Services
             transaction.CreatedAt = DateTime.Now;
             transaction.IsDeleted = false;
 
+            // Обработка долговой операции
+            if (transaction.PaymentType == PaymentType.Debt)
+            {
+                if (!transaction.CounterpartyId.HasValue)
+                    throw new InvalidOperationException("Для долговой операции необходимо выбрать контрагента");
+
+                transaction.DebtStatus = DebtStatus.Active;
+            }
+            else
+            {
+                transaction.DebtStatus = DebtStatus.NotDebt;
+            }
+
             context.Transactions.Add(transaction);
             await context.SaveChangesAsync().ConfigureAwait(false);
 
@@ -171,6 +189,12 @@ namespace AutoKassa.Services
             if (existing == null)
                 throw new InvalidOperationException($"Операция ID={transaction.Id} не найдена");
 
+            var isRepayment = await context.DebtPayments
+                .AnyAsync(dp => dp.RepaymentTransactionId == transaction.Id)
+                .ConfigureAwait(false);
+            if (isRepayment)
+                throw new InvalidOperationException("Редактирование операции-погашения запрещено");
+
             var oldPaymentType = existing.PaymentType;
             var oldCreditCardId = existing.CreditCardId;
             var oldCategoryId = existing.CategoryId;
@@ -182,8 +206,33 @@ namespace AutoKassa.Services
             existing.PaymentType = transaction.PaymentType;
             existing.CategoryId = transaction.CategoryId;
             existing.CreditCardId = transaction.CreditCardId;
+            existing.CounterpartyId = transaction.CounterpartyId;
             existing.Description = transaction.Description;
             existing.UpdatedAt = DateTime.Now;
+
+            // Обработка долговой операции
+            if (existing.PaymentType == PaymentType.Debt)
+            {
+                if (!existing.CounterpartyId.HasValue)
+                    throw new InvalidOperationException("Для долговой операции необходимо выбрать контрагента");
+
+                // Если операция ранее не была долгом — устанавливаем статус Active
+                if (existing.DebtStatus == DebtStatus.NotDebt)
+                    existing.DebtStatus = DebtStatus.Active;
+            }
+            else
+            {
+                existing.DebtStatus = DebtStatus.NotDebt;
+                existing.CounterpartyId = null;
+
+                // При смене типа операции с долга на обычную удаляем связи с погашениями
+                var debtPayments = await context.DebtPayments
+                    .Where(dp => dp.DebtTransactionId == existing.Id)
+                    .ToListAsync()
+                    .ConfigureAwait(false);
+                if (debtPayments.Count > 0)
+                    context.DebtPayments.RemoveRange(debtPayments);
+            }
 
             await context.SaveChangesAsync().ConfigureAwait(false);
 
@@ -226,8 +275,54 @@ namespace AutoKassa.Services
                     }
                 }
 
+                int? relatedDebtId = null;
+
+                // При удалении долговой операции удаляем связанные записи DebtPayment
+                // и делаем soft delete операций-погашений
+                if (transaction.PaymentType == PaymentType.Debt)
+                {
+                    var debtPayments = await context.DebtPayments
+                        .Where(dp => dp.DebtTransactionId == id)
+                        .Include(dp => dp.RepaymentTransaction)
+                        .ToListAsync()
+                        .ConfigureAwait(false);
+
+                    foreach (var debtPayment in debtPayments)
+                    {
+                        if (debtPayment.RepaymentTransaction != null)
+                        {
+                            debtPayment.RepaymentTransaction.IsDeleted = true;
+                            debtPayment.RepaymentTransaction.UpdatedAt = DateTime.Now;
+                        }
+                    }
+
+                    if (debtPayments.Count > 0)
+                    {
+                        context.DebtPayments.RemoveRange(debtPayments);
+                    }
+                }
+                else
+                {
+                    // Проверяем, является ли удаляемая операция погашением долга
+                    var debtPayment = await context.DebtPayments
+                        .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id)
+                        .ConfigureAwait(false);
+
+                    if (debtPayment != null)
+                    {
+                        relatedDebtId = debtPayment.DebtTransactionId;
+                        context.DebtPayments.Remove(debtPayment);
+                    }
+                }
+
                 await context.SaveChangesAsync().ConfigureAwait(false);
                 _log.Information("Удалена операция ID={Id}", id);
+
+                // Если удалили погашение — пересчитываем статус связанного долга
+                if (relatedDebtId.HasValue)
+                {
+                    await _debtService.RecalculateStatusAsync(relatedDebtId.Value).ConfigureAwait(false);
+                }
             }
         }
 
@@ -245,6 +340,17 @@ namespace AutoKassa.Services
                 await context.SaveChangesAsync().ConfigureAwait(false);
                 _log.Information("Восстановлена операция ID={Id}", id);
             }
+        }
+
+        /// <summary>
+        /// Проверяет, является ли операция погашением долга.
+        /// </summary>
+        public async Task<bool> IsRepaymentTransactionAsync(int id, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.DebtPayments
+                .AnyAsync(dp => dp.RepaymentTransactionId == id, ct)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -382,6 +488,30 @@ namespace AutoKassa.Services
             if (filters.CategoryId.HasValue)
             {
                 query = query.Where(t => t.CategoryId == filters.CategoryId.Value);
+            }
+
+            // Фильтр по контрагенту
+            if (filters.CounterpartyId.HasValue)
+            {
+                query = query.Where(t => t.CounterpartyId == filters.CounterpartyId.Value);
+            }
+
+            // Фильтр по долгам
+            if (filters.IsDebtFilter)
+            {
+                query = query.Where(t => t.PaymentType == PaymentType.Debt && t.DebtStatus != DebtStatus.NotDebt);
+            }
+            else
+            {
+                // По умолчанию операции создания долга скрыты из списка операций;
+                // отображаются только обычные операции и операции-погашения.
+                query = query.Where(t => t.PaymentType != PaymentType.Debt);
+            }
+
+            // Фильтр по статусу долга
+            if (filters.DebtStatus.HasValue)
+            {
+                query = query.Where(t => t.DebtStatus == filters.DebtStatus.Value);
             }
 
             // Фильтр по сумме

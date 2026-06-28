@@ -35,6 +35,7 @@ namespace AutoKassa.ViewModels
             NavigateToTransactionsCommand = new RelayCommand(_ => NavigateToTransactions());
             NavigateToReportsCommand = new RelayCommand(_ => NavigateToReports());
             NavigateToCategoriesCommand = new RelayCommand(_ => NavigateToCategories());
+            NavigateToCounterpartiesCommand = new RelayCommand(_ => NavigateToCounterparties());
             NavigateToCreditCardsCommand = new RelayCommand(_ => NavigateToCreditCards());
             NavigateToReconciliationCommand = new RelayCommand(_ => NavigateToReconciliation());
             NavigateToSettingsCommand = new RelayCommand(_ => NavigateToSettings());
@@ -86,6 +87,11 @@ namespace AutoKassa.ViewModels
         public bool IsCategoriesActive => CurrentView is CategoriesViewModel;
 
         /// <summary>
+        /// Активна ли страница "Долги"
+        /// </summary>
+        public bool IsCounterpartiesActive => CurrentView is CounterpartiesViewModel;
+
+        /// <summary>
         /// Активна ли страница "Настройки"
         /// </summary>
         public bool IsSettingsActive => CurrentView is SettingsViewModel;
@@ -117,6 +123,7 @@ namespace AutoKassa.ViewModels
         public ICommand NavigateToTransactionsCommand { get; }
         public ICommand NavigateToReportsCommand { get; }
         public ICommand NavigateToCategoriesCommand { get; }
+        public ICommand NavigateToCounterpartiesCommand { get; }
         public ICommand NavigateToCreditCardsCommand { get; }
         public ICommand NavigateToReconciliationCommand { get; }
         public ICommand NavigateToSettingsCommand { get; }
@@ -144,6 +151,11 @@ namespace AutoKassa.ViewModels
         private void NavigateToCategories()
         {
             _navigationService.NavigateTo<CategoriesViewModel>();
+        }
+
+        private void NavigateToCounterparties()
+        {
+            _navigationService.NavigateTo<CounterpartiesViewModel>();
         }
 
         private void NavigateToCreditCards()
@@ -198,6 +210,7 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(IsTransactionsActive));
             OnPropertyChanged(nameof(IsReportsActive));
             OnPropertyChanged(nameof(IsCategoriesActive));
+            OnPropertyChanged(nameof(IsCounterpartiesActive));
             OnPropertyChanged(nameof(IsCreditCardsActive));
             OnPropertyChanged(nameof(IsReconciliationActive));
             OnPropertyChanged(nameof(IsSettingsActive));

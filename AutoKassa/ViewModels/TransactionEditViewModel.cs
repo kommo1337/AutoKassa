@@ -12,6 +12,7 @@ namespace AutoKassa.ViewModels
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly ICreditCardService _creditCardService;
+        private readonly ICounterpartyService _counterpartyService;
         private readonly IDialogService _dialogService;
 
         private Transaction _transaction;
@@ -24,10 +25,13 @@ namespace AutoKassa.ViewModels
         private string _description = string.Empty;
         private List<Category> _categories = new List<Category>();
         private bool _isInitialized;
+        private bool _isRepayment;
         private PaymentType _selectedPaymentType = PaymentType.Cash;
         private bool _showAllCategories;
         private List<CreditCard> _availableCreditCards = new();
         private CreditCard? _selectedCreditCard;
+        private List<Counterparty> _availableCounterparties = new();
+        private Counterparty? _selectedCounterparty;
 
         public CalculatorViewModel Calculator { get; }
 
@@ -50,12 +54,14 @@ namespace AutoKassa.ViewModels
         private string _initialDescription = "";
         private PaymentType _initialPaymentType = PaymentType.Cash;
         private int? _initialCreditCardId;
+        private int? _initialCounterpartyId;
         private DateTime _initialDate;
 
         public TransactionEditViewModel(
             ITransactionService transactionService,
             ICategoryService categoryService,
             ICreditCardService creditCardService,
+            ICounterpartyService counterpartyService,
             IDialogService dialogService,
             ISettingsService settingsService,
             IToastNotificationService toastService)
@@ -63,6 +69,7 @@ namespace AutoKassa.ViewModels
             _transactionService = transactionService;
             _categoryService = categoryService;
             _creditCardService = creditCardService;
+            _counterpartyService = counterpartyService;
             _dialogService = dialogService;
             _settingsService = settingsService;
             _toastService = toastService;
@@ -73,7 +80,9 @@ namespace AutoKassa.ViewModels
             SelectCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
             SelectNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
             SelectCreditCardPaymentCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
+            SelectDebtCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.Debt);
             SelectCreditCardCommand = new RelayCommand(p => { if (p is CreditCard c) SelectedCreditCard = c; });
+            SelectCounterpartyCommand = new RelayCommand(p => { if (p is Counterparty c) SelectedCounterparty = c; });
             SelectExpenseTypeCommand = new RelayCommand(_ => Type = OperationType.Expense);
             SelectIncomeTypeCommand = new RelayCommand(_ => Type = OperationType.Income);
             ToggleShowAllCategoriesCommand = new RelayCommand(_ => ShowAllCategories = !ShowAllCategories);
@@ -92,6 +101,7 @@ namespace AutoKassa.ViewModels
         {
             await LoadCategoriesAsync();
             await LoadCreditCardsAsync();
+            await LoadCounterpartiesAsync();
             _isInitialized = true;
         }
 
@@ -226,6 +236,24 @@ namespace AutoKassa.ViewModels
 
         public string AmountError => GetFirstError(nameof(Amount));
 
+        public bool IsRepayment
+        {
+            get => _isRepayment;
+            private set
+            {
+                if (SetProperty(ref _isRepayment, value))
+                {
+                    (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    OnPropertyChanged(nameof(RepaymentWarning));
+                }
+            }
+        }
+
+        public string RepaymentWarning => IsRepayment
+            ? "Редактирование операции-погашения запрещено"
+            : string.Empty;
+
         public bool IsIncome
         {
             get => Type == OperationType.Income;
@@ -248,15 +276,24 @@ namespace AutoKassa.ViewModels
                     OnPropertyChanged(nameof(IsCash));
                     OnPropertyChanged(nameof(IsNonCash));
                     OnPropertyChanged(nameof(IsCreditCard));
+                    OnPropertyChanged(nameof(IsDebt));
 
                     if (_selectedPaymentType == PaymentType.CreditCard)
                     {
+                        SelectedCounterparty = null;
                         if (_selectedCreditCard == null && _availableCreditCards.Count == 1)
                             SelectedCreditCard = _availableCreditCards[0];
+                    }
+                    else if (_selectedPaymentType == PaymentType.Debt)
+                    {
+                        SelectedCreditCard = null;
+                        if (_selectedCounterparty == null && _availableCounterparties.Count == 1)
+                            SelectedCounterparty = _availableCounterparties[0];
                     }
                     else
                     {
                         SelectedCreditCard = null;
+                        SelectedCounterparty = null;
                     }
                 }
             }
@@ -280,6 +317,12 @@ namespace AutoKassa.ViewModels
             set { if (value) SelectedPaymentType = PaymentType.CreditCard; }
         }
 
+        public bool IsDebt
+        {
+            get => SelectedPaymentType == PaymentType.Debt;
+            set { if (value) SelectedPaymentType = PaymentType.Debt; }
+        }
+
         public List<CreditCard> AvailableCreditCards
         {
             get => _availableCreditCards;
@@ -299,6 +342,28 @@ namespace AutoKassa.ViewModels
             {
                 if (SetProperty(ref _selectedCreditCard, value))
                     ValidateCreditCard();
+            }
+        }
+
+        public List<Counterparty> AvailableCounterparties
+        {
+            get => _availableCounterparties;
+            set
+            {
+                if (SetProperty(ref _availableCounterparties, value))
+                    OnPropertyChanged(nameof(HasAvailableCounterparties));
+            }
+        }
+
+        public bool HasAvailableCounterparties => _availableCounterparties.Count > 0;
+
+        public Counterparty? SelectedCounterparty
+        {
+            get => _selectedCounterparty;
+            set
+            {
+                if (SetProperty(ref _selectedCounterparty, value))
+                    ValidateCounterparty();
             }
         }
 
@@ -324,7 +389,9 @@ namespace AutoKassa.ViewModels
         public ICommand SelectCashCommand { get; }
         public ICommand SelectNonCashCommand { get; }
         public ICommand SelectCreditCardPaymentCommand { get; }
+        public ICommand SelectDebtCommand { get; }
         public ICommand SelectCreditCardCommand { get; }
+        public ICommand SelectCounterpartyCommand { get; }
         public ICommand SelectExpenseTypeCommand { get; }
         public ICommand SelectIncomeTypeCommand { get; }
         public ICommand ToggleShowAllCategoriesCommand { get; }
@@ -338,6 +405,7 @@ namespace AutoKassa.ViewModels
         public void InitializeForAdd()
         {
             IsEditMode = false;
+            IsRepayment = false;
             Date = DateTime.Now;
             _amount = 0;
             _amountText = "";
@@ -348,6 +416,7 @@ namespace AutoKassa.ViewModels
             Description = string.Empty;
             SelectedPaymentType = PaymentType.Cash;
             SelectedCreditCard = null;
+            SelectedCounterparty = null;
             ShowAllCategories = false;
             Calculator.Clear();
             Calculator.IsOpen = false;
@@ -367,6 +436,7 @@ namespace AutoKassa.ViewModels
             Description = transaction.Description;
             SelectedPaymentType = transaction.PaymentType;
             SelectedCreditCard = null;
+            SelectedCounterparty = null;
             ShowAllCategories = false;
             Calculator.Clear();
             Calculator.IsOpen = false;
@@ -382,6 +452,11 @@ namespace AutoKassa.ViewModels
                 if (_availableCreditCards.Count > 0 && transaction.CreditCardId.HasValue)
                     SelectedCreditCard = _availableCreditCards.FirstOrDefault(c => c.Id == transaction.CreditCardId.Value);
 
+                if (_availableCounterparties.Count > 0 && transaction.CounterpartyId.HasValue)
+                    SelectedCounterparty = _availableCounterparties.FirstOrDefault(c => c.Id == transaction.CounterpartyId.Value);
+
+                IsRepayment = await _transactionService.IsRepaymentTransactionAsync(transaction.Id);
+
                 CaptureSnapshot();
             });
         }
@@ -394,6 +469,7 @@ namespace AutoKassa.ViewModels
             _initialDescription = _description ?? "";
             _initialPaymentType = _selectedPaymentType;
             _initialCreditCardId = _selectedCreditCard?.Id;
+            _initialCounterpartyId = _selectedCounterparty?.Id;
             _initialDate = _date;
         }
 
@@ -404,6 +480,7 @@ namespace AutoKassa.ViewModels
             || (_description ?? "") != _initialDescription
             || _selectedPaymentType != _initialPaymentType
             || (_selectedCreditCard?.Id) != _initialCreditCardId
+            || (_selectedCounterparty?.Id) != _initialCounterpartyId
             || _date != _initialDate;
 
         private async System.Threading.Tasks.Task LoadCategoriesAsync()
@@ -452,6 +529,25 @@ namespace AutoKassa.ViewModels
             }
         }
 
+        private async System.Threading.Tasks.Task LoadCounterpartiesAsync()
+        {
+            try
+            {
+                var counterparties = await _counterpartyService.GetActiveAsync().ConfigureAwait(false);
+                AvailableCounterparties = counterparties.ToList();
+
+                if (_selectedPaymentType == PaymentType.Debt && _selectedCounterparty == null && _availableCounterparties.Count == 1)
+                    SelectedCounterparty = _availableCounterparties[0];
+
+                ValidateCounterparty();
+            }
+            catch (Exception ex)
+            {
+                AvailableCounterparties = new List<Counterparty>();
+                _dialogService.ShowError($"Ошибка загрузки контрагентов: {ex.Message}");
+            }
+        }
+
         private void OpenCategoryManager()
         {
             var vm = new CategoryManagerViewModel(_categoryService, _toastService);
@@ -494,9 +590,17 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(SelectedCreditCard));
         }
 
+        private void ValidateCounterparty()
+        {
+            if (_selectedPaymentType == PaymentType.Debt && _selectedCounterparty == null)
+                SetErrors(nameof(SelectedCounterparty), new[] { "Выберите контрагента" });
+            else
+                ClearErrors(nameof(SelectedCounterparty));
+        }
+
         private bool _isSaving;
 
-        private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText);
+        private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText) && !IsRepayment;
 
         private async System.Threading.Tasks.Task SaveAsync()
         {
@@ -505,6 +609,7 @@ namespace AutoKassa.ViewModels
             ValidateAmount();
             ValidateCategory();
             ValidateCreditCard();
+            ValidateCounterparty();
 
             if (HasErrors) return;
 
@@ -523,6 +628,7 @@ namespace AutoKassa.ViewModels
                     _transaction.Description = Description;
                     _transaction.PaymentType = SelectedPaymentType;
                     _transaction.CreditCardId = SelectedCreditCard?.Id;
+                    _transaction.CounterpartyId = SelectedCounterparty?.Id;
 
                     await _transactionService.UpdateAsync(_transaction);
                 }
@@ -536,7 +642,8 @@ namespace AutoKassa.ViewModels
                         CategoryId = SelectedCategory.Id,
                         Description = Description,
                         PaymentType = SelectedPaymentType,
-                        CreditCardId = SelectedCreditCard?.Id
+                        CreditCardId = SelectedCreditCard?.Id,
+                        CounterpartyId = SelectedCounterparty?.Id
                     };
 
                     await _transactionService.AddAsync(transaction);
@@ -567,6 +674,7 @@ namespace AutoKassa.ViewModels
             ValidateAmount();
             ValidateCategory();
             ValidateCreditCard();
+            ValidateCounterparty();
 
             if (HasErrors) return;
 
@@ -584,7 +692,8 @@ namespace AutoKassa.ViewModels
                     CategoryId = SelectedCategory.Id,
                     Description = Description,
                     PaymentType = SelectedPaymentType,
-                    CreditCardId = SelectedCreditCard?.Id
+                    CreditCardId = SelectedCreditCard?.Id,
+                    CounterpartyId = SelectedCounterparty?.Id
                 };
 
                 await _transactionService.AddAsync(transaction);

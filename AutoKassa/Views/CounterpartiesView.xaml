@@ -1,0 +1,341 @@
+<UserControl x:Class="AutoKassa.Views.CounterpartiesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             xmlns:views="clr-namespace:AutoKassa.Views"
+             Background="{StaticResource BackgroundBrush}">
+
+    <UserControl.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:CounterpartyTypeToTextConverter x:Key="CounterpartyTypeToTextConverter"/>
+        <converters:DecimalToStringConverter x:Key="DecimalToStringConverter"/>
+
+        <!-- Стиль кнопки редактирования контрагента (как в окне кредитных карт) -->
+        <Style x:Key="CounterpartyEditButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#F0F2F5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Стиль кнопки удаления контрагента (как в окне кредитных карт) -->
+        <Style x:Key="CounterpartyDeleteButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#FFEBEE"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CounterpartyCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E0E0E0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- MAIN CONTENT -->
+        <Grid x:Name="MainContent" Margin="20">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsModalOpen}" Value="True">
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <BlurEffect Radius="6"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- HEADER -->
+            <Grid Grid.Row="0" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="Долги" FontSize="24" FontWeight="SemiBold" VerticalAlignment="Center"/>
+
+                <Button Grid.Column="1"
+                        Command="{Binding AddCommand}"
+                        Style="{StaticResource PillButton}"
+                        Content="+ Добавить"/>
+            </Grid>
+
+            <!-- FILTER BAR -->
+            <Border Grid.Row="1" Background="White" CornerRadius="14" Padding="10,8"
+                    BorderBrush="#E8EAED" BorderThickness="1" Margin="0,0,0,20">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+                        <!-- Search -->
+                        <Border Background="#F8F9FB" BorderBrush="#E8EAED" BorderThickness="1"
+                                CornerRadius="9" Padding="8,5" Margin="0,0,6,0" MinWidth="240">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🔍" FontSize="10" VerticalAlignment="Center"
+                                           Margin="0,0,5,0" Opacity="0.5"/>
+                                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         FontSize="12" MinWidth="200"
+                                         Background="Transparent" BorderThickness="0"
+                                         VerticalContentAlignment="Center" Foreground="#344054">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="TextBox">
+                                                        <Grid>
+                                                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="Поиск по названию или телефону..." Foreground="#98A2B3" FontSize="12"
+                                                                       VerticalAlignment="Center" IsHitTestVisible="False">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Type chips -->
+                        <Border Background="#F8F9FB" BorderBrush="#E8EAED" BorderThickness="1"
+                                CornerRadius="9" Padding="3" Margin="0,0,6,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Все" Command="{Binding FilterByTypeCommand}" CommandParameter="All" Cursor="Hand">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAllTypeFilter}" Value="True">
+                                                    <Setter Property="Background" Value="#1A1D23"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Клиент" Command="{Binding FilterByTypeCommand}" CommandParameter="Client" Cursor="Hand" Margin="2,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsClientFilter}" Value="True">
+                                                    <Setter Property="Background" Value="#22c55e"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Филиал" Command="{Binding FilterByTypeCommand}" CommandParameter="Branch" Cursor="Hand" Margin="2,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBranchFilter}" Value="True">
+                                                    <Setter Property="Background" Value="#3b82f6"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Поставщик" Command="{Binding FilterByTypeCommand}" CommandParameter="Supplier" Cursor="Hand" Margin="2,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSupplierFilter}" Value="True">
+                                                    <Setter Property="Background" Value="#f59e0b"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Прочее" Command="{Binding FilterByTypeCommand}" CommandParameter="Other" Cursor="Hand" Margin="2,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ChipButton}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsOtherFilter}" Value="True">
+                                                    <Setter Property="Background" Value="#6b7280"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- LIST -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <StackPanel HorizontalAlignment="Center" Margin="0,40"
+                                Visibility="{Binding HasItems, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}">
+                        <Border Width="52" Height="52" CornerRadius="14"
+                                Background="#F0F2F5" Margin="0,0,0,12" HorizontalAlignment="Center">
+                            <TextBlock Text="🤝" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="Нет контрагентов" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="#344054" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                        <TextBlock Text="Добавьте первого контрагента" FontSize="12"
+                                   Foreground="#98A2B3" HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Items}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource CounterpartyCardStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                                <Border Background="#EEF2FF" CornerRadius="10" Padding="8,3">
+                                                    <TextBlock Text="{Binding Type, Converter={StaticResource CounterpartyTypeToTextConverter}}"
+                                                               Foreground="#6366f1" FontSize="11" FontWeight="SemiBold"/>
+                                                </Border>
+                                                <Border Background="#F0F2F5" CornerRadius="10" Padding="8,3" Margin="8,0,0,0"
+                                                        Visibility="{Binding Phone, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBlock Text="{Binding Phone}" Foreground="#667085" FontSize="11"/>
+                                                </Border>
+                                                <Border Background="#FFEBEE" CornerRadius="10" Padding="8,3" Margin="8,0,0,0"
+                                                        Visibility="{Binding HasActiveDebt, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                    <TextBlock FontSize="11" FontWeight="SemiBold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ActiveDebtAmount}" Value="0">
+                                                                        <Setter Property="Foreground" Value="#667085"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                                <Setter Property="Foreground" Value="#ef4444"/>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                        <TextBlock.Text>
+                                                            <MultiBinding StringFormat="{}{0} ₽">
+                                                                <Binding Path="ActiveDebtAmount" Converter="{StaticResource DecimalToStringConverter}"/>
+                                                            </MultiBinding>
+                                                        </TextBlock.Text>
+                                                    </TextBlock>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Notes}" FontSize="12" Foreground="#667085"
+                                                       Margin="0,6,0,0" TextTrimming="WordEllipsis"
+                                                       Visibility="{Binding Notes, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" Command="{Binding EditCommand}" CommandParameter="{Binding}"
+                                                Style="{StaticResource CounterpartyEditButtonStyle}"
+                                                ToolTip="Редактировать" Margin="0,0,4,0">
+                                            <Viewbox Width="16" Height="16">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
+                                                          Stroke="#667085" StrokeThickness="2" Fill="Transparent"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Command="{Binding DeleteCommand}" CommandParameter="{Binding}"
+                                                Style="{StaticResource CounterpartyDeleteButtonStyle}"
+                                                ToolTip="Удалить">
+                                            <Viewbox Width="16" Height="16">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"
+                                                          Stroke="#9ca3af" StrokeThickness="2" Fill="Transparent"
+                                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- MODAL OVERLAY -->
+        <Grid Panel.ZIndex="100"
+              Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Rectangle Fill="#66000000"/>
+            <Border Background="White" CornerRadius="20"
+                    MaxWidth="520" MaxHeight="700"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect Color="#000000" Opacity="0.25" BlurRadius="30" ShadowDepth="8"/>
+                </Border.Effect>
+                <views:CounterpartyEditView DataContext="{Binding EditViewModel}"/>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

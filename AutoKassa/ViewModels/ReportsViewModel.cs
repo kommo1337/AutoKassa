@@ -21,6 +21,7 @@ namespace AutoKassa.ViewModels
             ShowBalanceReportCommand           = new RelayCommand(_ => ShowBalanceReport());
             ShowCategoryReportCommand          = new RelayCommand(_ => ShowCategoryReport());
             ShowTransactionDetailReportCommand = new RelayCommand(_ => ShowTransactionDetailReport());
+            ShowDebtReportCommand              = new RelayCommand(_ => ShowDebtReport());
 
             _dataChangeService.DataChanged += OnDataChanged;
         }
@@ -40,10 +41,12 @@ namespace AutoKassa.ViewModels
         public bool IsBalanceActive  => CurrentReport is BalanceReportViewModel;
         public bool IsCategoryActive => CurrentReport is CategoryReportViewModel;
         public bool IsDetailActive   => CurrentReport is TransactionDetailReportViewModel;
+        public bool IsDebtActive     => CurrentReport is DebtReportViewModel;
 
         public ICommand ShowBalanceReportCommand           { get; }
         public ICommand ShowCategoryReportCommand          { get; }
         public ICommand ShowTransactionDetailReportCommand { get; }
+        public ICommand ShowDebtReportCommand              { get; }
 
         public void OnNavigatedTo()
         {
@@ -117,6 +120,18 @@ namespace AutoKassa.ViewModels
             {
                 vm = App.GetService<TransactionDetailReportViewModel>();
                 _reportCache[typeof(TransactionDetailReportViewModel)] = vm;
+            }
+            CurrentReport = vm;
+            if (!vm.IsInitialized)
+                RunAsync(vm.InitializeAsync);
+        }
+
+        private void ShowDebtReport()
+        {
+            if (!_reportCache.TryGetValue(typeof(DebtReportViewModel), out var vm))
+            {
+                vm = App.GetService<DebtReportViewModel>();
+                _reportCache[typeof(DebtReportViewModel)] = vm;
             }
             CurrentReport = vm;
             if (!vm.IsInitialized)

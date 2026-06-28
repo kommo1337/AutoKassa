@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Митигация уязвимости SQLite (CVE-2025-6965 / GHSA-2m69-gcr7-jv3q).
+    Microsoft.EntityFrameworkCore.Sqlite по-прежнему тянет устаревший
+    SQLitePCLRaw.lib.e_sqlite3 2.1.11, который содержит уязвимый нативный
+    бинарник SQLite. Пакет SourceGear.sqlite3 поставляет актуальную
+    нативную библиотеку SQLite 3.50.4 и заменяет ее на этапе выполнения.
+    Подавление NU1903 необходимо, т.к. уязвимый транзитивный пакет
+    остается в графе зависимостей, хотя runtime-бинарник обновлен.
+  -->
+  <ItemGroup>
+    <PackageReference Include="SourceGear.sqlite3" Version="3.50.4.5" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+</Project>

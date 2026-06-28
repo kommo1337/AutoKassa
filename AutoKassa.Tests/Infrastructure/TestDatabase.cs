@@ -117,7 +117,9 @@ namespace AutoKassa.Tests.Infrastructure
             PaymentType paymentType = PaymentType.Cash,
             DateTime? date = null,
             string description = "",
-            int? creditCardId = null)
+            int? creditCardId = null,
+            int? counterpartyId = null,
+            DebtStatus debtStatus = DebtStatus.NotDebt)
         {
             var t = new Transaction
             {
@@ -128,12 +130,36 @@ namespace AutoKassa.Tests.Infrastructure
                 Date        = date ?? DateTime.Today,
                 Description = description,
                 CreditCardId = creditCardId,
+                CounterpartyId = counterpartyId,
+                DebtStatus = debtStatus,
                 CreatedAt   = DateTime.Now,
                 IsDeleted   = false
             };
             ctx.Transactions.Add(t);
             ctx.SaveChanges();
             return t;
+        }
+
+        /// <summary>
+        /// Добавить контрагента с заданными параметрами.
+        /// </summary>
+        public static Counterparty SeedCounterparty(
+            AppDbContext ctx,
+            string name = "Тест-контрагент",
+            CounterpartyType type = CounterpartyType.Client,
+            string? phone = null)
+        {
+            var counterparty = new Counterparty
+            {
+                Name = name,
+                Type = type,
+                Phone = phone,
+                IsActive = true,
+                CreatedAt = DateTime.Now
+            };
+            ctx.Counterparties.Add(counterparty);
+            ctx.SaveChanges();
+            return counterparty;
         }
 
         /// <summary>

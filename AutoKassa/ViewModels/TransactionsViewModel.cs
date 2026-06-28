@@ -25,6 +25,7 @@ namespace AutoKassa.ViewModels
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly ICreditCardService _creditCardService;
+        private readonly ICounterpartyService _counterpartyService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
         private readonly ISettingsService _settingsService;
@@ -35,6 +36,7 @@ namespace AutoKassa.ViewModels
         private ObservableCollection<Transaction> _transactions;
         private ObservableCollection<Category> _categories;
         private ObservableCollection<CreditCard> _creditCards = new();
+        private ObservableCollection<Counterparty> _counterparties = new();
         private ObservableCollection<SelectableDateGroup> _groupedTransactions = new();
         private Transaction _selectedTransaction;
         private bool _isLoading;
@@ -55,6 +57,9 @@ namespace AutoKassa.ViewModels
         private Category _selectedCategory;
         private string _searchText;
         private PaymentType? _selectedPaymentTypeFilter;
+        private bool _isDebtFilter;
+        private DebtStatus? _selectedDebtStatusFilter;
+        private Counterparty _selectedCounterpartyFilter;
         private string _amountFromText;
         private string _amountToText;
         private decimal? _amountFrom;
@@ -85,6 +90,7 @@ namespace AutoKassa.ViewModels
             ITransactionService transactionService,
             ICategoryService categoryService,
             ICreditCardService creditCardService,
+            ICounterpartyService counterpartyService,
             IDialogService dialogService,
             IToastNotificationService toastService,
             ISettingsService settingsService,
@@ -93,6 +99,7 @@ namespace AutoKassa.ViewModels
             _transactionService = transactionService;
             _categoryService = categoryService;
             _creditCardService = creditCardService;
+            _counterpartyService = counterpartyService;
             _dialogService = dialogService;
             _toastService = toastService;
             _settingsService = settingsService;
@@ -110,12 +117,14 @@ namespace AutoKassa.ViewModels
             ResetFiltersCommand = new RelayCommand(async _ => await ResetFiltersAsync());
             LoadMoreCommand = new RelayCommand(async _ => await LoadMoreAsync());
             SelectAllPaymentCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); await LoadDataAsync(); });
-            SelectCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.Cash; RefreshPaymentFilterUI(); await LoadDataAsync(); });
-            SelectNonCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.NonCash; RefreshPaymentFilterUI(); await LoadDataAsync(); });
-            SelectCreditCardFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.CreditCard; RefreshPaymentFilterUI(); await LoadDataAsync(); });
+            SelectCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.Cash; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            SelectNonCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.NonCash; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            SelectCreditCardFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.CreditCard; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            SelectDebtFilterCommand = new RelayCommand(async _ => { _isDebtFilter = true; _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
             FilterByIncomeCommand = new RelayCommand(async _ => { _selectedType = OperationType.Income; RefreshTypeFilterUI(); await LoadDataAsync(); });
             FilterByExpenseCommand = new RelayCommand(async _ => { _selectedType = OperationType.Expense; RefreshTypeFilterUI(); await LoadDataAsync(); });
             ResetTypeFilterCommand = new RelayCommand(async _ => { _selectedType = null; RefreshTypeFilterUI(); await LoadDataAsync(); });
+            SelectDebtStatusFilterCommand = new RelayCommand<DebtStatus?>(async status => { _selectedDebtStatusFilter = status; RefreshDebtStatusFilterUI(); await LoadDataAsync(); });
 
             // Period picker commands
             TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
@@ -251,6 +260,12 @@ namespace AutoKassa.ViewModels
             }
         }
 
+        public ObservableCollection<Counterparty> Counterparties
+        {
+            get => _counterparties;
+            set => SetProperty(ref _counterparties, value);
+        }
+
         public Transaction SelectedTransaction
         {
             get => _selectedTransaction;
@@ -333,10 +348,26 @@ namespace AutoKassa.ViewModels
             });
         }
 
-        public bool IsAllPaymentFilter => _selectedPaymentTypeFilter == null;
+        public bool IsAllPaymentFilter => _selectedPaymentTypeFilter == null && !_isDebtFilter;
         public bool IsCashFilter => _selectedPaymentTypeFilter == PaymentType.Cash;
         public bool IsNonCashFilter => _selectedPaymentTypeFilter == PaymentType.NonCash;
         public bool IsCreditCardFilter => _selectedPaymentTypeFilter == PaymentType.CreditCard;
+        public bool IsDebtFilter => _isDebtFilter;
+
+        public bool IsDebtStatusAll => _selectedDebtStatusFilter == null;
+        public bool IsDebtStatusActive => _selectedDebtStatusFilter == DebtStatus.Active;
+        public bool IsDebtStatusRepaid => _selectedDebtStatusFilter == DebtStatus.Repaid;
+        public bool IsDebtStatusWrittenOff => _selectedDebtStatusFilter == DebtStatus.WrittenOff;
+
+        public Counterparty SelectedCounterpartyFilter
+        {
+            get => _selectedCounterpartyFilter;
+            set
+            {
+                if (SetProperty(ref _selectedCounterpartyFilter, value))
+                    _ = LoadDataAsync();
+            }
+        }
 
         public string AmountFromText
         {
@@ -528,6 +559,8 @@ namespace AutoKassa.ViewModels
         public ICommand SelectCashFilterCommand { get; }
         public ICommand SelectNonCashFilterCommand { get; }
         public ICommand SelectCreditCardFilterCommand { get; }
+        public ICommand SelectDebtFilterCommand { get; }
+        public ICommand SelectDebtStatusFilterCommand { get; }
         public ICommand FilterByIncomeCommand { get; }
         public ICommand FilterByExpenseCommand { get; }
         public ICommand ResetTypeFilterCommand { get; }
@@ -577,6 +610,13 @@ namespace AutoKassa.ViewModels
                 foreach (var card in creditCards.Where(c => c.IsActive))
                     newCreditCards.Add(card);
                 CreditCards = newCreditCards;
+
+                var counterparties = await _counterpartyService.GetActiveAsync();
+                var newCounterparties = new ObservableCollection<Counterparty>();
+                newCounterparties.Add(new Counterparty { Id = 0, Name = "Все контрагенты" });
+                foreach (var c in counterparties)
+                    newCounterparties.Add(c);
+                Counterparties = newCounterparties;
 
                 OnPropertyChanged(nameof(InlineCategories));
                 OnPropertyChanged(nameof(FilteredCategories));
@@ -666,6 +706,9 @@ namespace AutoKassa.ViewModels
                 Type = _selectedType,
                 PaymentType = _selectedPaymentTypeFilter,
                 CategoryId = SelectedCategory?.Id > 0 ? SelectedCategory.Id : (int?)null,
+                CounterpartyId = SelectedCounterpartyFilter?.Id > 0 ? SelectedCounterpartyFilter.Id : (int?)null,
+                IsDebtFilter = _isDebtFilter,
+                DebtStatus = _selectedDebtStatusFilter,
                 SearchText = SearchText,
                 AmountFrom = _amountFrom,
                 AmountTo = _amountTo,
@@ -682,6 +725,21 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(IsCashFilter));
             OnPropertyChanged(nameof(IsNonCashFilter));
             OnPropertyChanged(nameof(IsCreditCardFilter));
+            OnPropertyChanged(nameof(IsDebtFilter));
+        }
+
+        private void RefreshDebtFilterUI()
+        {
+            OnPropertyChanged(nameof(IsDebtFilter));
+            OnPropertyChanged(nameof(IsAllPaymentFilter));
+        }
+
+        private void RefreshDebtStatusFilterUI()
+        {
+            OnPropertyChanged(nameof(IsDebtStatusAll));
+            OnPropertyChanged(nameof(IsDebtStatusActive));
+            OnPropertyChanged(nameof(IsDebtStatusRepaid));
+            OnPropertyChanged(nameof(IsDebtStatusWrittenOff));
         }
 
         private void RefreshTypeFilterUI()
@@ -818,8 +876,13 @@ namespace AutoKassa.ViewModels
             _selectedType = null;
             RefreshTypeFilterUI();
             _selectedPaymentTypeFilter = null;
+            _isDebtFilter = false;
+            _selectedDebtStatusFilter = null;
             RefreshPaymentFilterUI();
+            RefreshDebtFilterUI();
+            RefreshDebtStatusFilterUI();
             SelectedCategory = Categories.FirstOrDefault();
+            SelectedCounterpartyFilter = Counterparties.FirstOrDefault();
             SearchText = string.Empty;
             AmountFromText = string.Empty;
             AmountToText = string.Empty;
@@ -875,7 +938,7 @@ namespace AutoKassa.ViewModels
 
         private void AddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
             vm.InitializeForAdd();
             vm.OnSaved = async () =>
             {
@@ -895,7 +958,7 @@ namespace AutoKassa.ViewModels
         {
             if (SelectedTransaction == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(SelectedTransaction);
             vm.OnSaved = async () => { IsModalOpen = false; await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };

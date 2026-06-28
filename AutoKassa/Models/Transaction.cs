@@ -1,4 +1,5 @@
 ﻿using AutoKassa.Models.Enums;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -36,7 +37,7 @@ namespace AutoKassa.Models
         public OperationType Type { get; set; }
 
         /// <summary>
-        /// Тип оплаты (Наличные/Безналичные)
+        /// Тип оплаты (Наличные/Безналичные/Кредитная карта/Долг)
         /// </summary>
         [Required]
         public PaymentType PaymentType { get; set; } = PaymentType.Cash;
@@ -51,7 +52,7 @@ namespace AutoKassa.Models
         /// Навигационное свойство - категория операции
         /// </summary>
         [ForeignKey(nameof(CategoryId))]
-        public virtual Category Category { get; set; }
+        public virtual Category Category { get; set; } = null!;
 
         /// <summary>
         /// ID кредитной карты (для операций с типом оплаты "Кредитная карта")
@@ -65,10 +66,27 @@ namespace AutoKassa.Models
         public virtual CreditCard? CreditCard { get; set; }
 
         /// <summary>
+        /// ID контрагента (для долговых операций)
+        /// </summary>
+        public int? CounterpartyId { get; set; }
+
+        /// <summary>
+        /// Навигационное свойство - контрагент
+        /// </summary>
+        [ForeignKey(nameof(CounterpartyId))]
+        public virtual Counterparty? Counterparty { get; set; }
+
+        /// <summary>
+        /// Статус долговой операции
+        /// </summary>
+        [Required]
+        public DebtStatus DebtStatus { get; set; } = DebtStatus.NotDebt;
+
+        /// <summary>
         /// Описание операции (опционально)
         /// </summary>
         [MaxLength(500)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         /// <summary>
         /// Дата создания записи

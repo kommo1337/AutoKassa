@@ -18,6 +18,7 @@ namespace AutoKassa.Helpers.Converters
                     PaymentType.Cash => "💵",
                     PaymentType.NonCash => "💳",
                     PaymentType.CreditCard => "💳",
+                    PaymentType.Debt => "🤝",
                     _ => "💵"
                 };
             }

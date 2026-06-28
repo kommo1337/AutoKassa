@@ -15,6 +15,11 @@ namespace AutoKassa.Models.Enums
         /// <summary>
         /// Кредитная карта
         /// </summary>
-        CreditCard = 3
+        CreditCard = 3,
+
+        /// <summary>
+        /// Долг
+        /// </summary>
+        Debt = 4
     }
 }

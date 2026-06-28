@@ -44,6 +44,16 @@ namespace AutoKassa.Services
         public DbSet<CreditCardPurchase> CreditCardPurchases { get; set; }
 
         /// <summary>
+        /// Таблица контрагентов
+        /// </summary>
+        public DbSet<Counterparty> Counterparties { get; set; }
+
+        /// <summary>
+        /// Таблица связей долговых операций и их погашений
+        /// </summary>
+        public DbSet<DebtPayment> DebtPayments { get; set; }
+
+        /// <summary>
         /// Конфигурация подключения к БД
         /// </summary>
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -118,6 +128,52 @@ namespace AutoKassa.Services
                 .HasIndex(p => p.PurchaseDate)
                 .HasDatabaseName("IX_CreditCardPurchase_PurchaseDate");
 
+            // ========== COUNTERPARTY ==========
+
+            modelBuilder.Entity<Counterparty>()
+                .Property(c => c.Name)
+                .HasColumnType("TEXT COLLATE NOCASE");
+
+            modelBuilder.Entity<Counterparty>()
+                .HasIndex(c => c.Name)
+                .IsUnique()
+                .HasDatabaseName("IX_Counterparty_Name");
+
+            modelBuilder.Entity<Counterparty>()
+                .HasIndex(c => c.Type)
+                .HasDatabaseName("IX_Counterparty_Type");
+
+            modelBuilder.Entity<Counterparty>()
+                .HasIndex(c => c.IsActive)
+                .HasDatabaseName("IX_Counterparty_IsActive");
+
+            // ========== DEBT PAYMENT ==========
+
+            modelBuilder.Entity<DebtPayment>()
+                .HasOne(dp => dp.DebtTransaction)
+                .WithMany()
+                .HasForeignKey(dp => dp.DebtTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DebtPayment>()
+                .HasOne(dp => dp.RepaymentTransaction)
+                .WithMany()
+                .HasForeignKey(dp => dp.RepaymentTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DebtPayment>()
+                .HasIndex(dp => new { dp.DebtTransactionId, dp.RepaymentTransactionId })
+                .IsUnique()
+                .HasDatabaseName("IX_DebtPayment_DebtTransactionId_RepaymentTransactionId");
+
+            modelBuilder.Entity<DebtPayment>()
+                .HasIndex(dp => dp.DebtTransactionId)
+                .HasDatabaseName("IX_DebtPayment_DebtTransactionId");
+
+            modelBuilder.Entity<DebtPayment>()
+                .HasIndex(dp => dp.RepaymentTransactionId)
+                .HasDatabaseName("IX_DebtPayment_RepaymentTransactionId");
+
             // ========== TRANSACTION ==========
 
             // Связь Transaction -> Category (один ко многим)
@@ -132,6 +188,13 @@ namespace AutoKassa.Services
                 .HasOne(t => t.CreditCard)
                 .WithMany(c => c.Transactions)
                 .HasForeignKey(t => t.CreditCardId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Связь Transaction -> Counterparty
+            modelBuilder.Entity<Transaction>()
+                .HasOne(t => t.Counterparty)
+                .WithMany(c => c.Transactions)
+                .HasForeignKey(t => t.CounterpartyId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Индексы для оптимизации запросов
@@ -158,6 +221,14 @@ namespace AutoKassa.Services
             modelBuilder.Entity<Transaction>()
                 .HasIndex(t => t.CreditCardId)
                 .HasDatabaseName("IX_Transactions_CreditCardId");
+
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => t.CounterpartyId)
+                .HasDatabaseName("IX_Transaction_CounterpartyId");
+
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => t.DebtStatus)
+                .HasDatabaseName("IX_Transaction_DebtStatus");
 
             // Составной индекс для частых запросов
             modelBuilder.Entity<Transaction>()

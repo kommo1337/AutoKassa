@@ -4,6 +4,7 @@
              xmlns:reports="clr-namespace:AutoKassa.ViewModels.Reports"
              xmlns:reportsViews="clr-namespace:AutoKassa.Views.Reports"
              xmlns:views="clr-namespace:AutoKassa.Views"
+             xmlns:vm="clr-namespace:AutoKassa.ViewModels"
 
              Background="{StaticResource BackgroundBrush}">
 
@@ -13,7 +14,7 @@
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding CurrentReport.IsModalOpen}" Value="True">
+                        <DataTrigger Binding="{Binding CurrentReport.Modal.IsOpen}" Value="True">
                             <Setter Property="Effect">
                                 <Setter.Value>
                                     <BlurEffect Radius="6"/>
@@ -99,6 +100,22 @@
                                 </Button.Style>
                             </Button>
 
+                            <!-- Долги -->
+                            <Button Content="Долги"
+                                    Command="{Binding ShowDebtReportCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ReportTabButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDebtActive}" Value="True">
+                                                <Setter Property="Background" Value="White"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -118,17 +135,20 @@
                     <DataTemplate DataType="{x:Type reports:TransactionDetailReportViewModel}">
                         <reportsViews:TransactionDetailReportView/>
                     </DataTemplate>
+                    <DataTemplate DataType="{x:Type reports:DebtReportViewModel}">
+                        <reportsViews:DebtReportView/>
+                    </DataTemplate>
                 </ContentControl.Resources>
             </ContentControl>
         </Grid>
 
-        <!-- ===== MODAL OVERLAY (редактирование операции) ===== -->
+        <!-- ===== MODAL OVERLAY ===== -->
         <Grid Panel.ZIndex="100">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding CurrentReport.IsModalOpen}" Value="True">
+                        <DataTrigger Binding="{Binding CurrentReport.Modal.IsOpen}" Value="True">
                             <Setter Property="Visibility" Value="Visible"/>
                         </DataTrigger>
                     </Style.Triggers>
@@ -144,7 +164,16 @@
                     </Border.Effect>
                 </Border>
                 <Border Background="White" CornerRadius="20" ClipToBounds="True">
-                    <views:TransactionEditView DataContext="{Binding CurrentReport.EditViewModel}"/>
+                    <ContentControl Content="{Binding CurrentReport.Modal.Content}">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type vm:TransactionEditViewModel}">
+                                <views:TransactionEditView/>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type vm:DebtRepaymentViewModel}">
+                                <views:DebtRepaymentView/>
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
                 </Border>
             </Grid>
         </Grid>

@@ -56,6 +56,9 @@
             <converters:CategoryColorConverter x:Key="CategoryColorConverter"/>
             <converters:TransactionAmountConverter x:Key="TransactionAmountConverter"/>
             <converters:TransactionDotColorConverter x:Key="TransactionDotColorConverter"/>
+            <converters:DebtStatusToTextConverter x:Key="DebtStatusToTextConverter"/>
+            <converters:DebtStatusToColorConverter x:Key="DebtStatusToColorConverter"/>
+            <converters:CounterpartyTypeToTextConverter x:Key="CounterpartyTypeToTextConverter"/>
 
             <!-- ========== СТИЛИ КНОПОК ========== -->
 

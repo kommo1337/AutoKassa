@@ -14,6 +14,7 @@ namespace AutoKassa.Tests.Services
         private readonly TestDbContextFactory _factory;
         private readonly Microsoft.Data.Sqlite.SqliteConnection _conn;
         private readonly TransactionService _svc;
+        private readonly DebtService _debtService;
 
         public TransactionServiceTests()
         {
@@ -22,7 +23,8 @@ namespace AutoKassa.Tests.Services
             _conn = conn;
             _ctx = factory.CreateDbContext();
             var creditCardService = new CreditCardService(factory);
-            _svc = new TransactionService(factory, creditCardService);
+            _debtService = new DebtService(factory);
+            _svc = new TransactionService(factory, creditCardService, _debtService);
         }
 
         public void Dispose()
@@ -654,6 +656,103 @@ namespace AutoKassa.Tests.Services
             var purchase = await _ctx.CreditCardPurchases
                 .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
             purchase.Should().BeNull();
+        }
+
+        // ─────────────────────────────────────────
+        // Целостность данных по долгам (этап 4)
+        // ─────────────────────────────────────────
+
+        private Transaction CreateDebt(OperationType type, decimal amount)
+        {
+            var counterparty = TestDatabase.SeedCounterparty(_ctx);
+            var category = type == OperationType.Income
+                ? TestDatabase.SeedIncomeCategory(_ctx)
+                : TestDatabase.SeedExpenseCategory(_ctx);
+
+            return TestDatabase.SeedTransaction(
+                _ctx, category.Id, amount, type, PaymentType.Debt,
+                counterpartyId: counterparty.Id, debtStatus: DebtStatus.Active);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_Debt_SoftDeletesRelatedRepayments()
+        {
+            var debt = CreateDebt(OperationType.Income, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 400m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteAsync(debt.Id);
+
+            var rawDebt = await _ctx.Transactions.AsNoTracking().FirstOrDefaultAsync(t => t.Id == debt.Id);
+            rawDebt.Should().NotBeNull();
+            rawDebt!.IsDeleted.Should().BeTrue();
+
+            var rawRepayment = await _ctx.Transactions.AsNoTracking().FirstOrDefaultAsync(t => t.Id == repayment.Id);
+            rawRepayment.Should().NotBeNull();
+            rawRepayment!.IsDeleted.Should().BeTrue();
+
+            var debtPayment = await _ctx.DebtPayments.FirstOrDefaultAsync(dp => dp.DebtTransactionId == debt.Id);
+            debtPayment.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task DeleteAsync_Repayment_DeletesDebtPaymentAndRecalculatesDebt()
+        {
+            var debt = CreateDebt(OperationType.Expense, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 1000m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteAsync(repayment.Id);
+
+            var debtPayment = await _ctx.DebtPayments
+                .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == repayment.Id);
+            debtPayment.Should().BeNull();
+
+            var rawDebt = await _ctx.Transactions.FindAsync(debt.Id);
+            rawDebt.Should().NotBeNull();
+            rawDebt!.DebtStatus.Should().Be(DebtStatus.Active);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_FromDebtToCash_RemovesDebtPayments()
+        {
+            var debt = CreateDebt(OperationType.Income, 1000m);
+            await _debtService.RepayAsync(debt.Id, 300m, PaymentType.Cash, DateTime.Today);
+
+            debt.PaymentType = PaymentType.Cash;
+            debt.DebtStatus = DebtStatus.NotDebt;
+            debt.CounterpartyId = null;
+
+            await _svc.UpdateAsync(debt);
+
+            var debtPayments = await _ctx.DebtPayments
+                .Where(dp => dp.DebtTransactionId == debt.Id)
+                .ToListAsync();
+            debtPayments.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_Repayment_ThrowsInvalidOperationException()
+        {
+            var debt = CreateDebt(OperationType.Expense, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 500m, PaymentType.Cash, DateTime.Today);
+
+            repayment.Amount = 999m;
+
+            Func<Task> act = async () => await _svc.UpdateAsync(repayment);
+
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        [Fact]
+        public async Task IsRepaymentTransactionAsync_ReturnsTrueForRepayment()
+        {
+            var debt = CreateDebt(OperationType.Income, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 500m, PaymentType.Cash, DateTime.Today);
+
+            var isRepayment = await _svc.IsRepaymentTransactionAsync(repayment.Id);
+            isRepayment.Should().BeTrue();
+
+            var isDebt = await _svc.IsRepaymentTransactionAsync(debt.Id);
+            isDebt.Should().BeFalse();
         }
     }
 }

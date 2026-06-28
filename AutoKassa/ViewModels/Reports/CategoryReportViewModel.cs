@@ -23,6 +23,7 @@ namespace AutoKassa.ViewModels.Reports
         private readonly ITransactionService _transactionService;
         private readonly ICategoryService _categoryService;
         private readonly ICreditCardService _creditCardService;
+        private readonly ICounterpartyService _counterpartyService;
         private readonly ISettingsService _settingsService;
         private readonly IDataChangeService _dataChangeService;
 
@@ -43,6 +44,7 @@ namespace AutoKassa.ViewModels.Reports
             ITransactionService transactionService,
             ICategoryService categoryService,
             ICreditCardService creditCardService,
+            ICounterpartyService counterpartyService,
             ISettingsService settingsService,
             IDataChangeService dataChangeService) : base(dialogService, toastService)
         {
@@ -51,6 +53,7 @@ namespace AutoKassa.ViewModels.Reports
             _transactionService = transactionService;
             _categoryService = categoryService;
             _creditCardService = creditCardService;
+            _counterpartyService = counterpartyService;
             _settingsService = settingsService;
             _dataChangeService = dataChangeService;
 
@@ -282,12 +285,11 @@ namespace AutoKassa.ViewModels.Reports
 
         private void EditTransaction(Transaction transaction)
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _dialogService, _settingsService, _toastService);
+            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
             vm.InitializeForEdit(transaction);
-            vm.OnSaved = async () => { IsModalOpen = false; await GenerateReportAsync(); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnCancelled = () => { IsModalOpen = false; };
-            EditViewModel = vm;
-            IsModalOpen = true;
+            vm.OnSaved = async () => { Modal.Close(); await GenerateReportAsync(); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnCancelled = () => { Modal.Close(); };
+            Modal.Show(vm);
         }
 
         private async Task DeleteTransactionAsync(Transaction transaction)

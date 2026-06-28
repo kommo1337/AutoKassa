@@ -94,6 +94,16 @@ namespace AutoKassa.Models.Reports
         public decimal Profit => TotalIncome - TotalExpense;
 
         /// <summary>
+        /// Активная дебиторская задолженность (нам должны)
+        /// </summary>
+        public decimal TotalDebtReceivable { get; set; }
+
+        /// <summary>
+        /// Активная кредиторская задолженность (мы должны)
+        /// </summary>
+        public decimal TotalDebtPayable { get; set; }
+
+        /// <summary>
         /// Данные по дням для графика
         /// </summary>
         public List<DailyBalance> DailyBalances { get; set; }
