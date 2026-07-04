@@ -54,6 +54,11 @@ namespace AutoKassa.Services
         public DbSet<DebtPayment> DebtPayments { get; set; }
 
         /// <summary>
+        /// Таблица связей операций-погашений кредитных карт и покупок
+        /// </summary>
+        public DbSet<CreditCardPayment> CreditCardPayments { get; set; }
+
+        /// <summary>
         /// Конфигурация подключения к БД
         /// </summary>
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -146,6 +151,33 @@ namespace AutoKassa.Services
             modelBuilder.Entity<Counterparty>()
                 .HasIndex(c => c.IsActive)
                 .HasDatabaseName("IX_Counterparty_IsActive");
+
+            // ========== CREDIT CARD PAYMENT ==========
+
+            modelBuilder.Entity<CreditCardPayment>()
+                .HasOne(ccp => ccp.RepaymentTransaction)
+                .WithMany()
+                .HasForeignKey(ccp => ccp.RepaymentTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditCardPayment>()
+                .HasOne(ccp => ccp.CreditCardPurchase)
+                .WithMany()
+                .HasForeignKey(ccp => ccp.CreditCardPurchaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CreditCardPayment>()
+                .HasIndex(ccp => new { ccp.RepaymentTransactionId, ccp.CreditCardPurchaseId })
+                .IsUnique()
+                .HasDatabaseName("IX_CreditCardPayment_RepaymentTransactionId_CreditCardPurchaseId");
+
+            modelBuilder.Entity<CreditCardPayment>()
+                .HasIndex(ccp => ccp.RepaymentTransactionId)
+                .HasDatabaseName("IX_CreditCardPayment_RepaymentTransactionId");
+
+            modelBuilder.Entity<CreditCardPayment>()
+                .HasIndex(ccp => ccp.CreditCardPurchaseId)
+                .HasDatabaseName("IX_CreditCardPayment_CreditCardPurchaseId");
 
             // ========== DEBT PAYMENT ==========
 

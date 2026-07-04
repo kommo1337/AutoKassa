@@ -256,6 +256,29 @@
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
+                                    <!-- Стиль кнопки погашения карты -->
+                                    <Style x:Key="CardRepayButtonStyle" TargetType="Button">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Width" Value="32"/>
+                                        <Setter Property="Height" Value="32"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="5">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bd" Property="Background" Value="#DCFCE7"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
                                     <!-- Стиль кнопки удаления карты -->
                                     <Style x:Key="CardDeleteButtonStyle" TargetType="Button">
                                         <Setter Property="Background" Value="Transparent"/>
@@ -348,10 +371,23 @@
 
                                                     <!-- Кнопки действий -->
                                                     <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                                        <Button Command="{Binding DataContext.RepayCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" Cursor="Hand"
+                                                                Style="{StaticResource CardRepayButtonStyle}"
+                                                                ToolTip="Погасить">
+                                                            <Viewbox Width="16" Height="16">
+                                                                <Canvas Width="24" Height="24">
+                                                                    <Path Data="M12 2v20M2 12h20"
+                                                                          Stroke="#16a34a" StrokeThickness="2"
+                                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                                </Canvas>
+                                                            </Viewbox>
+                                                        </Button>
                                                         <Button Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                 CommandParameter="{Binding}" Cursor="Hand"
                                                                 Style="{StaticResource CardEditButtonStyle}"
-                                                                ToolTip="Редактировать">
+                                                                ToolTip="Редактировать"
+                                                                Margin="4,0,0,0">
                                                             <Viewbox Width="16" Height="16">
                                                                 <Canvas Width="24" Height="24">
                                                                     <Path Data="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"
@@ -466,9 +502,24 @@
                                                 <TextBlock Grid.Row="0" Grid.Column="1"
                                                            Text="{Binding Amount, StringFormat='{}{0:N0} ₽'}"
                                                            FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AccentRedBrush}"/>
-                                                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                                <TextBlock Grid.Row="1" Grid.Column="0"
                                                            Text="{Binding PurchaseDate, StringFormat='{}{0:dd.MM.yyyy}'}"
                                                            FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1"
+                                                           FontSize="11" FontWeight="SemiBold" Margin="0,2,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                                            <Setter Property="Text" Value="{Binding RemainingDebt, StringFormat='Остаток: {0:N0} ₽'}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding RemainingDebt}" Value="0">
+                                                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                                    <Setter Property="Text" Value="Погашено"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -510,6 +561,27 @@
                 <Border Background="Transparent" CornerRadius="20" ClipToBounds="True">
                     <views:CreditCardEditView DataContext="{Binding EditViewModel}"
                                               xmlns:views="clr-namespace:AutoKassa.Views"/>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- REPAYMENT MODAL OVERLAY -->
+        <Grid Panel.ZIndex="200"
+              Visibility="{Binding IsRepaymentModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Rectangle Fill="#66000000"/>
+            <Grid Width="480"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Margin="20">
+                <!-- Shadow layer -->
+                <Border Background="White" CornerRadius="20">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="24" ShadowDepth="10" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <!-- Content layer -->
+                <Border Background="Transparent" CornerRadius="20" ClipToBounds="True">
+                    <views:CreditCardRepaymentView DataContext="{Binding RepaymentViewModel}"
+                                                   xmlns:views="clr-namespace:AutoKassa.Views"/>
                 </Border>
             </Grid>
         </Grid>

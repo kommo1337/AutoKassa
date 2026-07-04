@@ -59,7 +59,7 @@ namespace AutoKassa.Services
                 .AsNoTracking()
                 .Include(c => c.Purchases)
                 .ThenInclude(p => p.Transaction)
-                .ThenInclude(t => t.Category)
+                .ThenInclude(t => t!.Category)
                 .FirstOrDefaultAsync(c => c.Id == id, ct)
                 .ConfigureAwait(false);
         }
@@ -291,12 +291,21 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
-        /// Зафиксировать погашение долга по кредитной карте
+        /// Создать операцию-погашение долга по кредитной карте и распределить сумму по покупкам FIFO
         /// </summary>
-        public async Task RepayDebtAsync(int creditCardId, decimal amount, CancellationToken ct = default)
+        public async Task<Transaction> RepayDebtAsync(
+            int creditCardId,
+            decimal amount,
+            PaymentType paymentType,
+            DateTime date,
+            string? description = null,
+            CancellationToken ct = default)
         {
             if (amount <= 0)
                 throw new ArgumentException("Сумма погашения должна быть больше нуля", nameof(amount));
+
+            if (paymentType != PaymentType.Cash && paymentType != PaymentType.NonCash)
+                throw new ArgumentException("Погашение кредитной карты возможно только наличными или безналичными", nameof(paymentType));
 
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 
@@ -304,17 +313,169 @@ namespace AutoKassa.Services
             if (card == null)
                 throw new InvalidOperationException($"Кредитная карта ID={creditCardId} не найдена");
 
+            if (!card.IsActive)
+                throw new InvalidOperationException("Нельзя погасить неактивную карту");
+
+            var repaymentCategory = await context.Categories
+                .FirstOrDefaultAsync(c => c.Name == RepaymentCategoryName && c.Type == OperationType.Expense, ct)
+                .ConfigureAwait(false);
+            if (repaymentCategory == null)
+                throw new InvalidOperationException($"Системная категория \"{RepaymentCategoryName}\" не найдена");
+
             var currentDebt = await GetCurrentDebtAsync(creditCardId, ct).ConfigureAwait(false);
             if (amount > currentDebt)
                 throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
 
-            card.LastPaymentDate = DateTime.Today;
-            var saved = await context.SaveChangesAsync(ct).ConfigureAwait(false);
-            if (saved == 0 || !card.LastPaymentDate.HasValue)
-                throw new InvalidOperationException($"DEBUG: saved={saved}, LastPaymentDate={card.LastPaymentDate}");
+            var transaction = new Transaction
+            {
+                Date = date,
+                Amount = amount,
+                Type = OperationType.Expense,
+                PaymentType = paymentType,
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = creditCardId,
+                Description = description,
+                CreatedAt = DateTime.Now,
+                IsDeleted = false,
+                DebtStatus = DebtStatus.NotDebt
+            };
 
-            _log.Information("Погашен долг по карте ID={CreditCardId}, сумма={Amount}, оставшийся долг={Debt}",
-                creditCardId, amount, currentDebt - amount);
+            context.Transactions.Add(transaction);
+
+            card.LastPaymentDate = DateTime.Today;
+
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            await DistributeRepaymentForTransactionAsync(transaction.Id, creditCardId, amount, ct).ConfigureAwait(false);
+
+            _log.Information(
+                "Создано погашение кредитной карты ID={CreditCardId}, операция ID={TransactionId}, сумма={Amount}, оставшийся долг={Debt}",
+                creditCardId, transaction.Id, amount, currentDebt - amount);
+
+            return transaction;
+        }
+
+        /// <summary>
+        /// Распределить сумму существующей операции-погашения по покупкам FIFO
+        /// </summary>
+        public async Task DistributeRepaymentForTransactionAsync(
+            int transactionId,
+            int creditCardId,
+            decimal amount,
+            CancellationToken ct = default)
+        {
+            if (amount <= 0)
+                throw new ArgumentException("Сумма погашения должна быть больше нуля", nameof(amount));
+
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            var transaction = await context.Transactions.FindAsync(new object[] { transactionId }, ct).ConfigureAwait(false);
+            if (transaction == null)
+                throw new InvalidOperationException($"Операция ID={transactionId} не найдена");
+
+            var card = await context.CreditCards.FindAsync(new object[] { creditCardId }, ct).ConfigureAwait(false);
+            if (card == null)
+                throw new InvalidOperationException($"Кредитная карта ID={creditCardId} не найдена");
+
+            card.LastPaymentDate = DateTime.Today;
+
+            var remainingAmount = amount;
+
+            var purchases = await context.CreditCardPurchases
+                .Where(p => p.CreditCardId == creditCardId && p.RemainingDebt > 0)
+                .OrderBy(p => p.PurchaseDate)
+                .ThenBy(p => p.Id)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            foreach (var purchase in purchases)
+            {
+                if (remainingAmount <= 0)
+                    break;
+
+                var paymentAmount = Math.Min(purchase.RemainingDebt, remainingAmount);
+                purchase.RemainingDebt -= paymentAmount;
+                remainingAmount -= paymentAmount;
+
+                context.CreditCardPayments.Add(new CreditCardPayment
+                {
+                    RepaymentTransactionId = transactionId,
+                    CreditCardPurchaseId = purchase.Id,
+                    Amount = paymentAmount
+                });
+            }
+
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            _log.Information(
+                "Распределено погашение операции ID={TransactionId} по карте ID={CreditCardId}, сумма={Amount}",
+                transactionId, creditCardId, amount);
+        }
+
+        /// <summary>
+        /// Получить покупки карты с ненулевым остатком долга, отсортированные по FIFO
+        /// </summary>
+        public async Task<IReadOnlyList<CreditCardPurchase>> GetPurchasesWithRemainingDebtAsync(
+            int creditCardId,
+            CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            return await context.CreditCardPurchases
+                .AsNoTracking()
+                .Where(p => p.CreditCardId == creditCardId && p.RemainingDebt > 0)
+                .OrderBy(p => p.PurchaseDate)
+                .ThenBy(p => p.Id)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Получить текущий оставшийся долг по покупке
+        /// </summary>
+        public async Task<decimal> GetRemainingDebtForPurchaseAsync(int purchaseId, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            var purchase = await context.CreditCardPurchases
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == purchaseId, ct)
+                .ConfigureAwait(false);
+
+            if (purchase == null)
+                throw new InvalidOperationException($"Покупка ID={purchaseId} не найдена");
+
+            return purchase.RemainingDebt;
+        }
+
+        /// <summary>
+        /// Восстановить оставшиеся долги покупок при удалении операции-погашения
+        /// </summary>
+        public async Task RecalculateOnRepaymentDeletedAsync(int repaymentTransactionId, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            var creditCardPayments = await context.CreditCardPayments
+                .Where(ccp => ccp.RepaymentTransactionId == repaymentTransactionId)
+                .Include(ccp => ccp.CreditCardPurchase)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            if (creditCardPayments.Count == 0)
+                return;
+
+            foreach (var creditCardPayment in creditCardPayments)
+            {
+                if (creditCardPayment.CreditCardPurchase != null)
+                    creditCardPayment.CreditCardPurchase.RemainingDebt += creditCardPayment.Amount;
+            }
+
+            context.CreditCardPayments.RemoveRange(creditCardPayments);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            _log.Information(
+                "Удалено погашение операции ID={RepaymentTransactionId}, восстановлено покупок={Count}",
+                repaymentTransactionId, creditCardPayments.Count);
         }
 
         /// <summary>

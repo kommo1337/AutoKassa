@@ -26,6 +26,7 @@ namespace AutoKassa.ViewModels
         private List<Category> _categories = new List<Category>();
         private bool _isInitialized;
         private bool _isRepayment;
+        private bool _hasAttemptedSave;
         private PaymentType _selectedPaymentType = PaymentType.Cash;
         private bool _showAllCategories;
         private List<CreditCard> _availableCreditCards = new();
@@ -188,7 +189,12 @@ namespace AutoKassa.ViewModels
             set
             {
                 if (SetProperty(ref _selectedCategory, value))
+                {
                     ValidateCategory();
+                    OnPropertyChanged(nameof(IsRepaymentCategory));
+                    OnPropertyChanged(nameof(ShowCreditCardSelector));
+                    ValidateCreditCard();
+                }
             }
         }
 
@@ -236,6 +242,8 @@ namespace AutoKassa.ViewModels
 
         public string AmountError => GetFirstError(nameof(Amount));
 
+        public string CreditCardError => GetFirstError(nameof(SelectedCreditCard));
+
         public bool IsRepayment
         {
             get => _isRepayment;
@@ -277,6 +285,7 @@ namespace AutoKassa.ViewModels
                     OnPropertyChanged(nameof(IsNonCash));
                     OnPropertyChanged(nameof(IsCreditCard));
                     OnPropertyChanged(nameof(IsDebt));
+                    OnPropertyChanged(nameof(ShowCreditCardSelector));
 
                     if (_selectedPaymentType == PaymentType.CreditCard)
                     {
@@ -292,7 +301,8 @@ namespace AutoKassa.ViewModels
                     }
                     else
                     {
-                        SelectedCreditCard = null;
+                        if (!IsRepaymentCategory)
+                            SelectedCreditCard = null;
                         SelectedCounterparty = null;
                     }
                 }
@@ -322,6 +332,16 @@ namespace AutoKassa.ViewModels
             get => SelectedPaymentType == PaymentType.Debt;
             set { if (value) SelectedPaymentType = PaymentType.Debt; }
         }
+
+        /// <summary>
+        /// Выбрана ли категория "Погашение кредита"
+        /// </summary>
+        public bool IsRepaymentCategory => _selectedCategory?.Name == CreditCardService.RepaymentCategoryName;
+
+        /// <summary>
+        /// Показывать ли выбор кредитной карты (для оплаты кредиткой или погашения)
+        /// </summary>
+        public bool ShowCreditCardSelector => IsCreditCard || IsRepaymentCategory;
 
         public List<CreditCard> AvailableCreditCards
         {
@@ -420,6 +440,7 @@ namespace AutoKassa.ViewModels
             ShowAllCategories = false;
             Calculator.Clear();
             Calculator.IsOpen = false;
+            _hasAttemptedSave = false;
             ValidateCategory();
             ValidateCreditCard();
             CaptureSnapshot();
@@ -440,6 +461,7 @@ namespace AutoKassa.ViewModels
             ShowAllCategories = false;
             Calculator.Clear();
             Calculator.IsOpen = false;
+            _hasAttemptedSave = false;
 
             RunAsync(async () =>
             {
@@ -584,10 +606,20 @@ namespace AutoKassa.ViewModels
 
         private void ValidateCreditCard()
         {
-            if (_selectedPaymentType == PaymentType.CreditCard && _selectedCreditCard == null)
+            bool needsCard = _selectedPaymentType == PaymentType.CreditCard || IsRepaymentCategory;
+            bool showError = needsCard && _selectedCreditCard == null;
+
+            // Для категории "Погашение кредита" не показываем ошибку до попытки сохранения,
+            // чтобы не раздражать пользователя красной обводкой сразу при выборе категории.
+            if (IsRepaymentCategory && !_hasAttemptedSave)
+                showError = false;
+
+            if (showError)
                 SetErrors(nameof(SelectedCreditCard), new[] { "Выберите кредитную карту" });
             else
                 ClearErrors(nameof(SelectedCreditCard));
+
+            OnPropertyChanged(nameof(CreditCardError));
         }
 
         private void ValidateCounterparty()
@@ -606,6 +638,7 @@ namespace AutoKassa.ViewModels
         {
             if (_isSaving) return;
 
+            _hasAttemptedSave = true;
             ValidateAmount();
             ValidateCategory();
             ValidateCreditCard();
@@ -671,6 +704,7 @@ namespace AutoKassa.ViewModels
         {
             if (_isSaving) return;
 
+            _hasAttemptedSave = true;
             ValidateAmount();
             ValidateCategory();
             ValidateCreditCard();
@@ -711,6 +745,8 @@ namespace AutoKassa.ViewModels
                 OnPropertyChanged(nameof(AmountError));
                 Calculator.Clear();
                 Calculator.IsOpen = false;
+                _hasAttemptedSave = false;
+                ValidateCreditCard();
                 CaptureSnapshot();
 
                 RequestFocusAmount?.Invoke();

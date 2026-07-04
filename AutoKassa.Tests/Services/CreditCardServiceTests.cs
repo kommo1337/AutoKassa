@@ -155,7 +155,7 @@ namespace AutoKassa.Tests.Services
         {
             var card = SeedCard(initialDebt: 1000m);
 
-            Func<Task> act = () => _svc.RepayDebtAsync(card.Id, 2000m);
+            Func<Task> act = () => _svc.RepayDebtAsync(card.Id, 2000m, PaymentType.Cash, DateTime.Today);
 
             await act.Should().ThrowAsync<InvalidOperationException>();
         }
@@ -165,11 +165,88 @@ namespace AutoKassa.Tests.Services
         {
             var card = SeedCard(initialDebt: 1000m);
 
-            await _svc.RepayDebtAsync(card.Id, 500m);
+            await _svc.RepayDebtAsync(card.Id, 500m, PaymentType.Cash, DateTime.Today);
 
             using var checkCtx = _factory.CreateDbContext();
             var updated = await checkCtx.CreditCards.FindAsync(card.Id);
             updated!.LastPaymentDate.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task RepayDebtAsync_CreatesTransaction()
+        {
+            var card = SeedCard(initialDebt: 1000m);
+
+            var transaction = await _svc.RepayDebtAsync(card.Id, 500m, PaymentType.Cash, DateTime.Today);
+
+            transaction.Should().NotBeNull();
+            transaction.Type.Should().Be(OperationType.Expense);
+            transaction.PaymentType.Should().Be(PaymentType.Cash);
+            transaction.CreditCardId.Should().Be(card.Id);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var fromDb = await checkCtx.Transactions.FindAsync(transaction.Id);
+            fromDb.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task RepayDebtAsync_ReducesCurrentDebt()
+        {
+            var card = SeedCard(initialDebt: 10000m);
+
+            await _svc.RepayDebtAsync(card.Id, 3000m, PaymentType.Cash, DateTime.Today);
+
+            var debt = await _svc.GetCurrentDebtAsync(card.Id);
+            debt.Should().Be(7000m);
+        }
+
+        [Fact]
+        public async Task RepayDebtAsync_DistributesFifoAcrossPurchases()
+        {
+            var card = SeedCard();
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+
+            var purchase1 = SeedPurchaseTransaction(category.Id, 3000m);
+            var purchase2 = SeedPurchaseTransaction(category.Id, 4000m);
+            await _svc.AddPurchaseAsync(card.Id, purchase1.Id, purchase1.Amount);
+            await _svc.AddPurchaseAsync(card.Id, purchase2.Id, purchase2.Amount);
+
+            var repayment = await _svc.RepayDebtAsync(card.Id, 5000m, PaymentType.Cash, DateTime.Today);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var p1 = await checkCtx.CreditCardPurchases.FirstAsync(p => p.TransactionId == purchase1.Id);
+            var p2 = await checkCtx.CreditCardPurchases.FirstAsync(p => p.TransactionId == purchase2.Id);
+            p1.RemainingDebt.Should().Be(0m);
+            p2.RemainingDebt.Should().Be(2000m);
+
+            var creditCardPayments = await checkCtx.CreditCardPayments
+                .Where(ccp => ccp.RepaymentTransactionId == repayment.Id)
+                .ToListAsync();
+            creditCardPayments.Should().HaveCount(2);
+            creditCardPayments.Sum(ccp => ccp.Amount).Should().Be(5000m);
+        }
+
+        [Fact]
+        public async Task RecalculateOnRepaymentDeletedAsync_RestoresRemainingDebt()
+        {
+            var card = SeedCard();
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+
+            var purchase = SeedPurchaseTransaction(category.Id, 5000m);
+            await _svc.AddPurchaseAsync(card.Id, purchase.Id, purchase.Amount);
+
+            var repayment = await _svc.RepayDebtAsync(card.Id, 3000m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.RecalculateOnRepaymentDeletedAsync(repayment.Id);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var restored = await checkCtx.CreditCardPurchases.FindAsync(purchase.Id);
+            restored!.RemainingDebt.Should().Be(5000m);
+
+            var creditCardPayments = await checkCtx.CreditCardPayments
+                .Where(ccp => ccp.RepaymentTransactionId == repayment.Id)
+                .ToListAsync();
+            creditCardPayments.Should().BeEmpty();
         }
 
         [Fact]

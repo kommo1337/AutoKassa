@@ -438,6 +438,36 @@ namespace AutoKassa.Migrations
                     b.ToTable("CreditCards");
                 });
 
+            modelBuilder.Entity("AutoKassa.Models.CreditCardPayment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CreditCardPurchaseId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RepaymentTransactionId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreditCardPurchaseId")
+                        .HasDatabaseName("IX_CreditCardPayment_CreditCardPurchaseId");
+
+                    b.HasIndex("RepaymentTransactionId")
+                        .HasDatabaseName("IX_CreditCardPayment_RepaymentTransactionId");
+
+                    b.HasIndex("RepaymentTransactionId", "CreditCardPurchaseId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CreditCardPayment_RepaymentTransactionId_CreditCardPurchaseId");
+
+                    b.ToTable("CreditCardPayments");
+                });
+
             modelBuilder.Entity("AutoKassa.Models.CreditCardPurchase", b =>
                 {
                     b.Property<int>("Id")
@@ -618,6 +648,25 @@ namespace AutoKassa.Migrations
                         .HasDatabaseName("IX_Transaction_Type_IsDeleted_Date");
 
                     b.ToTable("Transactions");
+                });
+
+            modelBuilder.Entity("AutoKassa.Models.CreditCardPayment", b =>
+                {
+                    b.HasOne("AutoKassa.Models.CreditCardPurchase", "CreditCardPurchase")
+                        .WithMany()
+                        .HasForeignKey("CreditCardPurchaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AutoKassa.Models.Transaction", "RepaymentTransaction")
+                        .WithMany()
+                        .HasForeignKey("RepaymentTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreditCardPurchase");
+
+                    b.Navigation("RepaymentTransaction");
                 });
 
             modelBuilder.Entity("AutoKassa.Models.CreditCardPurchase", b =>

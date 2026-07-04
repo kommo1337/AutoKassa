@@ -195,6 +195,7 @@ namespace AutoKassa
             services.AddTransient<CounterpartyEditViewModel>();
             services.AddTransient<CreditCardsViewModel>();
             services.AddTransient<CreditCardEditViewModel>();
+            services.AddTransient<CreditCardRepaymentViewModel>();
             services.AddTransient<ReconciliationViewModel>();
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<ChangePasswordViewModel>();

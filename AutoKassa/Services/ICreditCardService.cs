@@ -1,4 +1,5 @@
 ﻿using AutoKassa.Models;
+using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Services
 {
@@ -68,8 +69,40 @@ namespace AutoKassa.Services
         Task AddPurchaseAsync(int creditCardId, int transactionId, decimal amount, CancellationToken ct = default);
 
         /// <summary>
-        /// Зафиксировать погашение долга по кредитной карте
+        /// Создать операцию-погашение долга по кредитной карте и распределить сумму по покупкам FIFO
         /// </summary>
-        Task RepayDebtAsync(int creditCardId, decimal amount, CancellationToken ct = default);
+        Task<Transaction> RepayDebtAsync(
+            int creditCardId,
+            decimal amount,
+            PaymentType paymentType,
+            DateTime date,
+            string? description = null,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// Получить покупки карты с ненулевым остатком долга, отсортированные по FIFO
+        /// </summary>
+        Task<IReadOnlyList<CreditCardPurchase>> GetPurchasesWithRemainingDebtAsync(
+            int creditCardId,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// Получить текущий оставшийся долг по покупке с учетом связанных погашений
+        /// </summary>
+        Task<decimal> GetRemainingDebtForPurchaseAsync(int purchaseId, CancellationToken ct = default);
+
+        /// <summary>
+        /// Распределить сумму существующей операции-погашения по покупкам FIFO
+        /// </summary>
+        Task DistributeRepaymentForTransactionAsync(
+            int transactionId,
+            int creditCardId,
+            decimal amount,
+            CancellationToken ct = default);
+
+        /// <summary>
+        /// Восстановить оставшиеся долги покупок при удалении операции-погашения
+        /// </summary>
+        Task RecalculateOnRepaymentDeletedAsync(int repaymentTransactionId, CancellationToken ct = default);
     }
 }

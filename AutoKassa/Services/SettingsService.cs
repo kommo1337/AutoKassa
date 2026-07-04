@@ -442,7 +442,14 @@ namespace AutoKassa.Services
 
                 await Task.Run(() => File.Copy(backupFilePath, dbPath, overwrite: true));
 
-                // Перезагружаем настройки из восстановленной БД
+                // Восстановленная копия может иметь устаревшую схему (например, отсутствуют столбцы кредитной карты).
+                // Применяем pending-миграции, чтобы схема соответствовала текущей версии приложения.
+                await using (var context = _contextFactory.CreateDbContext())
+                {
+                    await context.Database.MigrateAsync();
+                }
+
+                // Перезагружаем настройки из восстановленной и обновлённой БД
                 _cachedSettings = null;
                 await GetSettingsAsync().ConfigureAwait(false);
 

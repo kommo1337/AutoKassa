@@ -81,6 +81,8 @@ namespace AutoKassa.ViewModels
         private bool _isLoading;
         private bool _isModalOpen;
         private CreditCardEditViewModel _editViewModel;
+        private bool _isRepaymentModalOpen;
+        private CreditCardRepaymentViewModel _repaymentViewModel;
 
         private decimal _totalLimit;
         private decimal _totalDebt;
@@ -109,6 +111,7 @@ namespace AutoKassa.ViewModels
             AddCommand = new RelayCommand(_ => OpenAddCard());
             EditCommand = new RelayCommand(_ => OpenEditCard(), _ => SelectedCardItem != null);
             DeleteCommand = new RelayCommand(async _ => await DeleteCardAsync(), _ => SelectedCardItem != null);
+            RepayCommand = new RelayCommand(_ => OpenRepayCard(), _ => SelectedCardItem != null && SelectedCardItem.CurrentDebt > 0);
 
             _dataChangeService.DataChanged += OnDataChanged;
         }
@@ -148,6 +151,7 @@ namespace AutoKassa.ViewModels
                     RunAsync(LoadSelectedCardPurchasesAsync);
                     (EditCommand as RelayCommand)?.RaiseCanExecuteChanged();
                     (DeleteCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -174,6 +178,18 @@ namespace AutoKassa.ViewModels
         {
             get => _editViewModel;
             set => SetProperty(ref _editViewModel, value);
+        }
+
+        public bool IsRepaymentModalOpen
+        {
+            get => _isRepaymentModalOpen;
+            set => SetProperty(ref _isRepaymentModalOpen, value);
+        }
+
+        public CreditCardRepaymentViewModel RepaymentViewModel
+        {
+            get => _repaymentViewModel;
+            set => SetProperty(ref _repaymentViewModel, value);
         }
 
         public decimal TotalLimit
@@ -227,6 +243,7 @@ namespace AutoKassa.ViewModels
         public ICommand AddCommand { get; }
         public ICommand EditCommand { get; }
         public ICommand DeleteCommand { get; }
+        public ICommand RepayCommand { get; }
 
         #endregion
 
@@ -260,6 +277,8 @@ namespace AutoKassa.ViewModels
                     var updated = CreditCardItems.FirstOrDefault(i => i.Card.Id == _selectedCardItem.Card.Id);
                     SelectedCardItem = updated;
                 }
+
+                (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
             }
             catch (Exception ex)
             {
@@ -362,6 +381,29 @@ namespace AutoKassa.ViewModels
             };
             EditViewModel = vm;
             IsModalOpen = true;
+        }
+
+        private void OpenRepayCard()
+        {
+            if (_selectedCardItem == null) return;
+
+            var vm = new CreditCardRepaymentViewModel(_creditCardService, _dialogService, _toastService, _dataChangeService);
+            vm.OnSaved = async () =>
+            {
+                IsRepaymentModalOpen = false;
+                RepaymentViewModel = null;
+                await LoadCardsAsync();
+                await LoadSelectedCardPurchasesAsync();
+                _dataChangeService?.NotifyDataChanged();
+            };
+            vm.OnCancelled = () =>
+            {
+                IsRepaymentModalOpen = false;
+                RepaymentViewModel = null;
+            };
+            RepaymentViewModel = vm;
+            IsRepaymentModalOpen = true;
+            RunAsync(async () => await vm.InitializeAsync(_selectedCardItem.Card));
         }
 
         private async Task DeleteCardAsync()
