@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -293,7 +292,10 @@ namespace AutoKassa.ViewModels.Reports
 
             var filePath = await _exportService.ExportBalanceReportToPdfAsync(Report);
             _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         /// <summary>
@@ -309,7 +311,10 @@ namespace AutoKassa.ViewModels.Reports
 
             var filePath = await _exportService.ExportBalanceReportToExcelAsync(Report);
             _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         #endregion

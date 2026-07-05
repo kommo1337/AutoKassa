@@ -6,6 +6,7 @@ using Serilog;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 
 namespace AutoKassa.Services
 {
@@ -18,6 +19,7 @@ namespace AutoKassa.Services
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private AppSettings _cachedSettings;
+        private readonly SemaphoreSlim _settingsLock = new(1, 1);
 
         public SettingsService(IDbContextFactory<AppDbContext> contextFactory)
         {
@@ -59,11 +61,19 @@ namespace AutoKassa.Services
         /// </summary>
         public AppSettings GetSettings()
         {
-            if (_cachedSettings == null)
+            _settingsLock.Wait();
+            try
             {
-                LoadSettings();
+                if (_cachedSettings == null)
+                {
+                    LoadSettings();
+                }
+                return _cachedSettings;
             }
-            return _cachedSettings;
+            finally
+            {
+                _settingsLock.Release();
+            }
         }
 
         /// <summary>
@@ -186,12 +196,20 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<AppSettings> GetSettingsAsync()
         {
-            if (_cachedSettings == null)
+            await _settingsLock.WaitAsync().ConfigureAwait(false);
+            try
             {
-                using var context = _contextFactory.CreateDbContext();
-                _cachedSettings = await context.AppSettings.FirstOrDefaultAsync() ?? CreateDefaultSettings();
+                if (_cachedSettings == null)
+                {
+                    using var context = _contextFactory.CreateDbContext();
+                    _cachedSettings = await context.AppSettings.FirstOrDefaultAsync().ConfigureAwait(false) ?? CreateDefaultSettings();
+                }
+                return _cachedSettings;
             }
-            return _cachedSettings;
+            finally
+            {
+                _settingsLock.Release();
+            }
         }
 
         /// <summary>
@@ -202,7 +220,16 @@ namespace AutoKassa.Services
             using var context = _contextFactory.CreateDbContext();
             context.Update(settings);
             await context.SaveChangesAsync();
-            _cachedSettings = settings;
+
+            await _settingsLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _cachedSettings = settings;
+            }
+            finally
+            {
+                _settingsLock.Release();
+            }
         }
 
         /// <summary>
@@ -210,52 +237,71 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task ResetToDefaultsAsync()
         {
-            var currentPassword = _cachedSettings?.PasswordHash;
-            var currentSecurityQuestion = _cachedSettings?.SecurityQuestionId;
-            var currentSecurityAnswer = _cachedSettings?.SecurityAnswerHash;
-            var currentCustomQuestion = _cachedSettings?.CustomSecurityQuestion;
+            await _settingsLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var currentPassword = _cachedSettings?.PasswordHash;
+                var currentSecurityQuestion = _cachedSettings?.SecurityQuestionId;
+                var currentSecurityAnswer = _cachedSettings?.SecurityAnswerHash;
+                var currentCustomQuestion = _cachedSettings?.CustomSecurityQuestion;
 
-            var settings = GetSettings();
+                if (_cachedSettings == null)
+                {
+                    LoadSettings();
+                }
 
-            // Создаем настройки по умолчанию, сохраняя пароль
-            settings.AutoLockTimeout = 10;
-            settings.AutoLockEnabled = true;
-            settings.Theme = "Light";
-            settings.DefaultPeriodFilter = "Month";
-            settings.ShowNotifications = true;
-            settings.ShowOperationsInSidebar = false;
-            settings.DefaultPageSize = 20;
-            settings.ConfirmDelete = true;
-            settings.AutoGenerateReports = false;
-            settings.BackupEnabled = false;
-            settings.AutoBackupDays = 7;
-            settings.BackupFrequency = "Weekly";
-            settings.BackupKeepCount = 10;
-            settings.BackupPath = null;
-            settings.RequirePasswordOnStartup = true;
-            settings.PasswordExpireDays = 0;
-            settings.Language = "ru-RU";
-            settings.WindowWidth = 1200;
-            settings.WindowHeight = 700;
-            settings.DefaultOperationType = (int)OperationType.Expense;
-            settings.DefaultIncomeCategoryId = null;
-            settings.DefaultExpenseCategoryId = null;
-            settings.InitialBalance = 0m;
-            settings.DefaultPaymentType = 1;
-            settings.CreditCardLimit = 0m;
-            settings.CreditCardCurrentDebt = 0m;
-            settings.CreditCardInterestRate = 0m;
-            settings.CreditCardPaymentDay = 10;
-            settings.CreditCardLastPaymentDate = null;
-            settings.CreditCardMinimumPaymentPercent = 5m;
+                var settings = _cachedSettings!;
 
-            // Восстанавливаем пароль
-            settings.PasswordHash = currentPassword;
-            settings.SecurityQuestionId = currentSecurityQuestion;
-            settings.SecurityAnswerHash = currentSecurityAnswer;
-            settings.CustomSecurityQuestion = currentCustomQuestion;
+                // Создаем настройки по умолчанию, сохраняя пароль
+                settings.AutoLockTimeout = 10;
+                settings.AutoLockEnabled = true;
+                settings.Theme = "Light";
+                settings.DefaultPeriodFilter = "Month";
+                settings.ShowNotifications = true;
+                settings.ShowOperationsInSidebar = false;
+                settings.DefaultPageSize = 20;
+                settings.ConfirmDelete = true;
+                settings.AutoGenerateReports = false;
+                settings.BackupEnabled = false;
+                settings.AutoBackupDays = 7;
+                settings.BackupFrequency = "Weekly";
+                settings.BackupKeepCount = 10;
+                settings.BackupPath = null;
+                settings.RequirePasswordOnStartup = true;
+                settings.PasswordExpireDays = 0;
+                settings.Language = "ru-RU";
+                settings.WindowWidth = 1200;
+                settings.WindowHeight = 700;
+                settings.DefaultOperationType = (int)OperationType.Expense;
+                settings.DefaultIncomeCategoryId = null;
+                settings.DefaultExpenseCategoryId = null;
+                settings.InitialBalance = 0m;
+                settings.DefaultPaymentType = 1;
+                settings.CreditCardLimit = 0m;
+                settings.CreditCardCurrentDebt = 0m;
+                settings.CreditCardInterestRate = 0m;
+                settings.CreditCardPaymentDay = 10;
+                settings.CreditCardLastPaymentDate = null;
+                settings.CreditCardMinimumPaymentPercent = 5m;
 
-            await SaveSettingsAsync(settings);
+                // Восстанавливаем пароль
+                settings.PasswordHash = currentPassword;
+                settings.SecurityQuestionId = currentSecurityQuestion;
+                settings.SecurityAnswerHash = currentSecurityAnswer;
+                settings.CustomSecurityQuestion = currentCustomQuestion;
+
+                using (var context = _contextFactory.CreateDbContext())
+                {
+                    context.Update(settings);
+                    await context.SaveChangesAsync().ConfigureAwait(false);
+                }
+
+                _cachedSettings = settings;
+            }
+            finally
+            {
+                _settingsLock.Release();
+            }
         }
 
         /// <summary>
@@ -450,8 +496,17 @@ namespace AutoKassa.Services
                 }
 
                 // Перезагружаем настройки из восстановленной и обновлённой БД
-                _cachedSettings = null;
-                await GetSettingsAsync().ConfigureAwait(false);
+                await _settingsLock.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    _cachedSettings = null;
+                    using var settingsContext = _contextFactory.CreateDbContext();
+                    _cachedSettings = await settingsContext.AppSettings.FirstOrDefaultAsync().ConfigureAwait(false) ?? CreateDefaultSettings();
+                }
+                finally
+                {
+                    _settingsLock.Release();
+                }
 
                 _log.Information("БД восстановлена из бэкапа: {BackupFile}", backupFilePath);
                 return true;
@@ -467,7 +522,7 @@ namespace AutoKassa.Services
         /// Защита от path traversal при импорте настроек: разрешаем только пути
         /// внутри профиля пользователя или каталога приложения.
         /// </summary>
-        private static string? SanitizeBackupPath(string? path)
+        public static string? SanitizeBackupPath(string? path)
         {
             if (string.IsNullOrWhiteSpace(path)) return null;
             try

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -194,7 +193,7 @@ namespace AutoKassa.ViewModels.Reports
 
         protected override async Task LoadDataAsync(CancellationToken ct = default)
         {
-            Report = await _reportService.GenerateDebtReportAsync(DateFrom, DateTo, Direction, Status, ct).ConfigureAwait(false);
+            Report = await _reportService.GenerateDebtReportAsync(DateFrom, DateTo, Direction, Status, ct);
             GroupedDebts = BuildGroups(Report);
         }
 
@@ -246,9 +245,12 @@ namespace AutoKassa.ViewModels.Reports
                 return;
             }
 
-            var filePath = await _exportService.ExportDebtReportToPdfAsync(Report).ConfigureAwait(false);
+            var filePath = await _exportService.ExportDebtReportToPdfAsync(Report);
             _toastService.ShowWithAction("Отчёт PDF сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         protected override async Task ExportToExcelAsync()
@@ -259,9 +261,12 @@ namespace AutoKassa.ViewModels.Reports
                 return;
             }
 
-            var filePath = await _exportService.ExportDebtReportToExcelAsync(Report).ConfigureAwait(false);
+            var filePath = await _exportService.ExportDebtReportToExcelAsync(Report);
             _toastService.ShowWithAction("Отчёт Excel сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         private void NavigateToCounterparty(DebtItem? item)

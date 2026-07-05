@@ -3,10 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AutoKassa.Services
 {
-    public class NavigationService : INavigationService
+    public class NavigationService : INavigationService, IDisposable
     {
         private readonly IServiceProvider _serviceProvider;
-        private readonly Dictionary<Type, ViewModelBase> _viewModelCache = new();
         private ViewModelBase _currentView;
 
         public NavigationService(IServiceProvider serviceProvider)
@@ -38,12 +37,7 @@ namespace AutoKassa.Services
         public void NavigateTo<TViewModel>() where TViewModel : ViewModelBase
         {
             var oldView = _currentView;
-
-            if (!_viewModelCache.TryGetValue(typeof(TViewModel), out var viewModel))
-            {
-                viewModel = _serviceProvider.GetRequiredService<TViewModel>();
-                _viewModelCache[typeof(TViewModel)] = viewModel;
-            }
+            var viewModel = _serviceProvider.GetRequiredService<TViewModel>();
 
             // Не делаем ничего, если уже на этой вкладке
             if (oldView == viewModel)
@@ -58,6 +52,8 @@ namespace AutoKassa.Services
                 newNav.OnNavigatedTo();
 
             CurrentViewChanged?.Invoke();
+
+            DisposeViewModel(oldView);
         }
 
         /// <summary>
@@ -67,12 +63,7 @@ namespace AutoKassa.Services
         public void NavigateTo<TViewModel>(object parameter) where TViewModel : ViewModelBase
         {
             var oldView = _currentView;
-
-            if (!_viewModelCache.TryGetValue(typeof(TViewModel), out var viewModel))
-            {
-                viewModel = _serviceProvider.GetRequiredService<TViewModel>();
-                _viewModelCache[typeof(TViewModel)] = viewModel;
-            }
+            var viewModel = _serviceProvider.GetRequiredService<TViewModel>();
 
             // Не делаем ничего, если уже на этой вкладке
             if (oldView == viewModel)
@@ -91,6 +82,36 @@ namespace AutoKassa.Services
                 newNav.OnNavigatedTo();
 
             CurrentViewChanged?.Invoke();
+
+            DisposeViewModel(oldView);
+        }
+
+        /// <summary>
+        /// Освобождает ресурсы уходящего ViewModel
+        /// </summary>
+        private static void DisposeViewModel(ViewModelBase viewModel)
+        {
+            if (viewModel is IDisposable disposable)
+            {
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(ex, "Ошибка при освобождении ViewModel {ViewModelType}", viewModel.GetType().Name);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Освобождает текущий ViewModel при завершении работы сервиса навигации.
+        /// </summary>
+        public void Dispose()
+        {
+            DisposeViewModel(_currentView);
+            CurrentViewChanged = null;
+            GC.SuppressFinalize(this);
         }
     }
 }

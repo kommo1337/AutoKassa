@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +10,7 @@ using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 using AutoKassa.Services;
+using AutoKassa.Services.Transactions;
 using OxyPlot;
 using OxyPlot.Series;
 
@@ -21,11 +21,8 @@ namespace AutoKassa.ViewModels.Reports
         private readonly IReportService _reportService;
         private readonly IExportService _exportService;
         private readonly ITransactionService _transactionService;
-        private readonly ICategoryService _categoryService;
-        private readonly ICreditCardService _creditCardService;
-        private readonly ICounterpartyService _counterpartyService;
-        private readonly ISettingsService _settingsService;
         private readonly IDataChangeService _dataChangeService;
+        private readonly ITransactionEditViewModelFactory _transactionEditViewModelFactory;
 
         private DateTime _dateFrom;
         private DateTime _dateTo;
@@ -42,20 +39,14 @@ namespace AutoKassa.ViewModels.Reports
             IDialogService dialogService,
             IToastNotificationService toastService,
             ITransactionService transactionService,
-            ICategoryService categoryService,
-            ICreditCardService creditCardService,
-            ICounterpartyService counterpartyService,
-            ISettingsService settingsService,
-            IDataChangeService dataChangeService) : base(dialogService, toastService)
+            IDataChangeService dataChangeService,
+            ITransactionEditViewModelFactory transactionEditViewModelFactory) : base(dialogService, toastService)
         {
             _reportService = reportService;
             _exportService = exportService;
             _transactionService = transactionService;
-            _categoryService = categoryService;
-            _creditCardService = creditCardService;
-            _counterpartyService = counterpartyService;
-            _settingsService = settingsService;
             _dataChangeService = dataChangeService;
+            _transactionEditViewModelFactory = transactionEditViewModelFactory;
 
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             _dateTo = DateTime.Now.Date;
@@ -285,8 +276,7 @@ namespace AutoKassa.ViewModels.Reports
 
         private void EditTransaction(Transaction transaction)
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
-            vm.InitializeForEdit(transaction);
+            var vm = _transactionEditViewModelFactory.CreateForEdit(transaction);
             vm.OnSaved = async () => { Modal.Close(); await GenerateReportAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { Modal.Close(); };
             Modal.Show(vm);
@@ -324,7 +314,10 @@ namespace AutoKassa.ViewModels.Reports
 
             var filePath = await _exportService.ExportCategoryReportToPdfAsync(Report);
             _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         protected override async Task ExportToExcelAsync()
@@ -337,7 +330,10 @@ namespace AutoKassa.ViewModels.Reports
 
             var filePath = await _exportService.ExportCategoryReportToExcelAsync(Report);
             _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         #endregion

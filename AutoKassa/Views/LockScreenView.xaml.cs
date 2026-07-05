@@ -1,4 +1,5 @@
 ﻿using AutoKassa.ViewModels;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -12,6 +13,7 @@ namespace AutoKassa.Views
     public partial class LockScreenView : Window
     {
         private readonly LockScreenViewModel _viewModel;
+        private readonly RoutedEventHandler _loadedHandler;
 
         public LockScreenView(LockScreenViewModel viewModel)
         {
@@ -24,7 +26,9 @@ namespace AutoKassa.Views
             _viewModel.OnPasswordError = OnPasswordError;
 
             // Фокус на поле пароля при загрузке
-            Loaded += (s, e) => PasswordBox.Focus();
+            _loadedHandler = (s, e) => PasswordBox.Focus();
+            Loaded += _loadedHandler;
+            Closed += OnClosed;
         }
 
         /// <summary>
@@ -77,6 +81,15 @@ namespace AutoKassa.Views
             var transform = new System.Windows.Media.TranslateTransform();
             PasswordBorder.RenderTransform = transform;
             transform.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, shakeAnimation);
+        }
+
+        private void OnClosed(object? sender, EventArgs e)
+        {
+            _viewModel.OnUnlocked = null;
+            _viewModel.OnPasswordError = null;
+            Loaded -= _loadedHandler;
+            Closed -= OnClosed;
+            _viewModel?.Dispose();
         }
 
         /// <summary>

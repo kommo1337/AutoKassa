@@ -9,14 +9,15 @@ namespace AutoKassa.ViewModels
     public class ReportsViewModel : ViewModelBase, INavigationAware
     {
         private readonly IDataChangeService _dataChangeService;
-        private readonly Dictionary<Type, BaseReportViewModel> _reportCache = new();
+        private readonly IReportViewModelFactory _reportFactory;
         private BaseReportViewModel _currentReport;
         private bool _isInitialized;
         private CancellationTokenSource _navigateCts;
 
-        public ReportsViewModel(IDataChangeService dataChangeService)
+        public ReportsViewModel(IDataChangeService dataChangeService, IReportViewModelFactory reportFactory)
         {
             _dataChangeService = dataChangeService;
+            _reportFactory = reportFactory;
 
             ShowBalanceReportCommand           = new RelayCommand(_ => ShowBalanceReport());
             ShowCategoryReportCommand          = new RelayCommand(_ => ShowCategoryReport());
@@ -31,10 +32,15 @@ namespace AutoKassa.ViewModels
             get => _currentReport;
             set
             {
-                SetProperty(ref _currentReport, value);
-                OnPropertyChanged(nameof(IsBalanceActive));
-                OnPropertyChanged(nameof(IsCategoryActive));
-                OnPropertyChanged(nameof(IsDetailActive));
+                var oldReport = _currentReport;
+                if (SetProperty(ref _currentReport, value))
+                {
+                    DisposeReport(oldReport);
+                    OnPropertyChanged(nameof(IsBalanceActive));
+                    OnPropertyChanged(nameof(IsCategoryActive));
+                    OnPropertyChanged(nameof(IsDetailActive));
+                    OnPropertyChanged(nameof(IsDebtActive));
+                }
             }
         }
 
@@ -86,17 +92,12 @@ namespace AutoKassa.ViewModels
 
         private void OnDataChanged()
         {
-            foreach (var report in _reportCache.Values)
-                report.Invalidate();
+            CurrentReport?.Invalidate();
         }
 
         private void ShowBalanceReport()
         {
-            if (!_reportCache.TryGetValue(typeof(BalanceReportViewModel), out var vm))
-            {
-                vm = App.GetService<BalanceReportViewModel>();
-                _reportCache[typeof(BalanceReportViewModel)] = vm;
-            }
+            var vm = _reportFactory.CreateBalanceReportViewModel();
             CurrentReport = vm;
             if (!vm.IsInitialized)
                 RunAsync(vm.InitializeAsync);
@@ -104,11 +105,7 @@ namespace AutoKassa.ViewModels
 
         private void ShowCategoryReport()
         {
-            if (!_reportCache.TryGetValue(typeof(CategoryReportViewModel), out var vm))
-            {
-                vm = App.GetService<CategoryReportViewModel>();
-                _reportCache[typeof(CategoryReportViewModel)] = vm;
-            }
+            var vm = _reportFactory.CreateCategoryReportViewModel();
             CurrentReport = vm;
             if (!vm.IsInitialized)
                 RunAsync(vm.InitializeAsync);
@@ -116,11 +113,7 @@ namespace AutoKassa.ViewModels
 
         private void ShowTransactionDetailReport()
         {
-            if (!_reportCache.TryGetValue(typeof(TransactionDetailReportViewModel), out var vm))
-            {
-                vm = App.GetService<TransactionDetailReportViewModel>();
-                _reportCache[typeof(TransactionDetailReportViewModel)] = vm;
-            }
+            var vm = _reportFactory.CreateTransactionDetailReportViewModel();
             CurrentReport = vm;
             if (!vm.IsInitialized)
                 RunAsync(vm.InitializeAsync);
@@ -128,14 +121,28 @@ namespace AutoKassa.ViewModels
 
         private void ShowDebtReport()
         {
-            if (!_reportCache.TryGetValue(typeof(DebtReportViewModel), out var vm))
-            {
-                vm = App.GetService<DebtReportViewModel>();
-                _reportCache[typeof(DebtReportViewModel)] = vm;
-            }
+            var vm = _reportFactory.CreateDebtReportViewModel();
             CurrentReport = vm;
             if (!vm.IsInitialized)
                 RunAsync(vm.InitializeAsync);
+        }
+
+        /// <summary>
+        /// Освобождает ресурсы старого отчётного ViewModel
+        /// </summary>
+        private static void DisposeReport(BaseReportViewModel report)
+        {
+            if (report is IDisposable disposable)
+            {
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(ex, "Ошибка при освобождении отчётного ViewModel {ViewModelType}", report.GetType().Name);
+                }
+            }
         }
 
         protected override void OnDispose()
@@ -144,6 +151,8 @@ namespace AutoKassa.ViewModels
             var navCts = Interlocked.Exchange(ref _navigateCts, null);
             navCts?.Cancel();
             navCts?.Dispose();
+            DisposeReport(CurrentReport);
+            CurrentReport = null;
             base.OnDispose();
         }
     }

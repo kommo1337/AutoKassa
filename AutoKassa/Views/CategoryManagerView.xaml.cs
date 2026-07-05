@@ -57,16 +57,23 @@ namespace AutoKassa.Views
 
         private async void Item_Drop(object sender, DragEventArgs e)
         {
-            if (!e.Data.GetDataPresent(typeof(CategoryItemViewModel))) return;
-
-            var source = (CategoryItemViewModel)e.Data.GetData(typeof(CategoryItemViewModel));
-            if (sender is Border border && border.DataContext is CategoryItemViewModel target && source != target)
+            try
             {
-                var vm = DataContext as CategoryManagerViewModel;
-                if (vm != null)
+                if (!e.Data.GetDataPresent(typeof(CategoryItemViewModel))) return;
+
+                var source = (CategoryItemViewModel)e.Data.GetData(typeof(CategoryItemViewModel));
+                if (sender is Border border && border.DataContext is CategoryItemViewModel target && source != target)
                 {
-                    await vm.MoveCategoryAsync(source, target, source.Model.Type);
+                    var vm = DataContext as CategoryManagerViewModel;
+                    if (vm != null)
+                    {
+                        await vm.MoveCategoryAsync(source, target, source.Model.Type);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка при перетаскивании категории");
             }
         }
 

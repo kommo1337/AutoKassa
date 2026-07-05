@@ -82,7 +82,7 @@ namespace AutoKassa.Services
                 .Where(dp => debtIds.Contains(dp.DebtTransactionId))
                 .Where(dp => !dp.RepaymentTransaction.IsDeleted)
                 .GroupBy(dp => dp.DebtTransactionId)
-                .Select(g => new { DebtId = g.Key, Total = (decimal)g.Sum(dp => (double)dp.Amount) })
+                .Select(g => new { DebtId = g.Key, Total = g.Sum(dp => dp.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
@@ -142,11 +142,10 @@ namespace AutoKassa.Services
             var repaidBefore = await context.DebtPayments
                 .AsNoTracking()
                 .Where(dp => dp.DebtTransactionId == debtTransactionId && !dp.RepaymentTransaction.IsDeleted)
-                .Select(dp => (double?)dp.Amount)
-                .SumAsync(ct)
-                .ConfigureAwait(false) ?? 0;
+                .SumAsync(dp => (decimal?)dp.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
 
-            var remaining = debt.Amount - (decimal)repaidBefore;
+            var remaining = debt.Amount - repaidBefore;
             if (amount > remaining)
                 throw new InvalidOperationException($"Сумма погашения ({amount:N2}) превышает остаток долга ({remaining:N2})");
 
@@ -180,8 +179,8 @@ namespace AutoKassa.Services
 
             // Пересчитываем статус долга в том же контексте, не создавая новый.
             var previousStatus = debt.DebtStatus;
-            var repaidTotal = repaidBefore + (double)amount;
-            debt.DebtStatus = repaidTotal >= (double)debt.Amount ? DebtStatus.Repaid : DebtStatus.Active;
+            var repaidTotal = repaidBefore + amount;
+            debt.DebtStatus = repaidTotal >= debt.Amount ? DebtStatus.Repaid : DebtStatus.Active;
             debt.UpdatedAt = DateTime.Now;
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
@@ -225,9 +224,8 @@ namespace AutoKassa.Services
             var repaidAmount = await context.DebtPayments
                 .AsNoTracking()
                 .Where(dp => dp.DebtTransactionId == debtTransactionId && !dp.RepaymentTransaction.IsDeleted)
-                .Select(dp => (double?)dp.Amount)
-                .SumAsync(ct)
-                .ConfigureAwait(false) ?? 0;
+                .SumAsync(dp => (decimal?)dp.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
 
             if (repaidAmount > 0)
                 throw new InvalidOperationException("Нельзя списать долг, по которому есть погашения. Удалите погашения перед списанием.");
@@ -263,11 +261,10 @@ namespace AutoKassa.Services
             var repaid = await context.DebtPayments
                 .AsNoTracking()
                 .Where(dp => dp.DebtTransactionId == debtTransactionId && !dp.RepaymentTransaction.IsDeleted)
-                .Select(dp => (double?)dp.Amount)
-                .SumAsync(ct)
-                .ConfigureAwait(false) ?? 0;
+                .SumAsync(dp => (decimal?)dp.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
 
-            return debt.Amount - (decimal)repaid;
+            return debt.Amount - repaid;
         }
 
         /// <summary>
@@ -288,12 +285,11 @@ namespace AutoKassa.Services
 
             var repaid = await context.DebtPayments
                 .Where(dp => dp.DebtTransactionId == debtTransactionId && !dp.RepaymentTransaction.IsDeleted)
-                .Select(dp => (double?)dp.Amount)
-                .SumAsync(ct)
-                .ConfigureAwait(false) ?? 0;
+                .SumAsync(dp => (decimal?)dp.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
 
             var previousStatus = debt.DebtStatus;
-            debt.DebtStatus = repaid >= (double)debt.Amount ? DebtStatus.Repaid : DebtStatus.Active;
+            debt.DebtStatus = repaid >= debt.Amount ? DebtStatus.Repaid : DebtStatus.Active;
             debt.UpdatedAt = DateTime.Now;
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);

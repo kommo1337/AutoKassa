@@ -432,6 +432,9 @@ namespace AutoKassa.ViewModels
         protected override void OnDispose()
         {
             _dataChangeService.DataChanged -= OnDataChanged;
+            (_editViewModel as IDisposable)?.Dispose();
+            (_repaymentViewModel as IDisposable)?.Dispose();
+            base.OnDispose();
         }
     }
 }

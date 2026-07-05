@@ -2,9 +2,9 @@ using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
+using AutoKassa.Services.Dashboard;
+using AutoKassa.Services.Transactions;
 using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Series;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Windows.Input;
@@ -17,13 +17,14 @@ namespace AutoKassa.ViewModels
     public class DashboardViewModel : ViewModelBase, INavigationAware
     {
         private readonly ITransactionService _transactionService;
-        private readonly ICategoryService _categoryService;
-        private readonly ICreditCardService _creditCardService;
-        private readonly ICounterpartyService _counterpartyService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
-        private readonly ISettingsService _settingsService;
         private readonly IDataChangeService _dataChangeService;
+        private readonly INavigationService _navigationService;
+        private readonly IDashboardService _dashboardService;
+        private readonly ITransactionEditViewModelFactory _transactionEditViewModelFactory;
+        private readonly IDashboardPeriodCoordinator _periodCoordinator;
+        private readonly IDashboardTransactionCoordinator _transactionCoordinator;
         private bool _isInitialized;
         private bool _needsRefresh;
 
@@ -45,6 +46,7 @@ namespace AutoKassa.ViewModels
         private DateTime _dateFrom;
         private DateTime _dateTo;
         private bool _isPeriodPickerOpen;
+        private DashboardPeriod _currentPeriod;
 
         // Последние операции
         private ObservableCollection<Transaction> _recentTransactions;
@@ -79,7 +81,6 @@ namespace AutoKassa.ViewModels
         private decimal _nonCashExpense;
         private decimal _cashProfit;
         private decimal _nonCashProfit;
-        private string _periodLabel = "ЗА МЕСЯЦ";
 
         // Кредитные карты
         private bool _hasCreditCards;
@@ -97,44 +98,36 @@ namespace AutoKassa.ViewModels
         private bool _isModalOpen;
         private TransactionEditViewModel _editViewModel;
 
-        // Кэш графика — не пересоздаём модель, если данные не изменились
-        private PlotModel? _cachedChartModel;
-        private (DateTime From, DateTime To, decimal InitialBalance) _cachedChartKey;
-
         #endregion
 
         public DashboardViewModel(
             ITransactionService transactionService,
             ICategoryService categoryService,
-            ICreditCardService creditCardService,
-            ICounterpartyService counterpartyService,
             IDialogService dialogService,
             IToastNotificationService toastService,
-            ISettingsService settingsService,
-            IDataChangeService dataChangeService)
+            IDataChangeService dataChangeService,
+            INavigationService navigationService,
+            IDashboardService dashboardService,
+            ITransactionEditViewModelFactory transactionEditViewModelFactory,
+            IDashboardPeriodCoordinator periodCoordinator,
+            IDashboardTransactionCoordinator transactionCoordinator,
+            QuickAddViewModel quickAdd)
         {
             _transactionService = transactionService;
-            _categoryService = categoryService;
-            _creditCardService = creditCardService;
-            _counterpartyService = counterpartyService;
             _dialogService = dialogService;
             _toastService = toastService;
-            _settingsService = settingsService;
             _dataChangeService = dataChangeService;
+            _navigationService = navigationService;
+            _dashboardService = dashboardService;
+            _transactionEditViewModelFactory = transactionEditViewModelFactory;
+            _periodCoordinator = periodCoordinator;
+            _transactionCoordinator = transactionCoordinator;
+            _quickAdd = quickAdd;
 
             RecentTransactions = new ObservableCollection<Transaction>();
             GroupedTransactions = new ObservableCollection<DateGroup>();
             TopExpenses = new ObservableCollection<CategorySummaryItem>();
             TopIncomes = new ObservableCollection<CategorySummaryItem>();
-
-            QuickAdd = new QuickAddViewModel(transactionService, categoryService, dialogService, toastService);
-            QuickAdd.OnTransactionAdded = async () =>
-            {
-                if (QuickAdd.SavedTransaction != null)
-                    OptimisticAddTransaction(QuickAdd.SavedTransaction);
-                await LoadDataAsync();
-                _dataChangeService?.NotifyDataChanged();
-            };
 
             // Команды периода
             SelectPeriodCommand = new RelayCommand(period => SelectPeriod((PeriodType)period));
@@ -156,7 +149,8 @@ namespace AutoKassa.ViewModels
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
 
             // Установка начального периода
-            SetPeriodDates(PeriodType.Month);
+            _currentPeriod = _periodCoordinator.SetPeriod(PeriodType.Month);
+            ApplyPeriod(_currentPeriod);
 
             _dataChangeService.DataChanged += OnDataChanged;
         }
@@ -414,11 +408,10 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
-        public string PeriodLabel
-        {
-            get => _periodLabel;
-            set => SetProperty(ref _periodLabel, value);
-        }
+        /// <summary>
+        /// Заголовок выбранного периода.
+        /// </summary>
+        public string PeriodLabel => _currentPeriod?.Label ?? "ЗА МЕСЯЦ";
 
         #endregion
 
@@ -481,16 +474,7 @@ namespace AutoKassa.ViewModels
         /// <summary>
         /// Текст кнопки выбранного периода (для кнопки как в транзакциях)
         /// </summary>
-        public string PeriodButtonLabel => SelectedPeriod switch
-        {
-            PeriodType.Today => "Сегодня",
-            PeriodType.Week => "Неделя",
-            PeriodType.Month => "Месяц",
-            PeriodType.Year => "Год",
-            PeriodType.AllTime => "Всё время",
-            PeriodType.Custom => "Период",
-            _ => "Период"
-        };
+        public string PeriodButtonLabel => _currentPeriod?.ButtonLabel ?? "Месяц";
 
         #endregion
 
@@ -670,12 +654,20 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task InitializeAsync()
         {
+            QuickAdd.OnTransactionAdded = async () =>
+            {
+                if (QuickAdd.SavedTransaction != null)
+                    ApplyOptimisticAdd(QuickAdd.SavedTransaction);
+                await LoadDataAsync();
+                _dataChangeService?.NotifyDataChanged();
+            };
+
             await QuickAdd.InitializeAsync();
             await LoadDataAsync();
         }
 
         /// <summary>
-        /// Загрузка всех данных Dashboard
+        /// Загрузка всех данных Dashboard через фасадный сервис.
         /// </summary>
         private async Task LoadDataAsync()
         {
@@ -690,13 +682,8 @@ namespace AutoKassa.ViewModels
             try
             {
                 IsLoading = true;
-                await Task.WhenAll(
-                    LoadSummaryAsync(ct),
-                    LoadRecentTransactionsAsync(ct),
-                    LoadChartDataAsync(ct),
-                    LoadTodayBalanceAsync(ct),
-                    LoadCashBalanceAsync(ct),
-                    LoadCreditMetricsAsync(ct));
+                var data = await _dashboardService.LoadDashboardDataAsync(DateFrom, DateTo, ct);
+                ApplyDashboardData(data);
             }
             catch (OperationCanceledException) { /* пользователь сменил период — игнорируем */ }
             catch (Exception ex)
@@ -710,104 +697,59 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Загрузка сводки за период — SQL-агрегация вместо загрузки всех записей
+        /// Раскладывает данные, полученные от сервиса, по свойствам ViewModel.
         /// </summary>
-        private async Task LoadSummaryAsync(CancellationToken ct = default)
+        private void ApplyDashboardData(DashboardData data)
         {
-            var allTask  = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
-            var cashTask = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, PaymentType.Cash, ct);
-            var cardTask = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, PaymentType.NonCash, ct);
-            await Task.WhenAll(allTask, cashTask, cardTask);
+            var s = data.Summary;
+            TotalIncome = s.Income;
+            TotalExpense = s.Expense;
+            Profit = s.Profit;
+            Profitability = s.Profitability;
 
-            var (income, expense, _, _) = await allTask;
-            TotalIncome  = income;
-            TotalExpense = expense;
-            Profit       = income - expense;
-            Profitability = income > 0 ? ((income - expense) / income) * 100 : 0;
+            var pb = data.PaymentBreakdown;
+            CashIncome = pb.CashIncome;
+            CashExpense = pb.CashExpense;
+            CashProfit = pb.CashProfit;
+            NonCashIncome = pb.NonCashIncome;
+            NonCashExpense = pb.NonCashExpense;
+            NonCashProfit = pb.NonCashProfit;
 
-            var (ci, ce, _, _) = await cashTask;
-            CashIncome = ci; CashExpense = ce;
-            CashProfit = ci - ce;
-            var (ni, ne, _, _) = await cardTask;
-            NonCashIncome = ni; NonCashExpense = ne;
-            NonCashProfit = ni - ne;
+            var ch = data.Changes;
+            IncomeChangePercent = ch.IncomeChangePercent;
+            ExpenseChangePercent = ch.ExpenseChangePercent;
+            ProfitChangePercent = ch.ProfitChangePercent;
 
-            await CalculateChangesAsync(ct);
-        }
+            var r = data.Recent;
+            RecentTransactions = new ObservableCollection<Transaction>(r.Transactions);
+            HasTransactions = r.Transactions.Count > 0;
+            GroupedTransactions = new ObservableCollection<DateGroup>(r.GroupedTransactions);
+            StatsCount = r.StatsCount;
+            StatsDays = r.StatsDays;
+            StatsAvgExpense = r.AvgExpense;
+            StatsAvgIncome = r.AvgIncome;
+            UpdateCollection(TopExpenses, r.TopExpenses);
+            UpdateCollection(TopIncomes, r.TopIncomes);
 
-        /// <summary>
-        /// Расчет изменений относительно предыдущего периода
-        /// </summary>
-        private async Task CalculateChangesAsync(CancellationToken ct = default)
-        {
-            var periodLength = (DateTo - DateFrom).Days + 1;
-            var prevDateTo   = DateFrom.AddDays(-1);
-            var prevDateFrom = prevDateTo.AddDays(-periodLength + 1);
+            var t = data.Today;
+            TodayBalance = t.Balance;
+            HasTodayTransactions = t.HasTransactions;
 
-            var (prevIncome, prevExpense, _, _) =
-                await _transactionService.GetPeriodTotalsAsync(prevDateFrom, prevDateTo, ct: ct);
-            var prevProfit = prevIncome - prevExpense;
+            var c = data.Cash;
+            CashBalance = c.CashBalance;
+            NonCashBalance = c.NonCashBalance;
+            CurrentCashBalance = c.CurrentCashBalance;
 
-            IncomeChangePercent  = prevIncome  > 0 ? ((TotalIncome  - prevIncome)  / prevIncome)             * 100 : (TotalIncome  > 0 ? 100 : 0);
-            ExpenseChangePercent = prevExpense > 0 ? ((TotalExpense - prevExpense) / prevExpense)             * 100 : (TotalExpense > 0 ? 100 : 0);
-            ProfitChangePercent  = prevProfit != 0 ? ((Profit       - prevProfit)  / Math.Abs(prevProfit))   * 100 : (Profit       != 0 ? 100 : 0);
-        }
+            var cr = data.Credit;
+            HasCreditCards = cr.HasCreditCards;
+            TotalCreditLimit = cr.TotalLimit;
+            TotalCreditUsed = cr.TotalUsed;
+            TotalCreditAvailable = cr.TotalAvailable;
+            TotalCreditDebt = cr.TotalDebt;
+            NextCreditPaymentDate = cr.NextPaymentDate;
+            NextCreditPaymentAmount = cr.NextPaymentAmount;
 
-        /// <summary>
-        /// Загрузка последних операций — список (Take=100) + агрегация для статистики и топ-категорий
-        /// </summary>
-        private async Task LoadRecentTransactionsAsync(CancellationToken ct = default)
-        {
-            // Последние 100 записей для ленты и группировки
-            var filters = new TransactionFilterParameters
-            {
-                DateFrom = DateFrom,
-                DateTo   = DateTo,
-                Take     = 100
-            };
-            var list = await _transactionService.GetTransactionsAsync(filters, ct);
-
-            // Пересоздаём коллекции одним действием вместо N уведомлений UI
-            RecentTransactions = new ObservableCollection<Transaction>(list);
-            HasTransactions = list.Count > 0;
-
-            // Группировка по дням — выполняем в пуле потоков, чтобы не блокировать UI
-            var grouped = await Task.Run(() =>
-            {
-                return list
-                    .GroupBy(t => t.Date.Date)
-                    .OrderByDescending(g => g.Key)
-                    .Select(g => new DateGroup
-                    {
-                        Date     = g.Key,
-                        DayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount),
-                        Items    = new ObservableCollection<Transaction>(g.OrderByDescending(t => t.CreatedAt))
-                    })
-                    .ToList();
-            }, ct);
-
-            GroupedTransactions = new ObservableCollection<DateGroup>(grouped);
-
-            // Статистика — SQL-агрегация вместо in-memory по всем записям
-            var totalsTask   = _transactionService.GetPeriodTotalsAsync(DateFrom, DateTo, ct: ct);
-            var dailyTask    = _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct: ct);
-            var topExpTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Expense, 5, ct: ct);
-            var topIncTask   = _transactionService.GetTopCategoriesAsync(DateFrom, DateTo, OperationType.Income,  5, ct: ct);
-
-            await Task.WhenAll(totalsTask, dailyTask, topExpTask, topIncTask);
-
-            var (_, _, incCount, expCount) = await totalsTask;
-            var dailyGroups = await dailyTask;
-
-            StatsCount      = await _transactionService.GetTotalCountAsync(new TransactionFilterParameters { DateFrom = DateFrom, DateTo = DateTo, Take = 1 }, ct);
-            StatsDays       = dailyGroups.Count;
-            StatsAvgExpense = expCount > 0 ? TotalExpense / expCount : 0;
-            StatsAvgIncome  = incCount > 0 ? TotalIncome  / incCount : 0;
-
-            UpdateCollection(TopExpenses,
-                (await topExpTask).Select(x => new CategorySummaryItem { Name = x.Name, Total = x.Total }));
-            UpdateCollection(TopIncomes,
-                (await topIncTask).Select(x => new CategorySummaryItem { Name = x.Name, Total = x.Total }));
+            ChartModel = data.ChartModel;
         }
 
         /// <summary>
@@ -822,206 +764,13 @@ namespace AutoKassa.ViewModels
         }
 
         /// <summary>
-        /// Загрузка фактического баланса за сегодня — только наличные и безналичные операции.
-        /// </summary>
-        private async Task LoadTodayBalanceAsync(CancellationToken ct = default)
-        {
-            var cashTask = _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, PaymentType.Cash, ct);
-            var cardTask = _transactionService.GetPeriodTotalsAsync(DateTime.Today, DateTime.Today, PaymentType.NonCash, ct);
-            await Task.WhenAll(cashTask, cardTask);
-
-            var (cashInc, cashExp, cashIncCount, cashExpCount) = await cashTask;
-            var (cardInc, cardExp, cardIncCount, cardExpCount) = await cardTask;
-
-            HasTodayTransactions = (cashIncCount + cashExpCount + cardIncCount + cardExpCount) > 0;
-            TodayBalance = (cashInc - cashExp) + (cardInc - cardExp);
-        }
-
-        /// <summary>
-        /// Загрузка актуального остатка в кассе — начальный баланс + наличные и безналичные операции за всё время.
-        /// Кредитные операции не участвуют, так как это долг банка, а не деньги в кассе.
-        /// </summary>
-        private async Task LoadCashBalanceAsync(CancellationToken ct = default)
-        {
-            var settings = await _settingsService.GetSettingsAsync();
-            var epoch = new DateTime(2000, 1, 1);
-
-            var cashTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.Cash, ct);
-            var cardTask = _transactionService.GetPeriodTotalsAsync(epoch, DateTime.Today, PaymentType.NonCash, ct);
-            await Task.WhenAll(cashTask, cardTask);
-
-            var (cashInc, cashExp, _, _) = await cashTask;
-            CashBalance = settings.InitialBalance + cashInc - cashExp;
-
-            var (cardInc, cardExp, _, _) = await cardTask;
-            NonCashBalance = cardInc - cardExp;
-
-            CurrentCashBalance = CashBalance + NonCashBalance;
-        }
-
-        /// <summary>
-        /// Загрузка метрик по кредитным картам для виджетов дашборда
-        /// </summary>
-        private async Task LoadCreditMetricsAsync(CancellationToken ct = default)
-        {
-            var cards = await _creditCardService.GetAllAsync(ct);
-            var activeCards = cards.Where(c => c.IsActive).ToList();
-
-            if (activeCards.Count == 0)
-            {
-                HasCreditCards = false;
-                TotalCreditLimit = TotalCreditUsed = TotalCreditAvailable = TotalCreditDebt = 0;
-                NextCreditPaymentDate = null;
-                NextCreditPaymentAmount = 0;
-                return;
-            }
-
-            var tasks = activeCards.Select(async card => new
-            {
-                Card = card,
-                Debt = await _creditCardService.GetCurrentDebtAsync(card.Id, ct),
-                Available = await _creditCardService.GetAvailableLimitAsync(card.Id, ct),
-                MinPayment = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct),
-                NextDate = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct)
-            }).ToList();
-
-            var results = await Task.WhenAll(tasks);
-
-            TotalCreditLimit = results.Sum(r => r.Card.Limit);
-            TotalCreditAvailable = results.Sum(r => r.Available);
-            TotalCreditUsed = TotalCreditLimit - TotalCreditAvailable;
-            TotalCreditDebt = results.Sum(r => r.Debt);
-
-            var upcoming = results
-                .Where(r => r.NextDate.HasValue && r.Debt > 0)
-                .OrderBy(r => r.NextDate)
-                .FirstOrDefault();
-
-            if (upcoming != null)
-            {
-                NextCreditPaymentDate = upcoming.NextDate!.Value;
-                NextCreditPaymentAmount = results
-                    .Where(r => r.NextDate == upcoming.NextDate)
-                    .Sum(r => r.MinPayment);
-            }
-            else
-            {
-                NextCreditPaymentDate = null;
-                NextCreditPaymentAmount = 0;
-            }
-
-            HasCreditCards = true;
-        }
-
-        /// <summary>
-        /// Загрузка данных для графика — SQL-агрегация по дням.
-        /// Модель кэшируется по ключу (период + начальный баланс), чтобы не перерисовывать
-        /// OxyPlot при каждом переключении на Dashboard без изменения данных.
-        /// </summary>
-        private async Task LoadChartDataAsync(CancellationToken ct = default)
-        {
-            var groupedData = await _transactionService.GetDailyTotalsAsync(DateFrom, DateTo, ct: ct);
-            var chartSettings = await _settingsService.GetSettingsAsync();
-
-            var key = (DateFrom, DateTo, chartSettings.InitialBalance);
-            if (_cachedChartModel != null && _cachedChartKey.Equals(key))
-                return;
-
-            // Построение модели графика в пуле потоков, чтобы не блокировать UI
-            var model = await Task.Run(() => BuildChartModel(groupedData, chartSettings), ct);
-
-            _cachedChartModel = model;
-            _cachedChartKey = key;
-            ChartModel = model;
-        }
-
-        private static PlotModel BuildChartModel(List<DailyTotalsItem> groupedData, AppSettings chartSettings)
-        {
-            var model = new PlotModel
-            {
-                PlotAreaBorderThickness = new OxyThickness(0),
-                Padding = new OxyThickness(0),
-                PlotMargins = new OxyThickness(0)
-            };
-
-            // Настройка осей (скрытых)
-            var dateAxis = new DateTimeAxis
-            {
-                Position = AxisPosition.Bottom,
-                IsAxisVisible = false,
-                MajorGridlineStyle = LineStyle.None,
-                MinorGridlineStyle = LineStyle.None
-            };
-
-            var valueAxis = new LinearAxis
-            {
-                Position = AxisPosition.Left,
-                IsAxisVisible = false,
-                MajorGridlineStyle = LineStyle.None,
-                MinorGridlineStyle = LineStyle.None
-            };
-
-            model.Axes.Add(dateAxis);
-            model.Axes.Add(valueAxis);
-
-            // Линия доходов
-            var incomeSeries = new LineSeries
-            {
-                Title = "Доходы",
-                Color = OxyColor.Parse("#4CAF50"),
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None
-            };
-
-            // Линия расходов
-            var expenseSeries = new LineSeries
-            {
-                Title = "Расходы",
-                Color = OxyColor.Parse("#F44336"),
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None
-            };
-
-            // Линия прибыли
-            var profitSeries = new LineSeries
-            {
-                Title = "Прибыль",
-                Color = OxyColor.Parse("#2196F3"),
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None
-            };
-
-            // Накопительный баланс
-            decimal runningIncome = 0;
-            decimal runningExpense = 0;
-            decimal initialBalance = chartSettings.InitialBalance;
-
-            foreach (var data in groupedData)
-            {
-                runningIncome += data.Income;
-                runningExpense += data.Expense;
-                var runningProfit = initialBalance + runningIncome - runningExpense;
-
-                var dateValue = DateTimeAxis.ToDouble(data.Date);
-                incomeSeries.Points.Add(new DataPoint(dateValue, (double)runningIncome));
-                expenseSeries.Points.Add(new DataPoint(dateValue, (double)runningExpense));
-                profitSeries.Points.Add(new DataPoint(dateValue, (double)runningProfit));
-            }
-
-            model.Series.Add(incomeSeries);
-            model.Series.Add(expenseSeries);
-            model.Series.Add(profitSeries);
-
-            return model;
-        }
-
-        /// <summary>
         /// Выбор периода
         /// </summary>
         private void SelectPeriod(PeriodType period)
         {
             SelectedPeriod = period;
-            SetPeriodDates(period);
+            _currentPeriod = _periodCoordinator.SetPeriod(period);
+            ApplyPeriod(_currentPeriod);
             IsPeriodPickerOpen = false;
 
             if (period != PeriodType.Custom)
@@ -1033,47 +782,17 @@ namespace AutoKassa.ViewModels
         private async Task ApplyCustomPeriodAsync()
         {
             SelectedPeriod = PeriodType.Custom;
+            _currentPeriod = _periodCoordinator.SetCustomPeriod(DateFrom, DateTo);
+            ApplyPeriod(_currentPeriod);
             IsPeriodPickerOpen = false;
             await LoadDataAsync();
         }
 
-        /// <summary>
-        /// Установка дат периода
-        /// </summary>
-        private void SetPeriodDates(PeriodType period)
+        private void ApplyPeriod(DashboardPeriod period)
         {
-            switch (period)
-            {
-                case PeriodType.Today:
-                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Today");
-                    PeriodLabel = "ЗА СЕГОДНЯ";
-                    break;
-
-                case PeriodType.Week:
-                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Week");
-                    PeriodLabel = "ЗА НЕДЕЛЮ";
-                    break;
-
-                case PeriodType.Month:
-                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Month");
-                    PeriodLabel = "ЗА МЕСЯЦ";
-                    break;
-
-                case PeriodType.Year:
-                    (DateFrom, DateTo) = PeriodHelper.GetDateRange("Year");
-                    PeriodLabel = "ЗА ГОД";
-                    break;
-
-                case PeriodType.AllTime:
-                    DateFrom = new DateTime(2000, 1, 1);
-                    DateTo = DateTime.Today;
-                    PeriodLabel = "ЗА ВСЁ ВРЕМЯ";
-                    break;
-
-                case PeriodType.Custom:
-                    PeriodLabel = "ЗА ПЕРИОД";
-                    break;
-            }
+            DateFrom = period.From;
+            DateTo = period.To;
+            OnPropertyChanged(nameof(PeriodLabel));
             OnPropertyChanged(nameof(PeriodButtonLabel));
         }
 
@@ -1082,18 +801,19 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void OpenAddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
-            vm.InitializeForAdd();
-            vm.OnSaved = async () =>
-            {
-                IsModalOpen = false;
-                if (vm.SavedTransaction != null)
-                    OptimisticAddTransaction(vm.SavedTransaction);
-                await LoadDataAsync();
-                _dataChangeService?.NotifyDataChanged();
-            };
-            vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnCancelled = () => { IsModalOpen = false; };
+            var callbacks = new DashboardTransactionCallbacks(
+                OnSaved: async () =>
+                {
+                    IsModalOpen = false;
+                    if (EditViewModel?.SavedTransaction != null)
+                        ApplyOptimisticAdd(EditViewModel.SavedTransaction);
+                    await LoadDataAsync();
+                    _dataChangeService?.NotifyDataChanged();
+                },
+                OnSavedKeepOpen: async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); },
+                OnCancelled: () => { IsModalOpen = false; });
+
+            var vm = _transactionCoordinator.OpenAdd(callbacks);
             EditViewModel = vm;
             IsModalOpen = true;
         }
@@ -1106,16 +826,17 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
-            vm.InitializeForEdit(t);
-            vm.OnSaved = async () =>
-            {
-                IsModalOpen = false;
-                await LoadDataAsync();
-                _dataChangeService?.NotifyDataChanged();
-            };
-            vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnCancelled = () => { IsModalOpen = false; };
+            var callbacks = new DashboardTransactionCallbacks(
+                OnSaved: async () =>
+                {
+                    IsModalOpen = false;
+                    await LoadDataAsync();
+                    _dataChangeService?.NotifyDataChanged();
+                },
+                OnSavedKeepOpen: async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); },
+                OnCancelled: () => { IsModalOpen = false; });
+
+            var vm = _transactionCoordinator.OpenEdit(t, callbacks);
             EditViewModel = vm;
             IsModalOpen = true;
         }
@@ -1124,48 +845,23 @@ namespace AutoKassa.ViewModels
         /// Оптимистично добавляет операцию в UI до завершения полной перезагрузки.
         /// Это устраняет визуальную задержку на слабом железе.
         /// </summary>
-        private void OptimisticAddTransaction(Transaction transaction)
+        private void ApplyOptimisticAdd(Transaction transaction)
         {
-            if (transaction.Date < DateFrom || transaction.Date > DateTo)
-                return;
+            var state = new DashboardOptimisticState(
+                RecentTransactions,
+                GroupedTransactions,
+                TotalIncome,
+                TotalExpense,
+                DateFrom,
+                DateTo);
 
-            // Добавляем в начало RecentTransactions
-            var recent = RecentTransactions.ToList();
-            recent.Insert(0, transaction);
-            if (recent.Count > 100)
-                recent = recent.Take(100).ToList();
-            RecentTransactions = new ObservableCollection<Transaction>(recent);
+            var result = _transactionCoordinator.ApplyOptimisticAdd(state, transaction);
 
-            // Обновляем сводку
-            if (transaction.Type == OperationType.Income)
-                TotalIncome += transaction.Amount;
-            else
-                TotalExpense += transaction.Amount;
-
-            // Обновляем группировку
-            var groups = GroupedTransactions.ToList();
-            var dateKey = transaction.Date.Date;
-            var existingGroup = groups.FirstOrDefault(g => g.Date == dateKey);
-            if (existingGroup != null)
-            {
-                var items = existingGroup.Items.ToList();
-                items.Insert(0, transaction);
-                existingGroup.Items = new ObservableCollection<Transaction>(items);
-                existingGroup.DayTotal += transaction.Type == OperationType.Income ? transaction.Amount : -transaction.Amount;
-            }
-            else
-            {
-                var newGroup = new DateGroup
-                {
-                    Date = dateKey,
-                    DayTotal = transaction.Type == OperationType.Income ? transaction.Amount : -transaction.Amount,
-                    Items = new ObservableCollection<Transaction>(new[] { transaction })
-                };
-                groups.Insert(0, newGroup);
-                groups = groups.OrderByDescending(g => g.Date).ToList();
-            }
-            GroupedTransactions = new ObservableCollection<DateGroup>(groups);
-            HasTransactions = true;
+            RecentTransactions = new ObservableCollection<Transaction>(result.RecentTransactions);
+            GroupedTransactions = new ObservableCollection<DateGroup>(result.GroupedTransactions);
+            TotalIncome = result.TotalIncome;
+            TotalExpense = result.TotalExpense;
+            HasTransactions = result.HasTransactions;
         }
 
         /// <summary>
@@ -1176,28 +872,10 @@ namespace AutoKassa.ViewModels
             var t = transaction ?? SelectedTransaction;
             if (t == null) return;
 
-            var deletedId = t.Id;
-
-            try
-            {
-                await _transactionService.DeleteAsync(deletedId);
-                RecentTransactions.Remove(t);
-                HasTransactions = RecentTransactions.Any();
-
-                _toastService.ShowDeleteWithUndo(
-                    "Операция удалена",
-                    async () =>
-                    {
-                        await _transactionService.RestoreAsync(deletedId);
-                        await LoadDataAsync();
-                    });
-
-                await LoadDataAsync();
-            }
-            catch (Exception ex)
-            {
-                _toastService.ShowError($"Ошибка удаления: {ex.Message}");
-            }
+            await _transactionCoordinator.DeleteAsync(t, LoadDataAsync);
+            RecentTransactions.Remove(t);
+            HasTransactions = RecentTransactions.Any();
+            await LoadDataAsync();
         }
 
         /// <summary>
@@ -1205,8 +883,7 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void NavigateToAllTransactions()
         {
-            var navigationService = App.GetService<INavigationService>();
-            navigationService?.NavigateTo<TransactionsViewModel>();
+            _navigationService.NavigateTo<TransactionsViewModel>();
         }
 
         /// <summary>
@@ -1214,8 +891,7 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private void OpenFullReport()
         {
-            var navigationService = App.GetService<INavigationService>();
-            navigationService?.NavigateTo<ReportsViewModel>();
+            _navigationService.NavigateTo<ReportsViewModel>();
         }
 
         protected override void OnDispose()
@@ -1234,53 +910,10 @@ namespace AutoKassa.ViewModels
             {
                 QuickAdd.OnTransactionAdded = null;
             }
+
+            (_editViewModel as IDisposable)?.Dispose();
         }
 
         #endregion
-    }
-
-    /// <summary>
-    /// Типы периодов для сводки
-    /// </summary>
-    public enum PeriodType
-    {
-        Today,
-        Week,
-        Month,
-        Year,
-        AllTime,
-        Custom
-    }
-
-    /// <summary>
-    /// Группа операций за один день
-    /// </summary>
-    public class DateGroup
-    {
-        public DateTime Date { get; set; }
-        public decimal DayTotal { get; set; }
-        public ObservableCollection<Transaction> Items { get; set; } = new();
-
-        public string DateLabel => Date == DateTime.Today
-            ? "Сегодня"
-            : Date == DateTime.Today.AddDays(-1)
-                ? "Вчера"
-                : Date.ToString("d MMMM", new System.Globalization.CultureInfo("ru-RU"));
-
-        public string DayTotalFormatted => DayTotal >= 0
-            ? $"+{DayTotal:N0} ₽"
-            : $"{DayTotal:N0} ₽";
-
-        public string DayTotalColor => DayTotal >= 0 ? "#22c55e" : "#ef4444";
-    }
-
-    /// <summary>
-    /// Позиция в топе категорий
-    /// </summary>
-    public class CategorySummaryItem
-    {
-        public string Name { get; set; }
-        public decimal Total { get; set; }
-        public string TotalFormatted => $"{Total:N0} ₽";
     }
 }

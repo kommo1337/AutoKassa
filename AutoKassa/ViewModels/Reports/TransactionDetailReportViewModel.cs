@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -240,7 +239,10 @@ namespace AutoKassa.ViewModels.Reports
             if (Report == null) { _toastService.ShowInfo("Сначала сформируйте отчет"); return; }
             var path = await _exportService.ExportTransactionDetailReportToPdfAsync(Report);
             _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(path))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
 
         protected override async Task ExportToExcelAsync()
@@ -248,7 +250,10 @@ namespace AutoKassa.ViewModels.Reports
             if (Report == null) { _toastService.ShowInfo("Сначала сформируйте отчет"); return; }
             var path = await _exportService.ExportTransactionDetailReportToExcelAsync(Report);
             _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }));
+            {
+                if (!FileLauncher.OpenExportedFile(path))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
         }
     }
 }

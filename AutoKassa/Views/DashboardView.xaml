@@ -4,6 +4,7 @@
              xmlns:oxy="http://oxyplot.org/wpf"
              xmlns:vm="clr-namespace:AutoKassa.ViewModels"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             xmlns:enums="clr-namespace:AutoKassa.Models.Enums"
              xmlns:views="clr-namespace:AutoKassa.Views"
              Background="{StaticResource ContentBgBrush}"
              FontFamily="Segoe UI"
@@ -290,15 +291,15 @@
                             <TextBlock Text="БЫСТРЫЙ ВЫБОР" FontSize="10" FontWeight="SemiBold"
                                        Foreground="#98A2B3" Margin="0,0,0,10"/>
                             <WrapPanel Margin="0,0,0,16">
-                                <Button Content="Сегодня" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static vm:PeriodType.Today}"
+                                <Button Content="Сегодня" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static enums:PeriodType.Today}"
                                         Style="{StaticResource PeriodPresetButtonStyle}" Margin="0,0,6,6"/>
-                                <Button Content="Неделя" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static vm:PeriodType.Week}"
+                                <Button Content="Неделя" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static enums:PeriodType.Week}"
                                         Style="{StaticResource PeriodPresetButtonStyle}" Margin="0,0,6,6"/>
-                                <Button Content="Месяц" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static vm:PeriodType.Month}"
+                                <Button Content="Месяц" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static enums:PeriodType.Month}"
                                         Style="{StaticResource PeriodPresetButtonStyle}" Margin="0,0,6,6"/>
-                                <Button Content="Год" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static vm:PeriodType.Year}"
+                                <Button Content="Год" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static enums:PeriodType.Year}"
                                         Style="{StaticResource PeriodPresetButtonStyle}" Margin="0,0,6,6"/>
-                                <Button Content="Всё время" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static vm:PeriodType.AllTime}"
+                                <Button Content="Всё время" Command="{Binding SelectPeriodCommand}" CommandParameter="{x:Static enums:PeriodType.AllTime}"
                                         Style="{StaticResource PeriodPresetButtonStyle}" Margin="0,0,6,6"/>
                             </WrapPanel>
 

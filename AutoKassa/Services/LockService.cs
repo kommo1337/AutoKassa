@@ -1,6 +1,5 @@
-﻿using AutoKassa.Helpers;
-using AutoKassa.ViewModels;
-using AutoKassa.Views;
+﻿using AutoKassa.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -11,15 +10,21 @@ namespace AutoKassa.Services
     /// </summary>
     public class LockService : ILockService
     {
+        private readonly IServiceProvider _serviceProvider;
+        private readonly IDialogService _dialogService;
         private readonly IPasswordService _passwordService;
         private readonly ISettingsService _settingsService;
         private DispatcherTimer _autoLockTimer;
         private bool _isLocked;
 
         public LockService(
+            IServiceProvider serviceProvider,
+            IDialogService dialogService,
             IPasswordService passwordService,
             ISettingsService settingsService)
         {
+            _serviceProvider = serviceProvider;
+            _dialogService = dialogService;
             _passwordService = passwordService;
             _settingsService = settingsService;
         }
@@ -46,29 +51,10 @@ namespace AutoKassa.Services
                 return;
             }
 
-            // Применяем размытие к главному окну
-            BlurHelper.ApplyBlur(mainWindow, radius: 15);
+            // Создаем ViewModel для экрана блокировки через DI
+            var viewModel = _serviceProvider.GetRequiredService<LockScreenViewModel>();
 
-            // Создаем ViewModel для экрана блокировки
-            var viewModel = new LockScreenViewModel(_passwordService, _settingsService);
-
-            // Создаем и показываем окно блокировки
-            var lockWindow = new LockScreenView(viewModel)
-            {
-                Owner = mainWindow,
-                Width = mainWindow.ActualWidth,
-                Height = mainWindow.ActualHeight
-            };
-
-            // Подписываемся на закрытие окна
-            lockWindow.Closed += (s, e) =>
-            {
-                // Убираем размытие в любом случае
-                BlurHelper.RemoveBlur(mainWindow);
-                _isLocked = false;
-            };
-
-            var result = lockWindow.ShowDialog();
+            var result = _dialogService.ShowLockScreen(viewModel);
 
             if (result == true)
             {
@@ -76,8 +62,11 @@ namespace AutoKassa.Services
                 _isLocked = false;
                 ResetAutoLockTimer();
             }
-            // Если result == false, это значит окно закрыто через крестик
-            // и Application.Shutdown() уже вызван в LockScreenView.xaml.cs
+            else
+            {
+                // Окно закрыто без разблокировки (крестик) — сбрасываем флаг
+                _isLocked = false;
+            }
         }
 
         /// <summary>
@@ -126,6 +115,19 @@ namespace AutoKassa.Services
         {
             _autoLockTimer.Stop();
             Lock();
+        }
+
+        /// <summary>
+        /// Освободить ресурсы сервиса блокировки
+        /// </summary>
+        public void Dispose()
+        {
+            if (_autoLockTimer != null)
+            {
+                _autoLockTimer.Tick -= AutoLockTimer_Tick;
+                _autoLockTimer.Stop();
+                _autoLockTimer = null;
+            }
         }
     }
 }

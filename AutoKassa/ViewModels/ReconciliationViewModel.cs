@@ -166,7 +166,7 @@ namespace AutoKassa.ViewModels
                 IsLoading = true;
                 try
                 {
-                    var data = await _reportService.GetReconciliationDataAsync(ReconciliationDate, _cts.Token).ConfigureAwait(false);
+                    var data = await _reportService.GetReconciliationDataAsync(ReconciliationDate, _cts.Token);
                     ApplyData(data);
                 }
                 finally

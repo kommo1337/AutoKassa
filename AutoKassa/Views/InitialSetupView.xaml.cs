@@ -1,4 +1,5 @@
 ﻿using AutoKassa.ViewModels;
+using System;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -19,6 +20,7 @@ namespace AutoKassa.Views
 
             // Подписка на событие завершения настройки
             _viewModel.OnSetupCompleted = OnSetupCompleted;
+            Closed += OnClosed;
         }
 
         /// <summary>
@@ -44,6 +46,13 @@ namespace AutoKassa.Views
         {
             DialogResult = true;
             Close();
+        }
+
+        private void OnClosed(object? sender, EventArgs e)
+        {
+            _viewModel.OnSetupCompleted = null;
+            Closed -= OnClosed;
+            _viewModel?.Dispose();
         }
     }
 }

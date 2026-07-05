@@ -76,6 +76,17 @@ namespace AutoKassa.ViewModels
             _needsRefresh = true;
         }
 
+        protected override void OnDispose()
+        {
+            _dataChangeService.DataChanged -= OnDataChanged;
+
+            var navCts = Interlocked.Exchange(ref _navigateCts, null);
+            navCts?.Cancel();
+            navCts?.Dispose();
+
+            base.OnDispose();
+        }
+
         #region Properties
 
         public ObservableCollection<Category> IncomeCategories

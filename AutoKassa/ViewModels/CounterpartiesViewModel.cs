@@ -210,8 +210,8 @@ namespace AutoKassa.ViewModels
             {
                 IsLoading = true;
 
-                var counterparties = await _counterpartyService.GetAllAsync().ConfigureAwait(false);
-                var debts = await _debtService.GetDebtsAsync(status: DebtStatus.Active).ConfigureAwait(false);
+                var counterparties = await _counterpartyService.GetAllAsync();
+                var debts = await _debtService.GetDebtsAsync(status: DebtStatus.Active);
 
                 var debtByCounterparty = debts
                     .GroupBy(d => d.CounterpartyId)
@@ -318,7 +318,7 @@ namespace AutoKassa.ViewModels
 
             try
             {
-                await _counterpartyService.DeleteAsync(item.Id).ConfigureAwait(false);
+                await _counterpartyService.DeleteAsync(item.Id);
                 await LoadAsync();
                 _dataChangeService?.NotifyDataChanged();
                 _toastService.ShowInfo($"Контрагент «{item.Name}» удалён");
@@ -339,6 +339,7 @@ namespace AutoKassa.ViewModels
             var navCts = Interlocked.Exchange(ref _navigateCts, null);
             navCts?.Cancel();
             navCts?.Dispose();
+            (_editViewModel as IDisposable)?.Dispose();
             base.OnDispose();
         }
 

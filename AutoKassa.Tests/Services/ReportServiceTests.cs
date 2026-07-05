@@ -638,5 +638,70 @@ namespace AutoKassa.Tests.Services
             report.TotalReceivable.Should().Be(1500m);
             report.ActiveReceivable.Should().Be(1500m);
         }
+        // ─────────────────────────────────────────
+        // Точность decimal (этап 2.16)
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_PreservesDecimalPrecision()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 0.1m, OperationType.Income, date: day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 0.2m, OperationType.Income, date: day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 0.3m, OperationType.Expense, date: day);
+
+            var report = await _svc.GenerateBalanceReportAsync(day, day);
+
+            report.TotalIncome.Should().Be(0.3m);
+            report.TotalExpense.Should().Be(0.3m);
+            report.EndBalance.Should().Be(0m);
+        }
+
+        [Fact]
+        public async Task GenerateCategoryReportAsync_PreservesDecimalPrecision()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Копейки");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 0.1m, OperationType.Expense, date: day);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 0.2m, OperationType.Expense, date: day);
+
+            var report = await _svc.GenerateCategoryReportAsync(day, day, OperationType.Expense);
+
+            report.TotalAmount.Should().Be(0.3m);
+            report.CategoryItems.Should().ContainSingle(i => i.Amount == 0.3m && i.Percentage == 100.0);
+        }
+
+        [Fact]
+        public async Task GenerateTransactionDetailReportAsync_PreservesDecimalPrecision()
+        {
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 0.1m, OperationType.Expense, date: day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 0.2m, OperationType.Expense, date: day);
+
+            var report = await _svc.GenerateTransactionDetailReportAsync(day, day);
+
+            report.TotalExpense.Should().Be(0.3m);
+            report.Transactions.Sum(t => t.Amount).Should().Be(0.3m);
+        }
+
+        [Fact]
+        public async Task GenerateBalanceReportAsync_LargeAmounts_DoesNotLosePrecision()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 9_999_999_999.99m, OperationType.Income, date: day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 0.01m, OperationType.Income, date: day);
+
+            var report = await _svc.GenerateBalanceReportAsync(day, day);
+
+            report.TotalIncome.Should().Be(10_000_000_000.00m);
+        }
     }
 }

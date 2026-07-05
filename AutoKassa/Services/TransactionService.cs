@@ -534,7 +534,7 @@ namespace AutoKassa.Services
                 query = query.Where(t => t.PaymentType == paymentType.Value);
             var rows = await query
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount), Count = g.Count() })
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount), Count = g.Count() })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
@@ -563,8 +563,8 @@ namespace AutoKassa.Services
                 .Select(g => new
                 {
                     Date    = g.Key,
-                    Income  = (decimal)g.Sum(t => t.Type == OperationType.Income ? (double)t.Amount : 0),
-                    Expense = (decimal)g.Sum(t => t.Type == OperationType.Expense ? (double)t.Amount : 0)
+                    Income  = g.Sum(t => t.Type == OperationType.Income ? t.Amount : 0m),
+                    Expense = g.Sum(t => t.Type == OperationType.Expense ? t.Amount : 0m)
                 })
                 .OrderBy(x => x.Date)
                 .ToListAsync(ct)
@@ -593,13 +593,15 @@ namespace AutoKassa.Services
                 query = query.Where(t => t.PaymentType == paymentType.Value);
             var rows = await query
                 .GroupBy(t => t.Category.Name ?? "?")
-                .Select(g => new { Name = g.Key, Total = g.Sum(t => (double)t.Amount) })
-                .OrderByDescending(x => x.Total)
-                .Take(count)
+                .Select(g => new { Name = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
-            return rows.Select(r => (r.Name, (decimal)r.Total)).ToList();
+            return rows
+                .OrderByDescending(x => x.Total)
+                .Take(count)
+                .Select(r => (r.Name, r.Total))
+                .ToList();
         }
 
         #region Вспомогательные методы
@@ -684,8 +686,7 @@ namespace AutoKassa.Services
 
             var repaid = await context.DebtPayments
                 .Where(dp => dp.DebtTransactionId == debtTransactionId && !dp.RepaymentTransaction.IsDeleted)
-                .Select(dp => (decimal?)dp.Amount)
-                .SumAsync()
+                .SumAsync(dp => (decimal?)dp.Amount)
                 .ConfigureAwait(false) ?? 0m;
 
             var previousStatus = debt.DebtStatus;

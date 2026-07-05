@@ -67,7 +67,7 @@ namespace AutoKassa.Services
             var totals = await query
                 .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
@@ -97,8 +97,8 @@ namespace AutoKassa.Services
                 .Select(g => new
                 {
                     Date    = g.Key,
-                    Income  = (decimal)g.Sum(t => t.Type == OperationType.Income ? (double)t.Amount : 0),
-                    Expense = (decimal)g.Sum(t => t.Type == OperationType.Expense ? (double)t.Amount : 0)
+                    Income  = g.Sum(t => t.Type == OperationType.Income ? t.Amount : 0m),
+                    Expense = g.Sum(t => t.Type == OperationType.Expense ? t.Amount : 0m)
                 })
                 .OrderBy(x => x.Date)
                 .ToListAsync(ct)
@@ -139,7 +139,7 @@ namespace AutoKassa.Services
 
             var rows = await query
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
@@ -183,7 +183,7 @@ namespace AutoKassa.Services
             // SQL-агрегация общей суммы и количества
             var totals = await query
                 .GroupBy(_ => 1)
-                .Select(g => new { TotalAmount = (decimal)g.Sum(t => (double)t.Amount), Count = g.Count() })
+                .Select(g => new { TotalAmount = g.Sum(t => t.Amount), Count = g.Count() })
                 .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false);
 
@@ -220,7 +220,7 @@ namespace AutoKassa.Services
             foreach (var group in categoryGroups)
             {
                 var percentage = report.TotalAmount > 0
-                    ? (double)(group.Amount / report.TotalAmount) * 100
+                    ? (double)group.Amount / (double)report.TotalAmount * 100
                     : 0;
 
                 report.CategoryItems.Add(new CategoryReportItem
@@ -315,7 +315,7 @@ namespace AutoKassa.Services
             var totals = await query
                 .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
@@ -369,7 +369,7 @@ namespace AutoKassa.Services
                 .Where(dp => debtIds.Contains(dp.DebtTransactionId))
                 .Where(dp => !dp.RepaymentTransaction.IsDeleted)
                 .GroupBy(dp => dp.DebtTransactionId)
-                .Select(g => new { DebtId = g.Key, Total = (decimal)g.Sum(dp => (double)dp.Amount) })
+                .Select(g => new { DebtId = g.Key, Total = g.Sum(dp => dp.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
@@ -425,18 +425,16 @@ namespace AutoKassa.Services
             var totalDebt = await context.Transactions
                 .AsNoTracking()
                 .Where(t => debtIds.Contains(t.Id))
-                .Select(t => (double?)t.Amount)
-                .SumAsync(ct)
-                .ConfigureAwait(false) ?? 0;
+                .SumAsync(t => (decimal?)t.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
 
             var totalRepaid = await context.DebtPayments
                 .AsNoTracking()
                 .Where(dp => debtIds.Contains(dp.DebtTransactionId) && !dp.RepaymentTransaction.IsDeleted)
-                .Select(dp => (double?)dp.Amount)
-                .SumAsync(ct)
-                .ConfigureAwait(false) ?? 0;
+                .SumAsync(dp => (decimal?)dp.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
 
-            return (decimal)totalDebt - (decimal)totalRepaid;
+            return totalDebt - totalRepaid;
         }
 
         /// <summary>
@@ -519,7 +517,7 @@ namespace AutoKassa.Services
             else
                 query = query.Where(t => t.PaymentType == PaymentType.CreditCard);
 
-            return (decimal?)await query.SumAsync(t => (double)t.Amount, ct).ConfigureAwait(false) ?? 0m;
+            return await query.SumAsync(t => (decimal?)t.Amount, ct).ConfigureAwait(false) ?? 0m;
         }
 
         /// <summary>
@@ -558,7 +556,7 @@ namespace AutoKassa.Services
 
             var totals = await query
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = (decimal)g.Sum(t => (double)t.Amount) })
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 

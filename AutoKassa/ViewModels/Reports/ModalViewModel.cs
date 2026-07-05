@@ -35,9 +35,15 @@ namespace AutoKassa.ViewModels.Reports
 
         /// <summary>
         /// Показать указанное содержимое в модальном окне.
+        /// При замене содержимого освобождается предыдущий ViewModel.
         /// </summary>
         public void Show(ViewModelBase content)
         {
+            if (_content != null && _content != content)
+            {
+                (_content as IDisposable)?.Dispose();
+            }
+
             Content = content;
             IsOpen = true;
         }
@@ -48,7 +54,21 @@ namespace AutoKassa.ViewModels.Reports
         public void Close()
         {
             IsOpen = false;
-            Content = null!;
+
+            if (_content != null)
+            {
+                (_content as IDisposable)?.Dispose();
+                Content = null!;
+            }
+        }
+
+        /// <summary>
+        /// Освободить текущее содержимое модального окна.
+        /// </summary>
+        protected override void OnDispose()
+        {
+            (_content as IDisposable)?.Dispose();
+            base.OnDispose();
         }
     }
 }

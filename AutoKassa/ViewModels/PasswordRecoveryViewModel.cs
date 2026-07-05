@@ -1,6 +1,7 @@
 ﻿using AutoKassa.Helpers;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
+using System.Threading.Tasks;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -33,8 +34,8 @@ namespace AutoKassa.ViewModels
             LoadSecurityQuestion();
 
             // Команды
-            VerifyAnswerCommand = new RelayCommand(_ => VerifyAnswer(), _ => CanVerifyAnswer());
-            ResetPasswordCommand = new RelayCommand(_ => ResetPassword(), _ => CanResetPassword());
+            VerifyAnswerCommand = new AsyncRelayCommand(VerifyAnswerAsync, CanVerifyAnswer);
+            ResetPasswordCommand = new AsyncRelayCommand(ResetPasswordAsync, CanResetPassword);
             CancelCommand = new RelayCommand(_ => Cancel());
         }
 
@@ -150,7 +151,7 @@ namespace AutoKassa.ViewModels
             return !string.IsNullOrEmpty(Answer) && !IsAnswerVerified;
         }
 
-        private async void VerifyAnswer()
+        private async Task VerifyAnswerAsync()
         {
             if (string.IsNullOrEmpty(Answer))
             {
@@ -184,7 +185,7 @@ namespace AutoKassa.ViewModels
                    NewPassword == ConfirmNewPassword;
         }
 
-        private async void ResetPassword()
+        private async Task ResetPasswordAsync()
         {
             if (NewPassword.Length < 6)
             {

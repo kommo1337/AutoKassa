@@ -1122,5 +1122,67 @@ namespace AutoKassa.Tests.Services
             await act.Should().ThrowAsync<InvalidOperationException>()
                 .WithMessage("*превышает текущий долг*");
         }
+        // ─────────────────────────────────────────
+        // Точность decimal (этап 2.16)
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task GetPeriodTotalsAsync_PreservesDecimalPrecision()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var day = new DateTime(2025, 5, 10);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 0.1m, OperationType.Income, date: day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 0.2m, OperationType.Income, date: day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 0.3m, OperationType.Expense, date: day);
+
+            var (income, expense, _, _) = await _svc.GetPeriodTotalsAsync(day, day);
+
+            income.Should().Be(0.3m);
+            expense.Should().Be(0.3m);
+        }
+
+        [Fact]
+        public async Task GetDailyTotalsAsync_PreservesDecimalPrecision()
+        {
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var day = new DateTime(2025, 5, 11);
+
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 0.1m, OperationType.Expense, date: day);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 0.2m, OperationType.Expense, date: day);
+
+            var daily = await _svc.GetDailyTotalsAsync(day, day);
+
+            daily.Should().ContainSingle(d => d.Date == day && d.Expense == 0.3m);
+        }
+
+        [Fact]
+        public async Task GetTopCategoriesAsync_PreservesDecimalPrecision()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Копейки");
+            var day = new DateTime(2025, 5, 12);
+
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 0.1m, OperationType.Expense, date: day);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 0.2m, OperationType.Expense, date: day);
+
+            var top = await _svc.GetTopCategoriesAsync(day, day, OperationType.Expense, 5);
+
+            top.Should().ContainSingle(t => t.Name == "Копейки" && t.Total == 0.3m);
+        }
+
+        [Fact]
+        public async Task GetPeriodTotalsAsync_LargeAmounts_DoesNotLosePrecision()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var day = new DateTime(2025, 5, 13);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 9_999_999_999.99m, OperationType.Income, date: day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 0.01m, OperationType.Income, date: day);
+
+            var (income, _, _, _) = await _svc.GetPeriodTotalsAsync(day, day);
+
+            income.Should().Be(10_000_000_000.00m);
+        }
     }
 }

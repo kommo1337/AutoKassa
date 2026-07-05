@@ -3,7 +3,7 @@
     /// <summary>
     /// Интерфейс сервиса блокировки приложения
     /// </summary>
-    public interface ILockService
+    public interface ILockService : IDisposable
     {
         /// <summary>
         /// Заблокировать приложение

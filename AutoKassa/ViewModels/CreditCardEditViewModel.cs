@@ -70,7 +70,11 @@ namespace AutoKassa.ViewModels
         public string BankName
         {
             get => _bankName;
-            set => SetProperty(ref _bankName, value);
+            set
+            {
+                if (SetProperty(ref _bankName, value))
+                    ValidateBankName();
+            }
         }
 
         public string LimitText
@@ -140,6 +144,7 @@ namespace AutoKassa.ViewModels
         }
 
         public string NameError => GetFirstError(nameof(Name));
+        public string BankNameError => GetFirstError(nameof(BankName));
         public string LimitError => GetFirstError(nameof(LimitText));
         public string InterestRateError => GetFirstError(nameof(InterestRateText));
         public string StatementDayError => GetFirstError(nameof(StatementDayText));
@@ -202,6 +207,7 @@ namespace AutoKassa.ViewModels
         private void ValidateAll()
         {
             ValidateName();
+            ValidateBankName();
             ValidateLimit();
             ValidateInterestRate();
             ValidateStatementDay();
@@ -212,11 +218,26 @@ namespace AutoKassa.ViewModels
 
         private void ValidateName()
         {
+            const int MaxNameLength = 100;
+
             if (string.IsNullOrWhiteSpace(_name))
                 SetErrors(nameof(Name), new[] { "Введите название карты" });
+            else if (_name.Length > MaxNameLength)
+                SetErrors(nameof(Name), new[] { $"Название карты не должно превышать {MaxNameLength} символов" });
             else
                 ClearErrors(nameof(Name));
             OnPropertyChanged(nameof(NameError));
+        }
+
+        private void ValidateBankName()
+        {
+            const int MaxBankNameLength = 100;
+
+            if ((_bankName ?? string.Empty).Length > MaxBankNameLength)
+                SetErrors(nameof(BankName), new[] { $"Название банка не должно превышать {MaxBankNameLength} символов" });
+            else
+                ClearErrors(nameof(BankName));
+            OnPropertyChanged(nameof(BankNameError));
         }
 
         private void ValidateLimit()

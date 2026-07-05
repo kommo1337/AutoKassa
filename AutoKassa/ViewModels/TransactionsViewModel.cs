@@ -2,6 +2,7 @@ using AutoKassa.Helpers;
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
+using AutoKassa.Services.Transactions;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Threading;
@@ -23,13 +24,17 @@ namespace AutoKassa.ViewModels
     public class TransactionsViewModel : ViewModelBase, INavigationAware
     {
         private readonly ITransactionService _transactionService;
+        private readonly ITransactionListService _transactionListService;
+        private readonly ITransactionGroupingService _transactionGroupingService;
+        private readonly IInlineTransactionService _inlineTransactionService;
+        private readonly ITransactionSelectionService _transactionSelectionService;
         private readonly ICategoryService _categoryService;
         private readonly ICreditCardService _creditCardService;
         private readonly ICounterpartyService _counterpartyService;
         private readonly IDialogService _dialogService;
         private readonly IToastNotificationService _toastService;
-        private readonly ISettingsService _settingsService;
         private readonly IDataChangeService _dataChangeService;
+        private readonly ITransactionEditViewModelFactory _transactionEditViewModelFactory;
         private bool _isInitialized;
         private bool _needsRefresh;
 
@@ -88,22 +93,30 @@ namespace AutoKassa.ViewModels
 
         public TransactionsViewModel(
             ITransactionService transactionService,
+            ITransactionListService transactionListService,
+            ITransactionGroupingService transactionGroupingService,
+            IInlineTransactionService inlineTransactionService,
+            ITransactionSelectionService transactionSelectionService,
             ICategoryService categoryService,
             ICreditCardService creditCardService,
             ICounterpartyService counterpartyService,
             IDialogService dialogService,
             IToastNotificationService toastService,
-            ISettingsService settingsService,
-            IDataChangeService dataChangeService)
+            IDataChangeService dataChangeService,
+            ITransactionEditViewModelFactory transactionEditViewModelFactory)
         {
             _transactionService = transactionService;
+            _transactionListService = transactionListService;
+            _transactionGroupingService = transactionGroupingService;
+            _inlineTransactionService = inlineTransactionService;
+            _transactionSelectionService = transactionSelectionService;
             _categoryService = categoryService;
             _creditCardService = creditCardService;
             _counterpartyService = counterpartyService;
             _dialogService = dialogService;
             _toastService = toastService;
-            _settingsService = settingsService;
             _dataChangeService = dataChangeService;
+            _transactionEditViewModelFactory = transactionEditViewModelFactory;
 
             Transactions = new ObservableCollection<Transaction>();
             Categories = new ObservableCollection<Category>();
@@ -145,7 +158,7 @@ namespace AutoKassa.ViewModels
 
             // Bulk selection commands
             DeleteSelectedCommand = new RelayCommand(async _ => await DeleteSelectedAsync());
-            ClearSelectionCommand = new RelayCommand(_ => ClearSelection());
+            ClearSelectionCommand = new RelayCommand(_ => _transactionSelectionService.ClearSelection(GroupedTransactions, RefreshSelectionState));
 
             // Inline add commands
             OpenInlineCommand = new RelayCommand(_ => OpenInline());
@@ -449,9 +462,9 @@ namespace AutoKassa.ViewModels
 
         #region Properties — bulk selection
 
-        public int SelectedCount => GroupedTransactions.SelectMany(g => g.Items).Count(i => i.IsSelected);
+        public int SelectedCount => _transactionSelectionService.GetSelected(GroupedTransactions).Count;
         public bool HasSelection => SelectedCount > 0;
-        public string SelectedCountLabel => $"Выбрано: {SelectedCount}";
+        public string SelectedCountLabel => _transactionSelectionService.GetSelectionLabel(SelectedCount);
 
         #endregion
 
@@ -644,16 +657,16 @@ namespace AutoKassa.ViewModels
                 IsLoading = true;
                 _currentPage = 0;
 
-                var filters = BuildFilterParameters();
-                var transactions = await _transactionService.GetTransactionsAsync(filters, ct);
-                var totalCount   = await _transactionService.GetTotalCountAsync(filters, ct);
+                var filters = CreateFilterParameters();
+                var request = new TransactionListRequest(filters, _pageSize, _currentPage);
+                var result = await _transactionListService.LoadFirstPageAsync(request, ct);
 
                 // Пересоздаём коллекцию одним действием вместо N уведомлений UI
-                Transactions = new ObservableCollection<Transaction>(transactions);
+                Transactions = new ObservableCollection<Transaction>(result.Transactions);
 
-                TotalCount = totalCount;
+                TotalCount = result.TotalCount;
                 OnPropertyChanged(nameof(CanLoadMore));
-                await RebuildGroupsAndTotalsAsync();
+                await RefreshGroupsAsync();
             }
             catch (OperationCanceledException) { /* фильтр изменился — игнорируем */ }
             catch (Exception ex)
@@ -673,19 +686,18 @@ namespace AutoKassa.ViewModels
             try
             {
                 IsLoading = true;
-                _currentPage++;
 
-                var filters  = BuildFilterParameters();
-                filters.Skip = _currentPage * _pageSize;
+                var filters = CreateFilterParameters();
+                var request = new TransactionListRequest(filters, _pageSize, _currentPage);
+                var result = await _transactionListService.LoadNextPageAsync(request);
 
-                var transactions = await _transactionService.GetTransactionsAsync(filters);
-
-                foreach (var t in transactions)
+                _currentPage = result.CurrentPage;
+                foreach (var t in result.Transactions)
                     Transactions.Add(t);
 
                 OnPropertyChanged(nameof(DisplayInfo));
                 OnPropertyChanged(nameof(CanLoadMore));
-                await RebuildGroupsAndTotalsAsync();
+                await RefreshGroupsAsync();
             }
             catch (Exception ex)
             {
@@ -697,7 +709,7 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        private TransactionFilterParameters BuildFilterParameters()
+        private TransactionFilterParameters CreateFilterParameters()
         {
             return new TransactionFilterParameters
             {
@@ -712,8 +724,6 @@ namespace AutoKassa.ViewModels
                 SearchText = SearchText,
                 AmountFrom = _amountFrom,
                 AmountTo = _amountTo,
-                Skip = _currentPage * _pageSize,
-                Take = _pageSize,
                 SortBy = "Date",
                 SortDescending = true
             };
@@ -749,52 +759,23 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(IsExpenseFilter));
         }
 
-        private async Task RebuildGroupsAndTotalsAsync()
+        private async Task RefreshGroupsAsync()
         {
             // Снимаем подписки на старых элементах, чтобы они не держали ViewModel через делегат.
             foreach (var oldGroup in GroupedTransactions)
                 foreach (var item in oldGroup.Items)
                     item.SelectionChanged = null;
 
-            // Вся тяжёлая работа — в пуле потоков, чтобы не блокировать UI
-            var transactionsSnapshot = Transactions.ToList();
-            var categories = _categories;
+            var result = await _transactionGroupingService.BuildGroupsAsync(
+                Transactions,
+                _categories,
+                CreditCards,
+                GroupInlineSaveAsync,
+                RefreshSelectionState);
 
-            var (newGroups, totalIncome, totalExpense) = await Task.Run(() =>
-            {
-                var income = transactionsSnapshot.Where(t => t.Type == OperationType.Income).Sum(t => t.Amount);
-                var expense = transactionsSnapshot.Where(t => t.Type == OperationType.Expense).Sum(t => t.Amount);
-
-                var groups = new List<SelectableDateGroup>();
-                var grouped = transactionsSnapshot.GroupBy(t => t.Date.Date).OrderByDescending(g => g.Key);
-
-                foreach (var g in grouped)
-                {
-                    var dayTotal = g.Sum(t => t.Type == OperationType.Income ? t.Amount : -t.Amount);
-                    var items = new ObservableCollection<SelectableTransaction>(
-                        g.OrderByDescending(t => t.CreatedAt).Select(t => new SelectableTransaction(t)));
-
-                    var group = new SelectableDateGroup
-                    {
-                        Date = g.Key,
-                        DayTotal = dayTotal,
-                        Items = items
-                    };
-                    group.InitInline(categories, CreditCards, GroupInlineSaveAsync, _toastService);
-                    groups.Add(group);
-                }
-                return (groups, income, expense);
-            });
-
-            TotalIncome = totalIncome;
-            TotalExpense = totalExpense;
-
-            // Пересоздаём коллекцию одним действием вместо N уведомлений UI
-            foreach (var group in newGroups)
-                foreach (var item in group.Items)
-                    item.SelectionChanged = RefreshSelectionState;
-
-            GroupedTransactions = new ObservableCollection<SelectableDateGroup>(newGroups);
+            TotalIncome = result.TotalIncome;
+            TotalExpense = result.TotalExpense;
+            GroupedTransactions = new ObservableCollection<SelectableDateGroup>(result.Groups);
             OnPropertyChanged(nameof(HasTransactions));
             RefreshSelectionState();
         }
@@ -806,24 +787,9 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(SelectedCountLabel));
         }
 
-        private void ClearSelection()
-        {
-            foreach (var item in GroupedTransactions.SelectMany(g => g.Items).ToList())
-            {
-                item.SelectionChanged = null;
-                item.IsSelected = false;
-                item.SelectionChanged = RefreshSelectionState;
-            }
-            RefreshSelectionState();
-        }
-
         private async Task DeleteSelectedAsync()
         {
-            var selected = GroupedTransactions
-                .SelectMany(g => g.Items)
-                .Where(i => i.IsSelected)
-                .Select(i => i.Transaction)
-                .ToList();
+            var selected = _transactionSelectionService.GetSelected(GroupedTransactions);
 
             if (!selected.Any()) return;
 
@@ -838,7 +804,7 @@ namespace AutoKassa.ViewModels
 
                 var count = deletedIds.Count;
                 _toastService.ShowDeleteWithUndo(
-                    $"Удалено {count} {GetCountWord(count)}",
+                    $"Удалено {count} {_transactionSelectionService.GetCountWord(count)}",
                     async () =>
                     {
                         foreach (var id in deletedIds)
@@ -850,14 +816,6 @@ namespace AutoKassa.ViewModels
             {
                 _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
             }
-        }
-
-        private static string GetCountWord(int count)
-        {
-            var abs = Math.Abs(count) % 100;
-            var mod10 = abs % 10;
-            if (abs is >= 11 and <= 19) return "записей";
-            return mod10 switch { 1 => "запись", 2 or 3 or 4 => "записи", _ => "записей" };
         }
 
         private async Task ApplyFiltersAsync()
@@ -938,8 +896,7 @@ namespace AutoKassa.ViewModels
 
         private void AddTransaction()
         {
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
-            vm.InitializeForAdd();
+            var vm = _transactionEditViewModelFactory.CreateForAdd();
             vm.OnSaved = async () =>
             {
                 IsModalOpen = false;
@@ -958,8 +915,7 @@ namespace AutoKassa.ViewModels
         {
             if (SelectedTransaction == null) return;
 
-            var vm = new TransactionEditViewModel(_transactionService, _categoryService, _creditCardService, _counterpartyService, _dialogService, _settingsService, _toastService);
-            vm.InitializeForEdit(SelectedTransaction);
+            var vm = _transactionEditViewModelFactory.CreateForEdit(SelectedTransaction);
             vm.OnSaved = async () => { IsModalOpen = false; await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
@@ -977,7 +933,7 @@ namespace AutoKassa.ViewModels
             list.Insert(0, transaction);
             Transactions = new ObservableCollection<Transaction>(list);
             TotalCount++;
-            RebuildGroupsAndTotalsAsync().ConfigureAwait(false);
+            RunAsync(RefreshGroupsAsync);
         }
 
         private async Task DeleteTransactionAsync()
@@ -992,7 +948,7 @@ namespace AutoKassa.ViewModels
                 await _transactionService.DeleteAsync(deletedId);
                 Transactions.Remove(t);
                 TotalCount--;
-                await RebuildGroupsAndTotalsAsync();
+                await RefreshGroupsAsync();
                 _dataChangeService?.NotifyDataChanged();
 
                 _toastService.ShowDeleteWithUndo(
@@ -1054,45 +1010,26 @@ namespace AutoKassa.ViewModels
         {
             if (_isInlineSaving) return;
 
-            if (!decimal.TryParse(
-                    InlineAmountText?.Replace(',', '.'),
-                    NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out decimal amount) || amount <= 0)
-            {
-                _dialogService.ShowError("Введите корректную сумму");
-                return;
-            }
-
-            if (InlineCategory == null)
-            {
-                _dialogService.ShowError("Выберите категорию");
-                return;
-            }
-
             _isInlineSaving = true;
             (InlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
-                var transaction = new Transaction
-                {
-                    Date = DateTime.Now,
-                    Amount = amount,
-                    Type = InlineType,
-                    CategoryId = InlineCategory.Id,
-                    Description = InlineDescription ?? string.Empty,
-                    PaymentType = InlinePaymentType,
-                    CreditCardId = InlinePaymentType == PaymentType.CreditCard ? InlineCreditCard?.Id : null
-                };
+                var input = new InlineTransactionInput(
+                    InlineAmountText,
+                    InlineType,
+                    InlineCategory,
+                    InlinePaymentType,
+                    InlineCreditCard,
+                    InlineDescription,
+                    DateTime.Now);
 
-                if (InlinePaymentType == PaymentType.CreditCard && InlineCreditCard == null)
-                {
-                    _dialogService.ShowError("Выберите кредитную карту");
-                    return;
-                }
+                var transaction = await _inlineTransactionService.TrySaveAsync(
+                    input,
+                    msg => _dialogService.ShowError(msg));
 
-                await _transactionService.AddAsync(transaction);
+                if (transaction == null) return;
+
                 IsInlineOpen = false;
                 InlineAmountText = string.Empty;
                 InlineDescription = string.Empty;
@@ -1111,62 +1048,26 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        private bool _isGroupInlineSaving;
-
         private async Task GroupInlineSaveAsync(SelectableDateGroup group)
         {
-            if (_isGroupInlineSaving) return;
+            var input = new InlineTransactionInput(
+                group.InlineAmountText,
+                group.InlineType,
+                group.GroupInlineCategory,
+                group.InlinePaymentType,
+                group.InlineCreditCard,
+                group.InlineDescription,
+                group.Date);
 
-            if (!decimal.TryParse(
-                    group.InlineAmountText?.Replace(',', '.'),
-                    System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    out decimal amount) || amount <= 0)
-            {
-                _dialogService.ShowError("Введите корректную сумму");
-                return;
-            }
+            var transaction = await _inlineTransactionService.TrySaveAsync(
+                input,
+                msg => _dialogService.ShowError(msg));
 
-            if (group.GroupInlineCategory == null)
-            {
-                _dialogService.ShowError("Выберите категорию");
-                return;
-            }
+            if (transaction == null) return;
 
-            _isGroupInlineSaving = true;
-
-            try
-            {
-                if (group.InlinePaymentType == PaymentType.CreditCard && group.InlineCreditCard == null)
-                {
-                    _dialogService.ShowError("Выберите кредитную карту");
-                    return;
-                }
-
-                var transaction = new Transaction
-                {
-                    Date        = group.Date,
-                    Amount      = amount,
-                    Type        = group.InlineType,
-                    CategoryId  = group.GroupInlineCategory.Id,
-                    Description = group.InlineDescription ?? string.Empty,
-                    PaymentType = group.InlinePaymentType,
-                    CreditCardId = group.InlinePaymentType == PaymentType.CreditCard ? group.InlineCreditCard?.Id : null
-                };
-
-                await _transactionService.AddAsync(transaction);
-                await LoadDataAsync();
-                _dataChangeService?.NotifyDataChanged();
-                _toastService.ShowSuccess("Операция добавлена");
-            }
-            catch (Exception ex)
-            {
-                _dialogService.ShowError($"Ошибка добавления: {ex.Message}");
-            }
-            finally
-            {
-                _isGroupInlineSaving = false;
-            }
+            await LoadDataAsync();
+            _dataChangeService?.NotifyDataChanged();
+            _toastService.ShowSuccess("Операция добавлена");
         }
 
         protected override void OnDispose()
@@ -1182,6 +1083,8 @@ namespace AutoKassa.ViewModels
             var navCts = Interlocked.Exchange(ref _navigateCts, null);
             navCts?.Cancel();
             navCts?.Dispose();
+
+            (_editViewModel as IDisposable)?.Dispose();
         }
 
         #endregion

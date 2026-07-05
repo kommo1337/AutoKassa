@@ -52,111 +52,8 @@
 
 ## 2. Высокие риски (High)
 
-### 2.1 Неатомарные операции с перекрёстными DbContext
-- **Файл:** `Services/TransactionService.cs` (`AddAsync`, `UpdateAsync`, `DeleteAsync`)
-- **Описание:** Родительский метод делает `SaveChangesAsync()` в своём контексте, а затем вызывает `_creditCardService.AddPurchaseAsync`, `_creditCardService.RecalculateOnRepaymentDeletedAsync` или `_debtService.RecalculateStatusAsync`, которые создают **новые** DbContext. Если второй вызов упадёт, первая часть уже зафиксирована.
-- **Риск:** неконсистентное состояние (например, транзакция сохранена, а покупка по кредитке — нет).
-- **Рекомендация:** выполнять связанные изменения в одном DbContext и одной явной транзакции (`BeginTransactionAsync`).
-
-### 2.2 Обновление суммы кредитной покупки игнорирует уже внесённые погашения
-- **Файл:** `Services/TransactionService.cs` (строки 632–639)
-- **Метод:** `HandleCreditCardChangesAsync`
-- **Описание:**
-  ```csharp
-  purchase.Amount = transaction.Amount;
-  purchase.RemainingDebt = transaction.Amount;
-  ```
-  При этом не учитывается сумма уже произведённых погашений.
-- **Риск:** завышение долга, переплата/недоплата при распределении следующих погашений.
-- **Рекомендация:** корректировать `RemainingDebt` с учётом `purchase.CreditCardPayments.Sum(p => p.Amount)`.
-
-### 2.3 Удаление частично погашенной кредитной покупки невозможно / падает с FK-ошибкой
-- **Файлы:** `Services/AppDbContext.cs` (строка 167), `Services/TransactionService.cs` (строки 275–284)
-- **Описание:** В `AppDbContext` связь `CreditCardPayment -> CreditCardPurchase` настроена как `OnDelete(DeleteBehavior.Restrict)`. `TransactionService.DeleteAsync` удаляет `CreditCardPurchase`, не удаляя связанные `CreditCardPayment`.
-- **Риск:** пользователь не может удалить операцию; необработанная ошибка БД.
-- **Рекомендация:** либо каскадно удалять `CreditCardPayment`, либо распределять погашение обратно перед удалением покупки.
-
-### 2.4 Создание кредитной покупки не атомарно и не проверяет лимит до сохранения операции
-- **Файл:** `Services/TransactionService.cs` (строки 156–169)
-- **Метод:** `AddAsync`
-- **Описание:** Операция сохраняется в БД до вызова `_creditCardService.AddPurchaseAsync`. Проверка лимита происходит в отдельном DbContext. Если `AddPurchaseAsync` бросает исключение, операция-расход уже остаётся в БД как обычная трата.
-- **Риск:** «висячие» операции и расхождение между списанными деньгами и учтённым кредитным долгом.
-- **Рекомендация:** проверять лимит и сохранять покупку в том же контексте/транзакции, что и операцию.
-
-### 2.5 Изменение обычной операции в категорию «Погашение кредита» может переплатить долг
-- **Файл:** `Services/TransactionService.cs` (строки 658–665)
-- **Метод:** `HandleCreditCardChangesAsync`
-- **Описание:** При смене категории на «Погашение кредита» метод распределяет сумму операции по покупкам без проверки, не превышает ли она текущий долг. В отличие от `RepayDebtAsync`, здесь нет проверки `amount > currentDebt`.
-- **Риск:** долг по карте может уйти в отрицательное значение; отчёты покажут некорректный `NetBalance`.
-- **Рекомендация:** добавить проверку остатка долга перед распределением.
-
-### 2.6 Двойной учёт при удалении/восстановлении погашения долга
-- **Файл:** `Services/TransactionService.cs` (`DeleteAsync` строки 325–346, `RestoreAsync` строки 353–364)
-- **Описание:** При удалении операции-погашения удаляется запись `DebtPayment`, а статус долга пересчитывается. При восстановлении `DebtPayment` не восстанавливается. Восстановленная операция отображается как реальный доход/расход, но не учитывается в статусе долга.
-- **Риск:** деньги учтены дважды, статус долга неверен.
-- **Рекомендация:** восстанавливать `DebtPayment` или запрещать восстановление погашений.
 
 
-
-### 2.8 `Process.Start` с `UseShellExecute = true` для открытия экспортированных файлов
-- **Файлы:** `ViewModels/Reports/BalanceReportViewModel.cs`, `CategoryReportViewModel.cs`, `TransactionDetailReportViewModel.cs`, `DebtReportViewModel.cs`
-- **Описание:** Возвращённый `filePath` передаётся в `Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true })`. Отсутствует проверка расширения/MIME-типа.
-- **Риск:** при компрометации пути возможен запуск произвольного исполняемого файла.
-- **Рекомендация:** проверять расширение файла и использовать `Process.Start` с явным `Verb = "open"`.
-
-### 2.9 Race condition на `_cachedSettings` в `SettingsService`
-- **Файл:** `Services/SettingsService.cs` (строки 20, 45–67, 187–195, 200–206)
-- **Описание:** `_cachedSettings` читается и записывается из UI-потока и фоновых потоков без `lock`, `volatile` или `Interlocked`.
-- **Риск:** гонка, двойная инициализация, использование устаревших/частично инициализированных настроек.
-- **Рекомендация:** добавить `lock` или `SemaphoreSlim` вокруг `_cachedSettings`.
-
-### 2.10 `BackupPath` сохраняется без `SanitizeBackupPath` при обычном сохранении настроек
-- **Файл:** `Services/SettingsService.cs` (строки 470–484), `ViewModels/SettingsViewModel.cs` (строка 587)
-- **Описание:** `SanitizeBackupPath` вызывается только в `ImportSettingsAsync`. При обычном сохранении через UI путь записывается напрямую из `BackupPath`.
-- **Риск:** запись резервных копий в системные каталоги (например, `C:\Windows\...`).
-- **Рекомендация:** всегда вызывать `SanitizeBackupPath` перед сохранением `BackupPath`.
-
-### 2.11 `NavigationService` кэширует ViewModel-ы навсегда
-- **Файл:** `Services/NavigationService.cs` (строки 9, 42–46)
-- **Описание:** `Dictionary<Type, ViewModelBase> _viewModelCache` хранит каждый ViewModel на всё время жизни приложения. Хотя VM зарегистрированы как `Transient`, фактически они превращаются в синглтоны.
-- **Риск:** утечка памяти; подписки на события никогда не отписываются (`OnDispose` не вызывается).
-- **Рекомендация:** не кэшировать VM, либо ограничить кэш и явно вызывать `Dispose()` при замене.
-
-### 2.12 `ConfigureAwait(false)` в ViewModel с последующим обновлением UI
-- **Файлы:** `ViewModels/Reports/DebtReportViewModel.cs` (строки 197, 249, 262), `ViewModels/ReconciliationViewModel.cs` (строка 169)
-- **Описание:** После `await ...ConfigureAwait(false)` продолжение выполняется в пуле потоков, а затем идёт присвоение свойств и вызов `_toastService`, что требует UI-потока WPF.
-- **Риск:** `InvalidOperationException` «The calling thread cannot access this object».
-- **Рекомендация:** убрать `.ConfigureAwait(false)` в ViewModel (оставить в сервисах).
-
-### 2.13 Множественные `async void` в ViewModel-ах
-- **Файлы:** `ViewModels/ChangePasswordViewModel.cs` (строка 167), `ViewModels/PasswordRecoveryViewModel.cs` (строки 153, 187), `ViewModels/InitialSetupViewModel.cs` (строка 304), `Views/CategoryManagerView.xaml.cs` (строка 58)
-- **Описание:** `async void` в event-handler’ах/командах не возвращает Task; необработанные исключения убивают процесс.
-- **Риск:** краш приложения, повторный ввод при медленном I/O.
-- **Рекомендация:** возвращать `Task` из VM-методов и использовать `async` команды/делегаты.
-
-### 2.14 ViewModel напрямую создаёт/знает о View
-- **Файлы:** `ViewModels/SettingsViewModel.cs` (строки 771–777), `Services/LockService.cs` (строки 52–71)
-- **Описание:** `ChangePassword()` создаёт `new ChangePasswordView(viewModel)` и вызывает `ShowDialog()`. `LockService` создаёт `new LockScreenView(viewModel)`. VM и сервис знают о конкретных View.
-- **Риск:** нарушение MVVM, усложнение тестирования.
-- **Рекомендация:** внедрить `IDialogService` с generic-методами/результатами, чтобы VM не зависела от View.
-
-### 2.15 Service Locator: `App.GetService<T>`
-- **Файлы:** `ViewModels/DashboardViewModel.cs` (строки 1208, 1217), `ViewModels/ReportsViewModel.cs` (строки 97, 109, 121, 133), `App.xaml.cs` (строки 228–231)
-- **Описание:** Статический локатор сервисов нарушает DI, не thread-safe на старте.
-- **Риск:** `NullReferenceException` или `InvalidCastException`.
-- **Рекомендация:** инжектировать зависимости через конструктор.
-
-### 2.16 Потеря точности decimal при агрегации через double
-- **Файлы:** `Services/TransactionService.cs`, `Services/DebtService.cs`, `Services/ReportService.cs`, `Services/CreditCardService.cs`
-- **Описание:** Повсеместно используется `(decimal)g.Sum(t => (double)t.Amount)`. Преобразование `decimal → double → decimal` вносит погрешность округления для денежных сумм.
-- **Риск:** итоги в отчётах могут расходиться на копейки/рубли.
-- **Рекомендация:** суммировать `decimal` напрямую (поддерживается SQLite в EF Core) или использовать `decimal` в памяти после материализации.
-
-### 2.17 God-объекты / нарушение SRP
-- **Файлы:** `ViewModels/DashboardViewModel.cs` (1286 строк), `ViewModels/TransactionsViewModel.cs` (1189 строк), `ViewModels/SettingsViewModel.cs` (979 строк)
-- **Описание:** ViewModels берут на себя слишком много ответственности: сводка, фильтры, пагинация, графики, диалоги, экспорт, бэкапы, безопасность.
-- **Риск:** сложность тестирования, высокая вероятность регрессий, сложность внесения изменений.
-- **Рекомендация:** декомпозировать на более мелкие VM, выделить фасадные сервисы.
 
 ### 2.18 Утечки подписок на события / неполное освобождение
 - **Файлы:** `Views/ConfirmationDialogView.xaml.cs`, `Views/InitialSetupView.xaml.cs`, `Views/ChangePasswordView.xaml.cs`, `Views/LockScreenView.xaml.cs`, `ViewModels/CategoriesViewModel.cs`, `ViewModels/ReportsViewModel.cs`, `Services/NavigationService.cs`
@@ -214,13 +111,13 @@
 - **Файл:** `Models/Reports/DebtReport.cs`, `Services/ReportService.cs` (строки 396–397)
 - **Описание:** Суммируют `Amount` для всех долгов со статусом не `WrittenOff`, включая `Repaid`.
 - **Риск:** завышенная сумма задолженности.
-- **Рекомендация:** учитывать только `Active` долги или переименовать поля.
+- **Рекомендация:** учитывать только `Active` долги.
 
 ### 3.8 Неполнота текстового поиска на больших объёмах
 - **Файл:** `Services/TransactionService.cs` (строки 53–60, 79–86)
 - **Описание:** При наличии `SearchText` выборка ограничивается `MaxInMemoryFilterLimit = 5000`. `GetTotalCountAsync` возвращает `5000` как приближённое значение.
 - **Риск:** потеря результатов поиска и неверная пагинация.
-- **Рекомендация:** реализовать полнотекстовый поиск SQLite (FTS5) или корректный подсчёт.
+- **Рекомендация:** реализовать полнотекстовый поиск SQLite (FTS5).
 
 ### 3.9 `GetReconciliationDataAsync` показывает текущий кредитный долг вместо долга на дату сверки
 - **Файл:** `Services/ReportService.cs` (строки 444–465)

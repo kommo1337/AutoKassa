@@ -1,5 +1,6 @@
 using AutoKassa.Helpers;
 using AutoKassa.Services;
+using System.Threading.Tasks;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -29,7 +30,7 @@ namespace AutoKassa.ViewModels
             _dialogService = dialogService;
             _toastService = toastService;
 
-            SaveCommand = new RelayCommand(_ => Save(), _ => CanSave());
+            SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
             CancelCommand = new RelayCommand(_ => Cancel());
         }
 
@@ -164,7 +165,7 @@ namespace AutoKassa.ViewModels
                    string.IsNullOrEmpty(ConfirmPasswordError);
         }
 
-        private async void Save()
+        private async Task SaveAsync()
         {
             try
             {

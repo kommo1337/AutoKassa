@@ -201,7 +201,11 @@ namespace AutoKassa.ViewModels
         public string Description
         {
             get => _description;
-            set => SetProperty(ref _description, value);
+            set
+            {
+                if (SetProperty(ref _description, value))
+                    ValidateDescription();
+            }
         }
 
         public List<Category> Categories
@@ -243,6 +247,8 @@ namespace AutoKassa.ViewModels
         public string AmountError => GetFirstError(nameof(Amount));
 
         public string CreditCardError => GetFirstError(nameof(SelectedCreditCard));
+
+        public string DescriptionError => GetFirstError(nameof(Description));
 
         public bool IsRepayment
         {
@@ -555,7 +561,7 @@ namespace AutoKassa.ViewModels
         {
             try
             {
-                var counterparties = await _counterpartyService.GetActiveAsync().ConfigureAwait(false);
+                var counterparties = await _counterpartyService.GetActiveAsync();
                 AvailableCounterparties = counterparties.ToList();
 
                 if (_selectedPaymentType == PaymentType.Debt && _selectedCounterparty == null && _availableCounterparties.Count == 1)
@@ -630,6 +636,18 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(SelectedCounterparty));
         }
 
+        private void ValidateDescription()
+        {
+            const int MaxDescriptionLength = 500;
+
+            if ((_description ?? string.Empty).Length > MaxDescriptionLength)
+                SetErrors(nameof(Description), new[] { $"Описание не должно превышать {MaxDescriptionLength} символов" });
+            else
+                ClearErrors(nameof(Description));
+
+            OnPropertyChanged(nameof(DescriptionError));
+        }
+
         private bool _isSaving;
 
         private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText) && !IsRepayment;
@@ -643,6 +661,7 @@ namespace AutoKassa.ViewModels
             ValidateCategory();
             ValidateCreditCard();
             ValidateCounterparty();
+            ValidateDescription();
 
             if (HasErrors) return;
 
@@ -709,6 +728,7 @@ namespace AutoKassa.ViewModels
             ValidateCategory();
             ValidateCreditCard();
             ValidateCounterparty();
+            ValidateDescription();
 
             if (HasErrors) return;
 

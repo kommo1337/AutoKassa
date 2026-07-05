@@ -42,7 +42,11 @@ namespace AutoKassa.ViewModels
         public string Name
         {
             get => _name;
-            set => SetProperty(ref _name, value);
+            set
+            {
+                if (SetProperty(ref _name, value))
+                    ValidateName();
+            }
         }
 
         public string Color
@@ -83,9 +87,10 @@ namespace AutoKassa.ViewModels
         {
             IsRenaming = false;
             var trimmed = Name?.Trim();
-            if (string.IsNullOrEmpty(trimmed))
+            if (string.IsNullOrEmpty(trimmed) || HasErrors)
             {
                 Name = _originalName;
+                ClearErrors(nameof(Name));
                 return;
             }
 
@@ -95,6 +100,16 @@ namespace AutoKassa.ViewModels
                 Model.Name = trimmed;
                 await _categoryService.UpdateAsync(Model);
             }
+        }
+
+        private void ValidateName()
+        {
+            const int MaxNameLength = 100;
+
+            if ((_name ?? string.Empty).Trim().Length > MaxNameLength)
+                SetErrors(nameof(Name), new[] { $"Название категории не должно превышать {MaxNameLength} символов" });
+            else
+                ClearErrors(nameof(Name));
         }
 
         private void CancelRename()

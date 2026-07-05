@@ -1,6 +1,7 @@
 ﻿using AutoKassa.Helpers;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
+using System.Threading.Tasks;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -38,7 +39,7 @@ namespace AutoKassa.ViewModels
             SelectedQuestion = SecurityQuestions.First();
 
             // Команды
-            ContinueCommand = new RelayCommand(_ => Continue(), _ => CanContinue());
+            ContinueCommand = new AsyncRelayCommand(ContinueAsync, CanContinue);
         }
 
         #region Свойства
@@ -263,6 +264,8 @@ namespace AutoKassa.ViewModels
 
         private void ValidateCustomQuestion()
         {
+            const int MaxCustomQuestionLength = 200;
+
             if (IsCustomQuestion)
             {
                 if (string.IsNullOrEmpty(CustomQuestion))
@@ -272,6 +275,10 @@ namespace AutoKassa.ViewModels
                 else if (CustomQuestion.Length < 5)
                 {
                     CustomQuestionError = "Вопрос слишком короткий";
+                }
+                else if (CustomQuestion.Length > MaxCustomQuestionLength)
+                {
+                    CustomQuestionError = $"Свой вопрос не должен превышать {MaxCustomQuestionLength} символов";
                 }
                 else
                 {
@@ -301,7 +308,7 @@ namespace AutoKassa.ViewModels
 
         #region Логика настройки
 
-        private async void Continue()
+        private async Task ContinueAsync()
         {
             // Валидация всех полей
             ValidatePassword();

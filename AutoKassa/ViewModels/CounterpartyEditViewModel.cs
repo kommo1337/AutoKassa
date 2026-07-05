@@ -72,13 +72,21 @@ namespace AutoKassa.ViewModels
         public string? Phone
         {
             get => _phone;
-            set => SetProperty(ref _phone, value);
+            set
+            {
+                if (SetProperty(ref _phone, value))
+                    ValidatePhone();
+            }
         }
 
         public string? Notes
         {
             get => _notes;
-            set => SetProperty(ref _notes, value);
+            set
+            {
+                if (SetProperty(ref _notes, value))
+                    ValidateNotes();
+            }
         }
 
         public bool IsActive
@@ -88,6 +96,10 @@ namespace AutoKassa.ViewModels
         }
 
         public string NameError => GetFirstError(nameof(Name));
+
+        public string PhoneError => GetFirstError(nameof(Phone));
+
+        public string NotesError => GetFirstError(nameof(Notes));
 
         public IEnumerable<CounterpartyType> AvailableTypes => Enum.GetValues<CounterpartyType>();
 
@@ -120,6 +132,30 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(NameError));
         }
 
+        private void ValidatePhone()
+        {
+            const int MaxPhoneLength = 20;
+
+            if ((_phone ?? string.Empty).Length > MaxPhoneLength)
+                SetErrors(nameof(Phone), new[] { $"Телефон не должен превышать {MaxPhoneLength} символов" });
+            else
+                ClearErrors(nameof(Phone));
+
+            OnPropertyChanged(nameof(PhoneError));
+        }
+
+        private void ValidateNotes()
+        {
+            const int MaxNotesLength = 500;
+
+            if ((_notes ?? string.Empty).Length > MaxNotesLength)
+                SetErrors(nameof(Notes), new[] { $"Примечания не должны превышать {MaxNotesLength} символов" });
+            else
+                ClearErrors(nameof(Notes));
+
+            OnPropertyChanged(nameof(NotesError));
+        }
+
         private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrWhiteSpace(_name);
 
         private async Task SaveAsync()
@@ -127,6 +163,8 @@ namespace AutoKassa.ViewModels
             if (_isSaving) return;
 
             ValidateName();
+            ValidatePhone();
+            ValidateNotes();
             if (HasErrors) return;
 
             _isSaving = true;
@@ -145,9 +183,9 @@ namespace AutoKassa.ViewModels
                 };
 
                 if (IsEditMode)
-                    await _counterpartyService.UpdateAsync(counterparty).ConfigureAwait(false);
+                    await _counterpartyService.UpdateAsync(counterparty);
                 else
-                    await _counterpartyService.AddAsync(counterparty).ConfigureAwait(false);
+                    await _counterpartyService.AddAsync(counterparty);
 
                 OnClosed?.Invoke();
             }

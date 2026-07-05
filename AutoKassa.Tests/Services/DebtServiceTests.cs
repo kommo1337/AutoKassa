@@ -220,5 +220,37 @@ namespace AutoKassa.Tests.Services
             page2.Should().HaveCount(2);
             page3.Should().HaveCount(1);
         }
+        // ─────────────────────────────────────────
+        // Точность decimal (этап 2.16)
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task RepayAsync_PreservesDecimalPrecision()
+        {
+            var debt = CreateDebt(OperationType.Income, 0.3m);
+
+            await _svc.RepayAsync(debt.Id, 0.1m, PaymentType.Cash, DateTime.Today);
+            await _svc.RepayAsync(debt.Id, 0.2m, PaymentType.Cash, DateTime.Today);
+
+            var remaining = await _svc.GetRemainingAmountAsync(debt.Id);
+            remaining.Should().Be(0m);
+
+            var debts = await _svc.GetDebtsAsync(status: DebtStatus.Repaid);
+            debts.Should().ContainSingle(d => d.TransactionId == debt.Id);
+            debts.First(d => d.TransactionId == debt.Id).RepaidAmount.Should().Be(0.3m);
+        }
+
+        [Fact]
+        public async Task GetDebtsAsync_PreservesDecimalAggregatePrecision()
+        {
+            var debt = CreateDebt(OperationType.Expense, 0.3m);
+            await _svc.RepayAsync(debt.Id, 0.1m, PaymentType.Cash, DateTime.Today);
+
+            var debts = await _svc.GetDebtsAsync();
+            var item = debts.First(d => d.TransactionId == debt.Id);
+
+            item.Amount.Should().Be(0.3m);
+            item.RepaidAmount.Should().Be(0.1m);
+        }
     }
 }

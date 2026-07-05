@@ -1,4 +1,9 @@
 ﻿using AutoKassa.Services;
+using AutoKassa.Services.Backup;
+using AutoKassa.Services.CreditCards;
+using AutoKassa.Services.Dashboard;
+using AutoKassa.Services.Settings;
+using AutoKassa.Services.Transactions;
 using AutoKassa.ViewModels;
 using AutoKassa.ViewModels.Reports;
 using AutoKassa.Views;
@@ -171,6 +176,10 @@ namespace AutoKassa
             services.AddSingleton<IToastNotificationService, ToastNotificationService>();
             services.AddSingleton<ILockService, LockService>();
             services.AddTransient<ITransactionService, TransactionService>();
+            services.AddTransient<ITransactionListService, TransactionListService>();
+            services.AddTransient<ITransactionGroupingService, TransactionGroupingService>();
+            services.AddTransient<IInlineTransactionService, InlineTransactionService>();
+            services.AddTransient<ITransactionSelectionService, TransactionSelectionService>();
             services.AddTransient<ICategoryService, CategoryService>();
             services.AddTransient<ICounterpartyService, CounterpartyService>();
             services.AddTransient<IDebtService, DebtService>();
@@ -178,6 +187,27 @@ namespace AutoKassa
             services.AddScoped<ICreditCardService, CreditCardService>();
             services.AddSingleton<IExportService, ExportService>();
             services.AddSingleton<IDataChangeService, DataChangeService>();
+
+            // Сервисы настроек (декомпозиция SettingsViewModel)
+            services.AddSingleton<ISettingsMapper, SettingsMapper>();
+            services.AddSingleton<ISettingsValidator, SettingsValidator>();
+            services.AddSingleton<IAppInfoService, AppInfoService>();
+            services.AddSingleton<IBackupCoordinator, BackupCoordinator>();
+            services.AddTransient<ICreditCardSettingsService, CreditCardSettingsService>();
+
+            // Регистрация фабрики отчётных ViewModel (убирает static Service Locator)
+            services.AddSingleton<IReportViewModelFactory, ReportViewModelFactory>();
+
+            // Регистрация фабрики редактирования операции (убирает дублирование создания VM)
+            services.AddSingleton<ITransactionEditViewModelFactory, TransactionEditViewModelFactory>();
+
+            // Регистрация фасадного сервиса дашборда (декомпозиция God-object VM)
+            services.AddTransient<IDashboardService, DashboardService>();
+
+            // Регистрация координаторов дашборда
+            services.AddTransient<IDashboardPeriodCoordinator, DashboardPeriodCoordinator>();
+            services.AddTransient<IDashboardTransactionCoordinator, DashboardTransactionCoordinator>();
+            services.AddTransient<QuickAddViewModel>();
 
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();
@@ -200,10 +230,12 @@ namespace AutoKassa
             services.AddTransient<ReconciliationViewModel>();
             services.AddTransient<SettingsViewModel>();
             services.AddTransient<ChangePasswordViewModel>();
-
-
+            services.AddTransient<LockScreenViewModel>();
 
             // Регистрация Views
+            services.AddTransient<ChangePasswordView>();
+            services.AddTransient<LockScreenView>();
+
             services.AddSingleton<MainWindow>(provider =>
             {
                 var viewModel = provider.GetRequiredService<MainWindowViewModel>();
@@ -223,12 +255,5 @@ namespace AutoKassa
             base.OnExit(e);
         }
 
-        /// <summary>
-        /// Публичный доступ к Service Provider для получения сервисов из UI
-        /// </summary>
-        public static T GetService<T>() where T : class
-        {
-            return ((App)Current)._serviceProvider.GetService<T>();
-        }
     }
 }

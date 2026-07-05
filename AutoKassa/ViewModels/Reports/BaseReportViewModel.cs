@@ -81,19 +81,24 @@ namespace AutoKassa.ViewModels.Reports
                 if (_refreshTimer == null)
                 {
                     _refreshTimer = new DispatcherTimer(DebounceInterval, DispatcherPriority.Background,
-                        (s, e) =>
-                        {
-                            _refreshTimer?.Stop();
-                            var newCts = new CancellationTokenSource();
-                            var oldCts = Interlocked.Exchange(ref _cts, newCts);
-                            oldCts?.Cancel();
-                            oldCts?.Dispose();
-                            RunAsync(GenerateReportAsync);
-                        }, Dispatcher.CurrentDispatcher);
+                        OnRefreshTimerTick, Dispatcher.CurrentDispatcher);
                 }
                 _refreshTimer.Stop();
                 _refreshTimer.Start();
             }
+        }
+
+        /// <summary>
+        /// Обработчик тика таймера автообновления отчёта.
+        /// </summary>
+        private void OnRefreshTimerTick(object? sender, EventArgs e)
+        {
+            _refreshTimer?.Stop();
+            var newCts = new CancellationTokenSource();
+            var oldCts = Interlocked.Exchange(ref _cts, newCts);
+            oldCts?.Cancel();
+            oldCts?.Dispose();
+            RunAsync(GenerateReportAsync);
         }
 
         /// <summary>
@@ -190,10 +195,15 @@ namespace AutoKassa.ViewModels.Reports
         /// </summary>
         protected override void OnDispose()
         {
-            _refreshTimer?.Stop();
+            if (_refreshTimer != null)
+            {
+                _refreshTimer.Tick -= OnRefreshTimerTick;
+                _refreshTimer.Stop();
+            }
             var cts = Interlocked.Exchange(ref _cts, null);
             cts?.Cancel();
             cts?.Dispose();
+            Modal?.Dispose();
             base.OnDispose();
         }
 
