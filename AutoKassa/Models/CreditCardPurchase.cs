@@ -60,6 +60,11 @@ namespace AutoKassa.Models
         public DateTime PurchaseDate { get; set; }
 
         /// <summary>
+        /// Связанные погашения по покупке
+        /// </summary>
+        public virtual ICollection<CreditCardPayment> CreditCardPayments { get; set; } = new List<CreditCardPayment>();
+
+        /// <summary>
         /// Примечание (опционально)
         /// </summary>
         [MaxLength(500)]

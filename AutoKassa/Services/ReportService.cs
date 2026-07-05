@@ -339,7 +339,9 @@ namespace AutoKassa.Services
 
             var from = dateFrom ?? DateTime.MinValue;
             var to = dateTo ?? DateTime.MaxValue;
-            var dateToEnd = to.Date.AddDays(1);
+            // DateTime.MaxValue.Date.AddDays(1) выбрасывает ArgumentOutOfRangeException,
+            // поэтому для "без ограничения" используем само MaxValue как верхнюю границу.
+            var dateToEnd = to == DateTime.MaxValue ? to : to.Date.AddDays(1);
 
             var query = context.Transactions
                 .AsNoTracking()

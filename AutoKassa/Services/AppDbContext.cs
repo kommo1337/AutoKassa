@@ -162,9 +162,9 @@ namespace AutoKassa.Services
 
             modelBuilder.Entity<CreditCardPayment>()
                 .HasOne(ccp => ccp.CreditCardPurchase)
-                .WithMany()
+                .WithMany(p => p.CreditCardPayments)
                 .HasForeignKey(ccp => ccp.CreditCardPurchaseId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<CreditCardPayment>()
                 .HasIndex(ccp => new { ccp.RepaymentTransactionId, ccp.CreditCardPurchaseId })

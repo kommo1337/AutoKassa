@@ -126,6 +126,174 @@ namespace AutoKassa.Tests.Services
         }
 
         [Fact]
+        public async Task RestoreAsync_CreditCardPurchase_RestoresPurchase()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var transaction = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            await _svc.DeleteAsync(transaction.Id);
+
+            var purchaseAfterDelete = await _ctx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
+            purchaseAfterDelete.Should().BeNull();
+
+            await _svc.RestoreAsync(transaction.Id);
+
+            var restored = await _svc.GetByIdAsync(transaction.Id);
+            restored.Should().NotBeNull();
+            restored!.IsDeleted.Should().BeFalse();
+
+            var purchase = await _ctx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
+            purchase.Should().NotBeNull();
+            purchase!.Amount.Should().Be(5000m);
+            purchase.RemainingDebt.Should().Be(5000m);
+            purchase.CreditCardId.Should().Be(card.Id);
+        }
+
+        [Fact]
+        public async Task RestoreAsync_Debt_RestoresRepaymentsAndDebtPayments()
+        {
+            var debt = CreateDebt(OperationType.Income, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 1000m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteAsync(debt.Id);
+
+            var rawRepaymentAfterDelete = await _ctx.Transactions.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == repayment.Id);
+            rawRepaymentAfterDelete.Should().NotBeNull();
+            rawRepaymentAfterDelete!.IsDeleted.Should().BeTrue();
+
+            await _svc.RestoreAsync(debt.Id);
+
+            using var checkCtx = _factory.CreateDbContext();
+
+            var restoredDebt = await checkCtx.Transactions.FindAsync(debt.Id);
+            restoredDebt.Should().NotBeNull();
+            restoredDebt!.IsDeleted.Should().BeFalse();
+            restoredDebt.DebtStatus.Should().Be(DebtStatus.Repaid);
+
+            var restoredRepayment = await checkCtx.Transactions.FindAsync(repayment.Id);
+            restoredRepayment.Should().NotBeNull();
+            restoredRepayment!.IsDeleted.Should().BeFalse();
+
+            var debtPayment = await checkCtx.DebtPayments
+                .FirstOrDefaultAsync(dp => dp.DebtTransactionId == debt.Id && dp.RepaymentTransactionId == repayment.Id);
+            debtPayment.Should().NotBeNull();
+            debtPayment!.Amount.Should().Be(1000m);
+        }
+
+        [Fact]
+        public async Task RestoreAsync_DebtRepayment_RestoresDebtPaymentAndRecalculatesStatus()
+        {
+            var debt = CreateDebt(OperationType.Expense, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 600m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteAsync(repayment.Id);
+
+            using var checkAfterDelete = _factory.CreateDbContext();
+
+            // DebtPayment остаётся в БД для возможности восстановления погашения,
+            // но не учитывается в расчётах, пока операция-погашение удалена.
+            var debtPaymentAfterDelete = await checkAfterDelete.DebtPayments
+                .Include(dp => dp.RepaymentTransaction)
+                .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == repayment.Id);
+            debtPaymentAfterDelete.Should().NotBeNull();
+            debtPaymentAfterDelete!.RepaymentTransaction.Should().NotBeNull();
+            debtPaymentAfterDelete.RepaymentTransaction.IsDeleted.Should().BeTrue();
+
+            var debtAfterDelete = await checkAfterDelete.Transactions.FindAsync(debt.Id);
+            debtAfterDelete!.DebtStatus.Should().Be(DebtStatus.Active);
+
+            await _svc.RestoreAsync(repayment.Id);
+
+            using var checkCtx = _factory.CreateDbContext();
+
+            var restoredRepayment = await checkCtx.Transactions.FindAsync(repayment.Id);
+            restoredRepayment.Should().NotBeNull();
+            restoredRepayment!.IsDeleted.Should().BeFalse();
+
+            var debtPayment = await checkCtx.DebtPayments
+                .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == repayment.Id);
+            debtPayment.Should().NotBeNull();
+            debtPayment!.Amount.Should().Be(600m);
+
+            var debtAfterRestore = await checkCtx.Transactions.FindAsync(debt.Id);
+            debtAfterRestore!.DebtStatus.Should().Be(DebtStatus.Active);
+        }
+
+        [Fact]
+        public async Task RestoreAsync_CreditCardRepayment_RestoresCreditCardPayments()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            var repayment = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 3000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение"
+            });
+
+            await _svc.DeleteAsync(repayment.Id);
+
+            using var checkAfterDelete = _factory.CreateDbContext();
+
+            var creditCardPaymentsAfterDelete = await checkAfterDelete.CreditCardPayments
+                .Where(ccp => ccp.RepaymentTransactionId == repayment.Id)
+                .ToListAsync();
+            creditCardPaymentsAfterDelete.Should().BeEmpty();
+
+            var purchaseAfterDelete = await checkAfterDelete.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseAfterDelete.RemainingDebt.Should().Be(5000m);
+
+            await _svc.RestoreAsync(repayment.Id);
+
+            var restoredRepayment = await _svc.GetByIdAsync(repayment.Id);
+            restoredRepayment.Should().NotBeNull();
+            restoredRepayment!.IsDeleted.Should().BeFalse();
+
+            using var checkCtx = _factory.CreateDbContext();
+
+            var creditCardPayment = await checkCtx.CreditCardPayments
+                .FirstOrDefaultAsync(ccp => ccp.RepaymentTransactionId == repayment.Id);
+            creditCardPayment.Should().NotBeNull();
+            creditCardPayment!.Amount.Should().Be(3000m);
+
+            var purchaseAfterRestore = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseAfterRestore.RemainingDebt.Should().Be(2000m);
+        }
+
+        [Fact]
         public async Task UpdateAsync_PersistsChanges()
         {
             var cat = TestDatabase.SeedExpenseCategory(_ctx);
@@ -752,21 +920,32 @@ namespace AutoKassa.Tests.Services
             rawRepayment.Should().NotBeNull();
             rawRepayment!.IsDeleted.Should().BeTrue();
 
-            var debtPayment = await _ctx.DebtPayments.FirstOrDefaultAsync(dp => dp.DebtTransactionId == debt.Id);
-            debtPayment.Should().BeNull();
+            // DebtPayment остаётся в БД для корректного восстановления долга через RestoreAsync,
+            // но не учитывается в расчётах, пока операция-погашение удалена.
+            var debtPayment = await _ctx.DebtPayments
+                .Include(dp => dp.RepaymentTransaction)
+                .FirstOrDefaultAsync(dp => dp.DebtTransactionId == debt.Id);
+            debtPayment.Should().NotBeNull();
+            debtPayment!.RepaymentTransaction.Should().NotBeNull();
+            debtPayment.RepaymentTransaction.IsDeleted.Should().BeTrue();
         }
 
         [Fact]
-        public async Task DeleteAsync_Repayment_DeletesDebtPaymentAndRecalculatesDebt()
+        public async Task DeleteAsync_Repayment_KeepsDebtPaymentAndRecalculatesDebt()
         {
             var debt = CreateDebt(OperationType.Expense, 1000m);
             var repayment = await _debtService.RepayAsync(debt.Id, 1000m, PaymentType.Cash, DateTime.Today);
 
             await _svc.DeleteAsync(repayment.Id);
 
+            // DebtPayment остаётся в БД для возможности восстановления погашения,
+            // но не учитывается в расчётах, пока операция-погашение удалена.
             var debtPayment = await _ctx.DebtPayments
+                .Include(dp => dp.RepaymentTransaction)
                 .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == repayment.Id);
-            debtPayment.Should().BeNull();
+            debtPayment.Should().NotBeNull();
+            debtPayment!.RepaymentTransaction.Should().NotBeNull();
+            debtPayment.RepaymentTransaction.IsDeleted.Should().BeTrue();
 
             var rawDebt = await _ctx.Transactions.FindAsync(debt.Id);
             rawDebt.Should().NotBeNull();
@@ -815,6 +994,133 @@ namespace AutoKassa.Tests.Services
 
             var isDebt = await _svc.IsRepaymentTransactionAsync(debt.Id);
             isDebt.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task AddAsync_CreditCardPurchase_ExceedsLimit_ThrowsInvalidOperationException()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 1000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+
+            Func<Task> act = async () => await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 1500m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Превышающая лимит покупка"
+            });
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*превышает кредитный лимит*");
+        }
+
+        [Fact]
+        public async Task UpdateAsync_CreditCardPurchase_ReducesAmount_KeepsPaidDebt()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 3000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение"
+            });
+
+            purchase.Amount = 2500m;
+            await _svc.UpdateAsync(purchase);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchaseFromDb = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseFromDb.RemainingDebt.Should().Be(0m);
+            purchaseFromDb.Amount.Should().Be(2500m);
+
+            var payments = await checkCtx.CreditCardPayments
+                .Where(p => p.CreditCardPurchaseId == purchaseFromDb.Id)
+                .ToListAsync();
+            payments.Sum(p => p.Amount).Should().Be(3000m);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_SwitchesCategoryToRepayment_RepaysDebt()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            purchase.CategoryId = repaymentCategory.Id;
+            purchase.PaymentType = PaymentType.Cash;
+            purchase.Amount = 3000m;
+            await _svc.UpdateAsync(purchase);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchaseFromDb = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseFromDb.RemainingDebt.Should().Be(2000m);
+
+            var creditCardPayment = await checkCtx.CreditCardPayments
+                .FirstOrDefaultAsync(p => p.RepaymentTransactionId == purchase.Id);
+            creditCardPayment.Should().NotBeNull();
+            creditCardPayment!.Amount.Should().Be(3000m);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_SwitchesCategoryToRepayment_ExceedsDebt_ThrowsInvalidOperationException()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            purchase.CategoryId = repaymentCategory.Id;
+            purchase.PaymentType = PaymentType.Cash;
+            purchase.Amount = 6000m;
+
+            Func<Task> act = async () => await _svc.UpdateAsync(purchase);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*превышает текущий долг*");
         }
     }
 }

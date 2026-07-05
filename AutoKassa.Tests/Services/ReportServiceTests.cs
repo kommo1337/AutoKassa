@@ -620,5 +620,23 @@ namespace AutoKassa.Tests.Services
             report.ActiveReceivable.Should().Be(2000m);
             report.Items.Should().ContainSingle(i => i.CounterpartyName == "Клиент" && i.Amount == 2000m);
         }
+
+        [Fact]
+        public async Task GenerateDebtReportAsync_DateToIsNull_DoesNotCrashAndIncludesDebt()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var client = TestDatabase.SeedCounterparty(_ctx, "Клиент");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 1500m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.Active);
+
+            // Передача null в dateTo ранее приводила к ArgumentOutOfRangeException
+            // из-за DateTime.MaxValue.Date.AddDays(1).
+            var report = await _svc.GenerateDebtReportAsync(day, null, null, null);
+
+            report.Items.Should().ContainSingle();
+            report.TotalReceivable.Should().Be(1500m);
+            report.ActiveReceivable.Should().Be(1500m);
+        }
     }
 }

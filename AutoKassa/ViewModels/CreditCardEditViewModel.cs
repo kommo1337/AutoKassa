@@ -239,13 +239,15 @@ namespace AutoKassa.ViewModels
 
         private void ValidateDay(string text, string propertyName, Action notify)
         {
+            const int MaxDayInShortestMonth = 28;
+
             if (string.IsNullOrWhiteSpace(text))
             {
                 ClearErrors(propertyName);
             }
-            else if (!int.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out int day) || day < 1 || day > 31)
+            else if (!int.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out int day) || day < 1 || day > MaxDayInShortestMonth)
             {
-                SetErrors(propertyName, new[] { "День должен быть от 1 до 31" });
+                SetErrors(propertyName, new[] { $"День должен быть от 1 до {MaxDayInShortestMonth}, чтобы корректно работать во всех месяцах" });
             }
             else
             {

@@ -653,9 +653,9 @@ namespace AutoKassa.Migrations
             modelBuilder.Entity("AutoKassa.Models.CreditCardPayment", b =>
                 {
                     b.HasOne("AutoKassa.Models.CreditCardPurchase", "CreditCardPurchase")
-                        .WithMany()
+                        .WithMany("CreditCardPayments")
                         .HasForeignKey("CreditCardPurchaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("AutoKassa.Models.Transaction", "RepaymentTransaction")
@@ -747,6 +747,11 @@ namespace AutoKassa.Migrations
                     b.Navigation("Purchases");
 
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("AutoKassa.Models.CreditCardPurchase", b =>
+                {
+                    b.Navigation("CreditCardPayments");
                 });
 #pragma warning restore 612, 618
         }

@@ -4,6 +4,7 @@ using AutoKassa.ViewModels.Reports;
 using AutoKassa.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace AutoKassa
@@ -18,7 +19,7 @@ namespace AutoKassa
         /// <summary>
         /// Конфигурирование DI контейнера при запуске приложения
         /// </summary>
-        protected override async void OnStartup(StartupEventArgs e)
+        protected override void OnStartup(StartupEventArgs e)
         {
             // Инициализируем Serilog ДО всего остального, чтобы ловить ошибки старта
             var logPath = System.IO.Path.Combine(
@@ -88,35 +89,22 @@ namespace AutoKassa
                 return;
             }
 
-            // Применяем миграции БД до инициализации сервисов
+            // Асинхронная инициализация выполняется синхронно на фоновом потоке,
+            // чтобы избежать deadlock на UI-потоке и позволить обработать ошибки.
             try
             {
-                var contextFactory = _serviceProvider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<AppDbContext>>();
-                await SettingsService.MigrateAsync(contextFactory);
+                Task.Run(() => InitializeAsync(_serviceProvider)).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
-                Log.Fatal(ex, "Ошибка миграции БД");
+                Log.Fatal(ex, "Ошибка инициализации приложения (миграция БД / настройки)");
                 ShowFatalError(ex);
                 Shutdown(1);
                 return;
             }
 
             // Проверяем, установлен ли пароль
-            ISettingsService settingsService;
-            try
-            {
-                settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
-                // Разогреваем кеш настроек, чтобы все sync-чтения работали без I/O
-                await settingsService.GetSettingsAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Fatal(ex, "Ошибка инициализации SettingsService (миграция БД?)");
-                ShowFatalError(ex);
-                Shutdown(1);
-                return;
-            }
+            var settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
 
             if (!settingsService.IsPasswordSet())
             {
@@ -142,6 +130,19 @@ namespace AutoKassa
 
             // Авто-бэкап в фоне (не блокирует запуск)
             _ = settingsService.RunAutoBackupIfDueAsync();
+        }
+
+        /// <summary>
+        /// Асинхронная инициализация: миграции БД и разогрев кеша настроек.
+        /// </summary>
+        private static async Task InitializeAsync(IServiceProvider serviceProvider)
+        {
+            var contextFactory = serviceProvider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<AppDbContext>>();
+            await SettingsService.MigrateAsync(contextFactory).ConfigureAwait(false);
+
+            var settingsService = serviceProvider.GetRequiredService<ISettingsService>();
+            // Разогреваем кеш настроек, чтобы все sync-чтения работали без I/O
+            await settingsService.GetSettingsAsync().ConfigureAwait(false);
         }
 
         private static void ShowFatalError(Exception ex)
