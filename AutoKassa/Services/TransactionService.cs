@@ -19,17 +19,10 @@ namespace AutoKassa.Services
         private const int MaxInMemoryFilterLimit = 5000;
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
-        private readonly ICreditCardService _creditCardService;
-        private readonly IDebtService _debtService;
 
-        public TransactionService(
-            IDbContextFactory<AppDbContext> contextFactory,
-            ICreditCardService creditCardService,
-            IDebtService debtService)
+        public TransactionService(IDbContextFactory<AppDbContext> contextFactory)
         {
             _contextFactory = contextFactory;
-            _creditCardService = creditCardService;
-            _debtService = debtService;
         }
 
         /// <summary>
