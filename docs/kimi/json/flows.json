@@ -1,0 +1,875 @@
+{
+  "lastUpdated": "2026-07-07T02:14:25+03:00",
+  "flows": [
+    {
+      "name": "Запуск приложения",
+      "trigger": "Пользователь запускает AutoKassa.exe",
+      "servicesInvolved": [
+        "SettingsService",
+        "NavigationService",
+        "LockService"
+      ],
+      "viewModelsInvolved": [
+        "InitialSetupViewModel",
+        "MainWindowViewModel",
+        "DashboardViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "UI",
+          "action": "Запуск WPF-приложения",
+          "file": "App.xaml.cs",
+          "method": "OnStartup",
+          "notes": "Точка входа приложения. Сначала настраивается Serilog, затем регистрируются глобальные обработчики исключений."
+        },
+        {
+          "order": 2,
+          "actor": "Service",
+          "action": "Конфигурация Dependency Injection",
+          "file": "App.xaml.cs",
+          "method": "ConfigureServices",
+          "notes": "Регистрируются DbContext, сервисы, фабрики, ViewModels и MainWindow."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Асинхронная инициализация базы данных и настроек",
+          "file": "App.xaml.cs",
+          "method": "InitializeAsync",
+          "notes": "Выполняется синхронно через Task.Run(...).GetAwaiter().GetResult(): SettingsService.MigrateAsync + разогрев кеша настроек."
+        },
+        {
+          "order": 4,
+          "actor": "Service",
+          "action": "Применение pending-миграций и включение WAL",
+          "file": "Services/SettingsService.cs",
+          "method": "MigrateAsync",
+          "notes": "Автоматически применяет EF Core миграции и выполняет PRAGMA journal_mode=WAL."
+        },
+        {
+          "order": 5,
+          "actor": "Service",
+          "action": "Проверка наличия пароля",
+          "file": "Services/SettingsService.cs",
+          "method": "IsPasswordSet",
+          "notes": "Если PasswordHash пустой — первый запуск, показывается InitialSetupView."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Настройка пароля и секретного вопроса",
+          "file": "ViewModels/InitialSetupViewModel.cs",
+          "method": "ContinueAsync",
+          "notes": "Пользователь задаёт пароль, выбирает/вводит секретный вопрос и ответ. Хешируются через PasswordService."
+        },
+        {
+          "order": 7,
+          "actor": "ViewModel",
+          "action": "Сохранение пароля в настройках",
+          "file": "Services/SettingsService.cs",
+          "method": "SetPasswordAsync",
+          "notes": "Сохраняет PasswordHash, SecurityQuestionId, SecurityAnswerHash, CustomSecurityQuestion."
+        },
+        {
+          "order": 8,
+          "actor": "UI",
+          "action": "Открытие главного окна",
+          "file": "App.xaml.cs",
+          "method": "OnStartup",
+          "notes": "Создаётся MainWindow через DI и вызывается Show()."
+        },
+        {
+          "order": 9,
+          "actor": "ViewModel",
+          "action": "Инициализация главного окна",
+          "file": "ViewModels/MainWindowViewModel.cs",
+          "method": ".ctor",
+          "notes": "Загружает настройки, подписывается на навигацию, запускает автоблокировку и сразу переходит на Dashboard."
+        }
+      ]
+    },
+    {
+      "name": "Добавление операции (с дашборда)",
+      "trigger": "Пользователь нажимает кнопку «+» на главном экране",
+      "servicesInvolved": [
+        "DashboardTransactionCoordinator",
+        "TransactionEditViewModelFactory",
+        "TransactionService",
+        "CategoryService",
+        "CreditCardService",
+        "CounterpartyService",
+        "SettingsService",
+        "DialogService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "DashboardViewModel",
+        "TransactionEditViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Нажатие кнопки добавления операции",
+          "file": "Views/DashboardView.xaml",
+          "method": "Command binding",
+          "notes": "Кнопка привязана к DashboardViewModel.OpenAddTransactionCommand."
+        },
+        {
+          "order": 2,
+          "actor": "ViewModel",
+          "action": "Открытие формы добавления",
+          "file": "ViewModels/DashboardViewModel.cs",
+          "method": "OpenAddTransaction",
+          "notes": "Формируются callbacks OnSaved / OnSavedKeepOpen / OnCancelled и вызывается DashboardTransactionCoordinator.OpenAdd."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Создание ViewModel операции через фабрику",
+          "file": "Services/Transactions/TransactionEditViewModelFactory.cs",
+          "method": "CreateForAdd",
+          "notes": "Фабрика инжектирует все зависимости и вызывает vm.InitializeForAdd()."
+        },
+        {
+          "order": 4,
+          "actor": "ViewModel",
+          "action": "Инициализация полей для новой операции",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "InitializeForAdd",
+          "notes": "Сбрасываются сумма, описание, тип по умолчанию из SettingsService, тип оплаты Cash."
+        },
+        {
+          "order": 5,
+          "actor": "ViewModel",
+          "action": "Загрузка справочников",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "LoadCategoriesAsync / LoadCreditCardsAsync / LoadCounterpartiesAsync",
+          "notes": "Асинхронно подгружаются категории, активные кредитные карты и контрагенты."
+        },
+        {
+          "order": 6,
+          "actor": "User",
+          "action": "Выбор категории, типа оплаты, кредитной карты / контрагента, ввод суммы и описания",
+          "file": "Views/TransactionEditView.xaml",
+          "method": "Data bindings",
+          "notes": "При выборе PaymentType.CreditCard показывается селектор карты; при PaymentType.Debt — селектор контрагента."
+        },
+        {
+          "order": 7,
+          "actor": "ViewModel",
+          "action": "Валидация полей перед сохранением",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "SaveAsync",
+          "notes": "Проверяются сумма (>0), категория, кредитная карта (если нужна), контрагент (если долг), длина описания."
+        },
+        {
+          "order": 8,
+          "actor": "ViewModel",
+          "action": "Вызов сервиса сохранения операции",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "SaveAsync",
+          "notes": "Создаётся объект Transaction и вызывается TransactionService.AddAsync."
+        },
+        {
+          "order": 9,
+          "actor": "Service",
+          "action": "Сохранение операции в БД",
+          "file": "Services/TransactionService.cs",
+          "method": "AddAsync",
+          "notes": "Выполняется в транзакции. Для долговой операции устанавливается DebtStatus.Active; для кредитной карты создаётся CreditCardPurchase."
+        },
+        {
+          "order": 10,
+          "actor": "Service",
+          "action": "Уведомление об изменении данных",
+          "file": "Services/IDataChangeService.cs",
+          "method": "NotifyDataChanged",
+          "notes": "Вызывается из callback-а OnSaved для инвалидации кэшей других экранов."
+        },
+        {
+          "order": 11,
+          "actor": "ViewModel",
+          "action": "Оптимистичное обновление UI",
+          "file": "ViewModels/DashboardViewModel.cs",
+          "method": "ApplyOptimisticAdd",
+          "notes": "Операция сразу появляется в списке и сводке до полной перезагрузки."
+        },
+        {
+          "order": 12,
+          "actor": "ViewModel",
+          "action": "Полная перезагрузка данных дашборда",
+          "file": "ViewModels/DashboardViewModel.cs",
+          "method": "LoadDataAsync",
+          "notes": "Загружает актуальные данные через DashboardService и перерисовывает график."
+        }
+      ]
+    },
+    {
+      "name": "Добавление операции (из экрана операций)",
+      "trigger": "Пользователь нажимает кнопку «Добавить» на экране операций",
+      "servicesInvolved": [
+        "TransactionEditViewModelFactory",
+        "TransactionService",
+        "CategoryService",
+        "CreditCardService",
+        "CounterpartyService",
+        "SettingsService",
+        "DialogService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "TransactionsViewModel",
+        "TransactionEditViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Нажатие кнопки «Добавить»",
+          "file": "Views/TransactionsView.xaml",
+          "method": "Command binding",
+          "notes": "Кнопка привязана к TransactionsViewModel.AddCommand."
+        },
+        {
+          "order": 2,
+          "actor": "ViewModel",
+          "action": "Создание редактора операции",
+          "file": "ViewModels/TransactionsViewModel.cs",
+          "method": "AddTransaction",
+          "notes": "Напрямую вызывает TransactionEditViewModelFactory.CreateForAdd() и настраивает callbacks."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Фабрика создаёт TransactionEditViewModel",
+          "file": "Services/Transactions/TransactionEditViewModelFactory.cs",
+          "method": "CreateForAdd",
+          "notes": "Аналогично дашборду, но без DashboardTransactionCoordinator."
+        },
+        {
+          "order": 4,
+          "actor": "ViewModel",
+          "action": "Открытие модального окна",
+          "file": "ViewModels/TransactionsViewModel.cs",
+          "method": "AddTransaction",
+          "notes": "IsModalOpen = true, EditViewModel = vm."
+        },
+        {
+          "order": 5,
+          "actor": "User",
+          "action": "Заполнение полей операции",
+          "file": "Views/TransactionEditView.xaml",
+          "method": "Data bindings",
+          "notes": "Сумма, категория, тип оплаты, кредитная карта/контрагент, описание."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Сохранение операции",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "SaveAsync",
+          "notes": "Валидация и вызов TransactionService.AddAsync."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Сохранение в БД",
+          "file": "Services/TransactionService.cs",
+          "method": "AddAsync",
+          "notes": "Soft-delete-операции. Для кредитки создаётся CreditCardPurchase, для долга — DebtStatus.Active."
+        },
+        {
+          "order": 8,
+          "actor": "ViewModel",
+          "action": "Оптимистичное добавление в список",
+          "file": "ViewModels/TransactionsViewModel.cs",
+          "method": "OptimisticAddTransaction",
+          "notes": "Вставляет операцию в начало Transactions и увеличивает TotalCount."
+        },
+        {
+          "order": 9,
+          "actor": "ViewModel",
+          "action": "Перегруппировка и перезагрузка",
+          "file": "ViewModels/TransactionsViewModel.cs",
+          "method": "RefreshGroupsAsync / LoadDataAsync",
+          "notes": "Обновляет сгруппированный список и итоги, вызывает DataChangeService.NotifyDataChanged."
+        }
+      ]
+    },
+    {
+      "name": "Погашение кредитной карты",
+      "trigger": "Пользователь выбирает кредитную карту и нажимает «Погасить»",
+      "servicesInvolved": [
+        "CreditCardService",
+        "CreditCardOperationHelper",
+        "DialogService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "CreditCardsViewModel",
+        "CreditCardRepaymentViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Открытие экрана кредитных карт и выбор карты",
+          "file": "Views/CreditCardsView.xaml",
+          "method": "SelectionChanged",
+          "notes": "CreditCardsViewModel загружает список карт и метрики в OnNavigatedTo / LoadCardsAsync."
+        },
+        {
+          "order": 2,
+          "actor": "User",
+          "action": "Нажатие кнопки «Погасить»",
+          "file": "Views/CreditCardsView.xaml",
+          "method": "Command binding",
+          "notes": "Команда доступна только если SelectedCardItem.CurrentDebt > 0."
+        },
+        {
+          "order": 3,
+          "actor": "ViewModel",
+          "action": "Открытие формы погашения",
+          "file": "ViewModels/CreditCardsViewModel.cs",
+          "method": "OpenRepayCard",
+          "notes": "Создаёт CreditCardRepaymentViewModel, настраивает OnSaved/OnCancelled и вызывает InitializeAsync."
+        },
+        {
+          "order": 4,
+          "actor": "ViewModel",
+          "action": "Инициализация формы",
+          "file": "ViewModels/CreditCardRepaymentViewModel.cs",
+          "method": "InitializeAsync",
+          "notes": "Загружает текущий долг через CreditCardService.GetCurrentDebtAsync, по умолчанию сумма равна долгу."
+        },
+        {
+          "order": 5,
+          "actor": "User",
+          "action": "Ввод суммы, типа оплаты, даты и описания",
+          "file": "Views/CreditCardRepaymentView.xaml",
+          "method": "Data bindings",
+          "notes": "Сумма ограничена текущим долгом, дата не может быть в будущем."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Валидация и вызов сервиса",
+          "file": "ViewModels/CreditCardRepaymentViewModel.cs",
+          "method": "RepayAsync",
+          "notes": "Проверяет сумму и дату, затем вызывает CreditCardService.RepayDebtAsync."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Создание операции-погашения",
+          "file": "Services/CreditCardService.cs",
+          "method": "RepayDebtAsync",
+          "notes": "Создаёт Expense-операцию в категории «Погашение кредита» с выбранным типом оплаты."
+        },
+        {
+          "order": 8,
+          "actor": "Service",
+          "action": "Распределение суммы по покупкам FIFO",
+          "file": "Services/CreditCardOperationHelper.cs",
+          "method": "DistributeRepaymentAsync",
+          "notes": "Погашает самые ранние CreditCardPurchase с ненулевым RemainingDebt, создаёт записи CreditCardPayment."
+        },
+        {
+          "order": 9,
+          "actor": "Service",
+          "action": "Сохранение изменений",
+          "file": "Services/CreditCardService.cs",
+          "method": "RepayDebtAsync",
+          "notes": "SaveChanges фиксирует операцию и распределение в одной транзакции."
+        },
+        {
+          "order": 10,
+          "actor": "ViewModel",
+          "action": "Обновление UI",
+          "file": "ViewModels/CreditCardsViewModel.cs",
+          "method": "OnSaved callback",
+          "notes": "Закрывает модалку, перезагружает список карт и покупки, вызывает DataChangeService.NotifyDataChanged."
+        }
+      ]
+    },
+    {
+      "name": "Работа с долгами (создание и погашение)",
+      "trigger": "Пользователь создаёт долговую операцию и позже погашает её",
+      "servicesInvolved": [
+        "TransactionService",
+        "DebtService",
+        "DialogService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "TransactionEditViewModel",
+        "DebtRepaymentViewModel",
+        "CounterpartiesViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Создание операции с типом оплаты «Долг»",
+          "file": "Views/TransactionEditView.xaml",
+          "method": "Data bindings",
+          "notes": "Пользователь выбирает PaymentType.Debt и контрагента."
+        },
+        {
+          "order": 2,
+          "actor": "ViewModel",
+          "action": "Сохранение долговой операции",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "SaveAsync",
+          "notes": "Валидация контрагента и вызов TransactionService.AddAsync."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Создание долга в БД",
+          "file": "Services/TransactionService.cs",
+          "method": "AddAsync",
+          "notes": "Для PaymentType.Debt устанавливается DebtStatus.Active. Долг не влияет на фактический баланс."
+        },
+        {
+          "order": 4,
+          "actor": "User",
+          "action": "Открытие формы погашения долга",
+          "file": "Views/CounterpartiesView.xaml / Views/DebtRepaymentView.xaml",
+          "method": "Command binding",
+          "notes": "Пользователь выбирает активный долг и нажимает «Погасить»."
+        },
+        {
+          "order": 5,
+          "actor": "ViewModel",
+          "action": "Инициализация формы погашения",
+          "file": "ViewModels/DebtRepaymentViewModel.cs",
+          "method": "Initialize",
+          "notes": "По умолчанию сумма равна остатку долга (DebtItem.RemainingAmount)."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Валидация и погашение",
+          "file": "ViewModels/DebtRepaymentViewModel.cs",
+          "method": "RepayAsync",
+          "notes": "Проверяет сумму и дату, вызывает DebtService.RepayAsync."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Создание операции-погашения",
+          "file": "Services/DebtService.cs",
+          "method": "RepayAsync",
+          "notes": "Создаёт обычную операцию с тем же Type, что и долг, и выбранным PaymentType."
+        },
+        {
+          "order": 8,
+          "actor": "Service",
+          "action": "Связь погашения с долгом",
+          "file": "Services/DebtService.cs",
+          "method": "RepayAsync",
+          "notes": "Добавляет запись DebtPayment и пересчитывает статус долга (Active / Repaid)."
+        },
+        {
+          "order": 9,
+          "actor": "ViewModel",
+          "action": "Уведомление и обновление экрана",
+          "file": "ViewModels/DebtRepaymentViewModel.cs",
+          "method": "RepayAsync",
+          "notes": "Toast «Погашение создано», DataChangeService.NotifyDataChanged, OnSaved callback."
+        }
+      ]
+    },
+    {
+      "name": "Формирование и экспорт отчёта",
+      "trigger": "Пользователь открывает экран отчётов и выбирает «Баланс за период»",
+      "servicesInvolved": [
+        "ReportService",
+        "ExportService",
+        "CreditCardService",
+        "SettingsService",
+        "DialogService"
+      ],
+      "viewModelsInvolved": [
+        "ReportsViewModel",
+        "BalanceReportViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Переход в раздел «Отчёты»",
+          "file": "Views/ReportsView.xaml",
+          "method": "Navigation",
+          "notes": "MainWindowViewModel.NavigateToReportsCommand -> NavigationService.NavigateTo<ReportsViewModel>."
+        },
+        {
+          "order": 2,
+          "actor": "User",
+          "action": "Выбор отчёта «Баланс за период»",
+          "file": "Views/ReportsView.xaml",
+          "method": "Command binding",
+          "notes": "ReportsViewModel открывает BalanceReportViewModel через ReportViewModelFactory."
+        },
+        {
+          "order": 3,
+          "actor": "ViewModel",
+          "action": "Выбор периода отчёта",
+          "file": "ViewModels/Reports/BalanceReportViewModel.cs",
+          "method": "GenerateCommand",
+          "notes": "Пользователь задаёт DateFrom / DateTo (или пресет) и нажимает «Сформировать»."
+        },
+        {
+          "order": 4,
+          "actor": "Service",
+          "action": "Формирование отчёта",
+          "file": "Services/ReportService.cs",
+          "method": "GenerateBalanceReportAsync",
+          "notes": "SQL-агрегация доходов/расходов, начальный баланс, ежедневные остатки, активные долги и кредитный долг."
+        },
+        {
+          "order": 5,
+          "actor": "Service",
+          "action": "Получение данных по кредитным картам",
+          "file": "Services/CreditCardService.cs",
+          "method": "GetTotalDebtAsync / GetNextPaymentDateAsync / GetMinimumPaymentAsync",
+          "notes": "Используется внутри ReportService для расчёта кредитных обязательств."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Отображение отчёта",
+          "file": "ViewModels/Reports/BalanceReportViewModel.cs",
+          "method": "ApplyReport",
+          "notes": "Заполняются свойства для сводки, графика и таблицы по дням."
+        },
+        {
+          "order": 7,
+          "actor": "User",
+          "action": "Нажатие «Экспорт PDF» или «Экспорт Excel»",
+          "file": "Views/Reports/BalanceReportView.xaml",
+          "method": "Command binding",
+          "notes": "BalanceReportViewModel.ExportToPdfCommand / ExportToExcelCommand."
+        },
+        {
+          "order": 8,
+          "actor": "Service",
+          "action": "Экспорт в PDF",
+          "file": "Services/ExportService.cs",
+          "method": "ExportBalanceReportToPdfAsync",
+          "notes": "QuestPDF формирует документ A4 со сводкой и таблицей по дням в папку Documents/AutoKassa/Exports."
+        },
+        {
+          "order": 9,
+          "actor": "Service",
+          "action": "Экспорт в Excel",
+          "file": "Services/ExportService.cs",
+          "method": "ExportBalanceReportToExcelAsync",
+          "notes": "ClosedXML создаёт .xlsx с форматированием и автошириной колонок."
+        },
+        {
+          "order": 10,
+          "actor": "Helper",
+          "action": "Открытие файла",
+          "file": "Helpers/FileLauncher.cs",
+          "method": "OpenExportedFile",
+          "notes": "ViewModel открывает файл после успешного экспорта через ProcessStartInfo с проверкой расширения."
+        }
+      ]
+    },
+    {
+      "name": "Смена настроек и резервное копирование",
+      "trigger": "Пользователь открывает «Настройки», изменяет параметры и/или управляет бэкапами",
+      "servicesInvolved": [
+        "SettingsService",
+        "SettingsMapper",
+        "SettingsValidator",
+        "CreditCardSettingsService",
+        "BackupCoordinator",
+        "AppInfoService",
+        "CategoryService",
+        "DialogService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "SettingsViewModel",
+        "ChangePasswordViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Открытие настроек",
+          "file": "Views/SettingsView.xaml",
+          "method": "Navigation",
+          "notes": "MainWindowViewModel.NavigateToSettingsCommand."
+        },
+        {
+          "order": 2,
+          "actor": "ViewModel",
+          "action": "Загрузка текущих настроек",
+          "file": "ViewModels/SettingsViewModel.cs",
+          "method": "LoadSettingsAsync",
+          "notes": "Получает AppSettings через SettingsService, маппит в свойства через SettingsMapper, загружает категории и данные «О программе»."
+        },
+        {
+          "order": 3,
+          "actor": "User",
+          "action": "Изменение параметров",
+          "file": "Views/SettingsView.xaml",
+          "method": "Data bindings",
+          "notes": "Автоблокировка, начальный баланс, категории по умолчанию, путь бэкапа и т.д."
+        },
+        {
+          "order": 4,
+          "actor": "ViewModel",
+          "action": "Сохранение настроек",
+          "file": "ViewModels/SettingsViewModel.cs",
+          "method": "SaveAsync",
+          "notes": "Валидация через SettingsValidator, маппинг обратно в AppSettings."
+        },
+        {
+          "order": 5,
+          "actor": "Service",
+          "action": "Сохранение в БД",
+          "file": "Services/SettingsService.cs",
+          "method": "SaveSettingsAsync",
+          "notes": "Обновляет запись AppSettings (Id=1) и кеш _cachedSettings."
+        },
+        {
+          "order": 6,
+          "actor": "Service",
+          "action": "Синхронизация настроек кредитной карты",
+          "file": "Services/CreditCards/CreditCardSettingsService.cs",
+          "method": "SyncFromSettingsAsync",
+          "notes": "Синхронизирует InitialDebt / Limit / PaymentDay из AppSettings в карту по умолчанию."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Уведомление подписчиков",
+          "file": "Services/IDataChangeService.cs",
+          "method": "NotifyDataChanged",
+          "notes": "Инвалидирует кэши других ViewModel, чтобы они перезагрузились с новыми настройками."
+        },
+        {
+          "order": 8,
+          "actor": "User",
+          "action": "Нажатие «Создать резервную копию»",
+          "file": "Views/SettingsView.xaml",
+          "method": "Command binding",
+          "notes": "SettingsViewModel.CreateBackupCommand."
+        },
+        {
+          "order": 9,
+          "actor": "Service",
+          "action": "Создание бэкапа",
+          "file": "Services/Backup/BackupCoordinator.cs",
+          "method": "CreateBackupAsync",
+          "notes": "Если путь не задан — открывает диалог выбора папки."
+        },
+        {
+          "order": 10,
+          "actor": "Service",
+          "action": "Копирование БД через SQLite Online Backup API",
+          "file": "Services/SettingsService.cs",
+          "method": "CreateBackupAsync",
+          "notes": "Использует SqliteConnection.BackupDatabase, не закрывая соединения."
+        },
+        {
+          "order": 11,
+          "actor": "User",
+          "action": "Нажатие «Восстановить из резервной копии»",
+          "file": "Views/SettingsView.xaml",
+          "method": "Command binding",
+          "notes": "SettingsViewModel.RestoreBackupCommand."
+        },
+        {
+          "order": 12,
+          "actor": "Service",
+          "action": "Восстановление БД",
+          "file": "Services/Backup/BackupCoordinator.cs",
+          "method": "RestoreBackupAsync",
+          "notes": "Открывает диалог выбора .db-файла."
+        },
+        {
+          "order": 13,
+          "actor": "Service",
+          "action": "Замена файла БД и применение миграций",
+          "file": "Services/SettingsService.cs",
+          "method": "RestoreBackupAsync",
+          "notes": "SqliteConnection.ClearAllPools, File.Copy, затем MigrateAsync. Приложение перезапускается."
+        }
+      ]
+    },
+    {
+      "name": "Автоблокировка и восстановление пароля",
+      "trigger": "Истечение таймаута неактивности или ручная блокировка",
+      "notes": "PasswordRecoveryViewModel не используется; в LockScreenView.xaml реализована заглушка восстановления пароля (ответ не проверяется, сброс пароля не производится).",
+      "servicesInvolved": [
+        "LockService",
+        "PasswordService",
+        "SettingsService",
+        "DialogService"
+      ],
+      "viewModelsInvolved": [
+        "MainWindowViewModel",
+        "LockScreenViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "ViewModel",
+          "action": "Запуск таймера автоблокировки",
+          "file": "ViewModels/MainWindowViewModel.cs",
+          "method": ".ctor",
+          "notes": "Вызывает _lockService.StartAutoLockTimer()."
+        },
+        {
+          "order": 2,
+          "actor": "Service",
+          "action": "Настройка таймера",
+          "file": "Services/LockService.cs",
+          "method": "StartAutoLockTimer",
+          "notes": "Интервал берётся из SettingsService.GetAutoLockTimeout()."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Срабатывание таймера",
+          "file": "Services/LockService.cs",
+          "method": "AutoLockTimer_Tick",
+          "notes": "Останавливает таймер и вызывает Lock()."
+        },
+        {
+          "order": 4,
+          "actor": "Service",
+          "action": "Блокировка приложения",
+          "file": "Services/LockService.cs",
+          "method": "Lock",
+          "notes": "Создаёт LockScreenViewModel и показывает LockScreenView через DialogService.ShowLockScreen."
+        },
+        {
+          "order": 5,
+          "actor": "User",
+          "action": "Ввод пароля",
+          "file": "Views/LockScreenView.xaml",
+          "method": "Data binding",
+          "notes": "Пользователь вводит пароль и нажимает «Разблокировать»."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Проверка пароля",
+          "file": "ViewModels/LockScreenViewModel.cs",
+          "method": "Unlock",
+          "notes": "Сравнивает введённый пароль с PasswordHash через PasswordService.VerifyPassword."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Верификация пароля",
+          "file": "Services/PasswordService.cs",
+          "method": "VerifyPassword",
+          "notes": "BCrypt-проверка."
+        },
+        {
+          "order": 8,
+          "actor": "Service",
+          "action": "Сброс таймера при успехе",
+          "file": "Services/LockService.cs",
+          "method": "ResetAutoLockTimer",
+          "notes": "При неудаче — анимация тряски и сообщение об ошибке. Кнопка «Забыли пароль?» — заглушка, PasswordRecoveryViewModel не задействован."
+        }
+      ]
+    },
+    {
+      "name": "Удаление операции с undo",
+      "trigger": "Пользователь нажимает «Удалить» у операции",
+      "servicesInvolved": [
+        "DashboardTransactionCoordinator",
+        "TransactionService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "DashboardViewModel",
+        "TransactionsViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Выбор операции и нажатие «Удалить»",
+          "file": "Views/DashboardView.xaml / Views/TransactionsView.xaml",
+          "method": "Command binding",
+          "notes": "DashboardViewModel.DeleteTransactionCommand или TransactionsViewModel.DeleteCommand."
+        },
+        {
+          "order": 2,
+          "actor": "ViewModel",
+          "action": "Вызов координатора удаления",
+          "file": "ViewModels/DashboardViewModel.cs",
+          "method": "DeleteTransactionAsync",
+          "notes": "Для дашборда — через DashboardTransactionCoordinator.DeleteAsync."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Soft-delete операции",
+          "file": "Services/TransactionService.cs",
+          "method": "DeleteAsync",
+          "notes": "Устанавливает IsDeleted = true. Удаляет связанную CreditCardPurchase, при необходимости пересчитывает долги."
+        },
+        {
+          "order": 4,
+          "actor": "Service",
+          "action": "Показ toast-уведомления с отменой",
+          "file": "Services/ToastNotificationService.cs",
+          "method": "ShowDeleteWithUndo",
+          "notes": "Сообщение «Операция удалена» с кнопкой «Отменить» и callback-восстановлением."
+        },
+        {
+          "order": 5,
+          "actor": "ViewModel",
+          "action": "Обновление UI",
+          "file": "ViewModels/DashboardViewModel.cs",
+          "method": "DeleteTransactionAsync",
+          "notes": "Удаляет операцию из RecentTransactions и вызывает LoadDataAsync."
+        },
+        {
+          "order": 6,
+          "actor": "User",
+          "action": "Нажатие «Отменить» в toast",
+          "file": "Views/ToastOverlayView.xaml",
+          "method": "Command binding",
+          "notes": "Пользователь успевает нажать до исчезновения уведомления."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Восстановление операции",
+          "file": "Services/TransactionService.cs",
+          "method": "RestoreAsync",
+          "notes": "Снимает IsDeleted, восстанавливает CreditCardPurchase / CreditCardPayment / DebtPayment и пересчитывает статусы."
+        },
+        {
+          "order": 8,
+          "actor": "ViewModel",
+          "action": "Перезагрузка данных",
+          "file": "ViewModels/DashboardViewModel.cs",
+          "method": "LoadDataAsync",
+          "notes": "Обновляет список и сводку после восстановления."
+        }
+      ]
+    }
+  ]
+}

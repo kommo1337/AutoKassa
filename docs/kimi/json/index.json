@@ -1,0 +1,120 @@
+{
+  "project": "AutoKassa",
+  "version": "1.2.0",
+  "documentationRoot": "docs/kimi",
+  "entryPoints": {
+    "kimi": "docs/kimi/kimi.md",
+    "principles": "docs/kimi/PRINCIPLES.md",
+    "traps": "docs/kimi/TRAPS.md",
+    "index": "docs/kimi/INDEX.md"
+  },
+  "structure": [
+    {
+      "id": "entry",
+      "title": "Точка входа и правила",
+      "files": [
+        { "id": "kimi", "file": "docs/kimi/kimi.md", "purpose": "Главная точка входа" },
+        { "id": "principles", "file": "docs/kimi/PRINCIPLES.md", "purpose": "Принципы правильного кода" },
+        { "id": "traps", "file": "docs/kimi/TRAPS.md", "purpose": "Запреты и ловушки" }
+      ]
+    },
+    {
+      "id": "json",
+      "title": "JSON-справочники",
+      "files": [
+        { "id": "index-json", "file": "docs/kimi/json/index.json", "purpose": "Навигация по документации" },
+        { "id": "metadata", "file": "docs/kimi/json/metadata.json", "purpose": "Метаданные проекта" },
+        { "id": "models", "file": "docs/kimi/json/models.json", "purpose": "Сущности базы данных" },
+        { "id": "services", "file": "docs/kimi/json/services.json", "purpose": "Сервисы приложения" },
+        { "id": "enums", "file": "docs/kimi/json/enums.json", "purpose": "Перечисления" },
+        { "id": "viewmodels", "file": "docs/kimi/json/viewmodels.json", "purpose": "ViewModels" },
+        { "id": "relationships", "file": "docs/kimi/json/relationships.json", "purpose": "Граф связей" },
+        { "id": "flows", "file": "docs/kimi/json/flows.json", "purpose": "Пользовательские сценарии" },
+        { "id": "traps-json", "file": "docs/kimi/json/traps.json", "purpose": "Запреты в машиночитаемом виде" }
+      ]
+    },
+    {
+      "id": "markdown",
+      "title": "Markdown-описания",
+      "files": [
+        { "id": "quickstart", "file": "docs/kimi/00-quickstart.md", "purpose": "5-минутный обзор" },
+        { "id": "overview", "file": "docs/kimi/01-overview.md", "purpose": "Общее описание" },
+        { "id": "architecture", "file": "docs/kimi/02-architecture.md", "purpose": "Архитектура" },
+        { "id": "database", "file": "docs/kimi/03-database.md", "purpose": "База данных" },
+        { "id": "models-md", "file": "docs/kimi/04-models.md", "purpose": "Модели" },
+        { "id": "services-md", "file": "docs/kimi/05-services.md", "purpose": "Сервисы" },
+        { "id": "business-logic", "file": "docs/kimi/06-business-logic.md", "purpose": "Бизнес-логика" },
+        { "id": "viewmodels-md", "file": "docs/kimi/07-viewmodels.md", "purpose": "ViewModels" },
+        { "id": "views", "file": "docs/kimi/08-views.md", "purpose": "Views" },
+        { "id": "flows-md", "file": "docs/kimi/09-flows.md", "purpose": "Сценарии" },
+        { "id": "reports", "file": "docs/kimi/10-reports.md", "purpose": "Отчёты" },
+        { "id": "settings-security", "file": "docs/kimi/11-settings-security.md", "purpose": "Настройки и безопасность" },
+        { "id": "tests", "file": "docs/kimi/12-tests.md", "purpose": "Тесты" },
+        { "id": "conventions", "file": "docs/kimi/13-conventions.md", "purpose": "Соглашения" }
+      ]
+    }
+  ],
+  "keywords": [
+    { "term": "Transaction", "files": ["docs/kimi/04-models.md", "docs/kimi/json/models.json"] },
+    { "term": "Category", "files": ["docs/kimi/04-models.md", "docs/kimi/json/models.json"] },
+    { "term": "Counterparty", "files": ["docs/kimi/04-models.md", "docs/kimi/json/models.json"] },
+    { "term": "CreditCard", "files": ["docs/kimi/04-models.md", "docs/kimi/json/models.json"] },
+    { "term": "Debt", "files": ["docs/kimi/06-business-logic.md", "docs/kimi/json/flows.json"] },
+    { "term": "DebtReport", "files": ["docs/kimi/04-models.md", "docs/kimi/json/models.json"] },
+    { "term": "ReconciliationData", "files": ["docs/kimi/04-models.md", "docs/kimi/json/models.json"] },
+    { "term": "TransactionService", "files": ["docs/kimi/05-services.md", "docs/kimi/json/services.json"] },
+    { "term": "CreditCardOperationHelper", "files": ["docs/kimi/05-services.md", "docs/kimi/json/services.json"] },
+    { "term": "ReportService", "files": ["docs/kimi/05-services.md", "docs/kimi/json/services.json"] },
+    { "term": "DashboardViewModel", "files": ["docs/kimi/07-viewmodels.md", "docs/kimi/json/relationships.json"] },
+    { "term": "MVVM", "files": ["docs/kimi/02-architecture.md", "docs/kimi/PRINCIPLES.md"] },
+    { "term": "DI", "files": ["docs/kimi/02-architecture.md", "docs/kimi/PRINCIPLES.md"] },
+    { "term": "SoftDelete", "files": ["docs/kimi/03-database.md", "docs/kimi/TRAPS.md"] },
+    { "term": "Export", "files": ["docs/kimi/10-reports.md", "docs/kimi/json/flows.json"] }
+  ],
+  "iNeedTo": [
+    {
+      "task": "Быстро понять проект",
+      "read": ["docs/kimi/00-quickstart.md", "docs/kimi/01-overview.md"]
+    },
+    {
+      "task": "Добавить новый экран",
+      "read": ["docs/kimi/PRINCIPLES.md", "docs/kimi/00-quickstart.md", "docs/kimi/json/relationships.json"]
+    },
+    {
+      "task": "Добавить новую сущность",
+      "read": ["docs/kimi/PRINCIPLES.md", "docs/kimi/04-models.md", "docs/kimi/json/models.json", "docs/kimi/03-database.md"]
+    },
+    {
+      "task": "Добавить новый сервис",
+      "read": ["docs/kimi/PRINCIPLES.md", "docs/kimi/05-services.md", "docs/kimi/json/services.json", "docs/kimi/json/relationships.json"]
+    },
+    {
+      "task": "Исправить баг в операциях",
+      "read": ["docs/kimi/TRAPS.md", "docs/kimi/06-business-logic.md", "docs/kimi/json/services.json"]
+    },
+    {
+      "task": "Понять зависимости сервиса",
+      "read": ["docs/kimi/json/relationships.json", "docs/kimi/05-services.md"]
+    },
+    {
+      "task": "Разобраться с отчётами",
+      "read": ["docs/kimi/10-reports.md", "docs/kimi/json/viewmodels.json"]
+    },
+    {
+      "task": "Разобраться с кредитками / долгами",
+      "read": ["docs/kimi/TRAPS.md", "docs/kimi/06-business-logic.md", "docs/kimi/json/flows.json"]
+    },
+    {
+      "task": "Настроить backup / безопасность",
+      "read": ["docs/kimi/11-settings-security.md", "docs/kimi/json/services.json"]
+    },
+    {
+      "task": "Писать или исправить тесты",
+      "read": ["docs/kimi/12-tests.md", "docs/kimi/PRINCIPLES.md"]
+    },
+    {
+      "task": "Настроить UI / стили / конвертеры",
+      "read": ["docs/kimi/08-views.md", "docs/kimi/13-conventions.md"]
+    }
+  ]
+}

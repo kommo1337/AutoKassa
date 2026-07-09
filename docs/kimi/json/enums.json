@@ -1,0 +1,217 @@
+{
+  "lastUpdated": "2026-07-06",
+  "enums": [
+    {
+      "name": "OperationType",
+      "file": "AutoKassa/Models/Enums/OperationType.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Направление операции: доход или расход.",
+      "values": [
+        { "name": "Income", "value": 1, "description": "Доход" },
+        { "name": "Expense", "value": 2, "description": "Расход" }
+      ],
+      "uiMappings": {
+        "textConverter": "AutoKassa/Helpers/Converters/OperationTypeToTextConverter.cs",
+        "colorConverter": "AutoKassa/Helpers/Converters/OperationTypeToColorConverter.cs",
+        "mappings": [
+          { "value": "Income", "text": "Доход", "color": "#22c55e" },
+          { "value": "Expense", "text": "Расход", "color": "#ef4444" }
+        ]
+      },
+      "usedIn": [
+        "AutoKassa/Models/Transaction.cs",
+        "AutoKassa/Models/Category.cs",
+        "AutoKassa/Services/TransactionService.cs",
+        "AutoKassa/ViewModels/TransactionEditViewModel.cs"
+      ]
+    },
+    {
+      "name": "PaymentType",
+      "file": "AutoKassa/Models/Enums/PaymentType.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Форма оплаты операции.",
+      "values": [
+        { "name": "Cash", "value": 1, "description": "Наличные" },
+        { "name": "NonCash", "value": 2, "description": "Безналичные" },
+        { "name": "CreditCard", "value": 3, "description": "Кредитная карта" },
+        { "name": "Debt", "value": 4, "description": "Долг" }
+      ],
+      "uiMappings": {
+        "textConverter": "AutoKassa/Helpers/Converters/PaymentTypeToTextConverter.cs",
+        "iconConverter": "AutoKassa/Helpers/Converters/PaymentTypeToIconConverter.cs",
+        "mappings": [
+          { "value": "Cash", "text": "Наличные", "icon": "💵" },
+          { "value": "NonCash", "text": "Безналичные", "icon": "💳" },
+          { "value": "CreditCard", "text": "Кредит", "icon": "💳" },
+          { "value": "Debt", "text": "В долг", "icon": "🤝" }
+        ]
+      },
+      "usedIn": [
+        "AutoKassa/Models/Transaction.cs",
+        "AutoKassa/Services/TransactionService.cs",
+        "AutoKassa/ViewModels/TransactionEditViewModel.cs",
+        "AutoKassa/ViewModels/TransactionsViewModel.cs"
+      ]
+    },
+    {
+      "name": "DebtStatus",
+      "file": "AutoKassa/Models/Enums/DebtStatus.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Статус долговой операции.",
+      "values": [
+        { "name": "NotDebt", "value": 0, "description": "Обычная операция (не долг)" },
+        { "name": "Active", "value": 1, "description": "Долг не погашен или погашен частично" },
+        { "name": "Repaid", "value": 2, "description": "Долг погашен полностью" },
+        { "name": "WrittenOff", "value": 3, "description": "Долг списан" }
+      ],
+      "uiMappings": {
+        "textConverter": "AutoKassa/Helpers/Converters/DebtStatusToTextConverter.cs",
+        "colorConverter": "AutoKassa/Helpers/Converters/DebtStatusToColorConverter.cs",
+        "mappings": [
+          { "value": "NotDebt", "text": "—", "color": "#000000" },
+          { "value": "Active", "text": "Активен", "color": "#ffa500" },
+          { "value": "Repaid", "text": "Погашён", "color": "#008000" },
+          { "value": "WrittenOff", "text": "Списан", "color": "#808080" }
+        ]
+      },
+      "usedIn": [
+        "AutoKassa/Models/Transaction.cs",
+        "AutoKassa/Services/DebtService.cs",
+        "AutoKassa/ViewModels/Reports/DebtReportViewModel.cs",
+        "AutoKassa/ViewModels/TransactionsViewModel.cs"
+      ]
+    },
+    {
+      "name": "CounterpartyType",
+      "file": "AutoKassa/Models/Enums/CounterpartyType.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Тип контрагента в справочнике.",
+      "values": [
+        { "name": "Client", "value": 1, "description": "Клиент" },
+        { "name": "Branch", "value": 2, "description": "Филиал" },
+        { "name": "Supplier", "value": 3, "description": "Поставщик" },
+        { "name": "Other", "value": 4, "description": "Прочее" }
+      ],
+      "uiMappings": {
+        "textConverter": "AutoKassa/Helpers/Converters/CounterpartyTypeToTextConverter.cs",
+        "mappings": [
+          { "value": "Client", "text": "Клиент" },
+          { "value": "Branch", "text": "Филиал" },
+          { "value": "Supplier", "text": "Поставщик" },
+          { "value": "Other", "text": "Прочее" }
+        ]
+      },
+      "usedIn": [
+        "AutoKassa/Models/Counterparty.cs",
+        "AutoKassa/ViewModels/CounterpartyEditViewModel.cs",
+        "AutoKassa/ViewModels/CounterpartiesViewModel.cs"
+      ]
+    },
+    {
+      "name": "PeriodType",
+      "file": "AutoKassa/Models/Enums/PeriodType.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Типы периодов для сводки и отчётов.",
+      "values": [
+        { "name": "Today", "value": 0, "description": "Сегодня" },
+        { "name": "Week", "value": 1, "description": "Неделя" },
+        { "name": "Month", "value": 2, "description": "Месяц" },
+        { "name": "Year", "value": 3, "description": "Год" },
+        { "name": "AllTime", "value": 4, "description": "Всё время" },
+        { "name": "Custom", "value": 5, "description": "Произвольный период" }
+      ],
+      "uiMappings": {
+        "mappings": [
+          { "value": "Today", "text": "Сегодня" },
+          { "value": "Week", "text": "Неделя" },
+          { "value": "Month", "text": "Месяц" },
+          { "value": "Year", "text": "Год" },
+          { "value": "AllTime", "text": "Всё время" },
+          { "value": "Custom", "text": "Произвольный период" }
+        ]
+      },
+      "usedIn": [
+        "AutoKassa/Services/Dashboard/DashboardPeriodCoordinator.cs",
+        "AutoKassa/Services/ReportService.cs",
+        "AutoKassa/ViewModels/Reports/BaseReportViewModel.cs",
+        "AutoKassa/Helpers/PeriodHelper.cs"
+      ]
+    },
+    {
+      "name": "SecurityQuestion",
+      "file": "AutoKassa/Models/Enums/SecurityQuestion.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Секретные вопросы для восстановления пароля.",
+      "values": [
+        { "name": "MotherMaidenName", "value": 1, "description": "Девичья фамилия матери" },
+        { "name": "FirstPetName", "value": 2, "description": "Кличка первого домашнего животного" },
+        { "name": "FirstSchoolName", "value": 3, "description": "Название первой школы" },
+        { "name": "FavoriteDish", "value": 4, "description": "Любимое блюдо" },
+        { "name": "CityOfBirth", "value": 5, "description": "Город рождения" },
+        { "name": "Custom", "value": 6, "description": "Свой вопрос (текст хранится в CustomSecurityQuestion)" }
+      ],
+      "uiMappings": null,
+      "usedIn": [
+        "AutoKassa/Models/AppSettings.cs",
+        "AutoKassa/Services/PasswordService.cs",
+        "AutoKassa/ViewModels/InitialSetupViewModel.cs",
+        "AutoKassa/ViewModels/PasswordRecoveryViewModel.cs"
+      ]
+    },
+    {
+      "name": "StartupPage",
+      "file": "AutoKassa/Models/Enums/StartupPage.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Стартовая страница приложения после входа.",
+      "values": [
+        { "name": "Dashboard", "value": 0, "description": "Главная" },
+        { "name": "Operations", "value": 1, "description": "Операции" },
+        { "name": "Reports", "value": 2, "description": "Отчёты" },
+        { "name": "Settings", "value": 3, "description": "Настройки" }
+      ],
+      "uiMappings": null,
+      "usedIn": [
+        "AutoKassa/Models/AppSettings.cs",
+        "AutoKassa/Services/NavigationService.cs"
+      ]
+    },
+    {
+      "name": "ThemeMode",
+      "file": "AutoKassa/Models/Enums/ThemeMode.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Режим темы оформления интерфейса.",
+      "values": [
+        { "name": "Light", "value": 0, "description": "Светлая тема" },
+        { "name": "Dark", "value": 1, "description": "Тёмная тема" }
+      ],
+      "uiMappings": null,
+      "usedIn": [
+        "AutoKassa/Models/AppSettings.cs",
+        "AutoKassa/Services/SettingsService.cs"
+      ]
+    },
+    {
+      "name": "UiDensity",
+      "file": "AutoKassa/Models/Enums/UiDensity.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Плотность отображения интерфейса.",
+      "values": [
+        { "name": "Compact", "value": 0, "description": "Компактная" },
+        { "name": "Comfortable", "value": 1, "description": "Комфортная" }
+      ],
+      "uiMappings": null,
+      "usedIn": [
+        "AutoKassa/Models/AppSettings.cs"
+      ]
+    }
+  ]
+}

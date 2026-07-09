@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Добавлено
+- `tools/DocValidator`: реализованы `ModelValidator` и `ViewModelValidator` для сверки сущностей и ViewModel с JSON-справочниками.
+- Тесты для `ModelScanner`, `ViewModelScanner`, `ModelValidator` и `ViewModelValidator`.
+
+### Исправлено
+- `docs/kimi/json/viewmodels.json`: `DebtRepaymentViewModel` помечен как `registeredInDi: false` (создаётся вручную в `DebtReportViewModel`).
+
 ## [1.2.0] - 2026-06-28
 
 ### Добавлено
