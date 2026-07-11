@@ -14,10 +14,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore dependencies
         run: dotnet restore
@@ -27,3 +27,36 @@ jobs:
 
       - name: Test
         run: dotnet test --configuration Release --verbosity normal
+
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Validate JSON files
+        run: |
+          for file in docs/kimi/json/*.json; do
+            echo "Validating $file"
+            jq empty "$file" || exit 1
+          done
+
+      - name: Run DocValidator
+        run: dotnet run --project tools/DocValidator --configuration Release -- --project-root .
+
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@v1
+        with:
+          args: --offline --no-progress docs/kimi/
+          fail: true

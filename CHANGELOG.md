@@ -9,10 +9,15 @@
 
 ### Добавлено
 - `tools/DocValidator`: реализованы `ModelValidator` и `ViewModelValidator` для сверки сущностей и ViewModel с JSON-справочниками.
+- `tools/DocValidator`: реализован `TrapSyncValidator` для сверки `TRAPS.md` и `json/traps.json`.
 - Тесты для `ModelScanner`, `ViewModelScanner`, `ModelValidator` и `ViewModelValidator`.
+- Тесты для `TrapMarkdownParser` и `TrapSyncValidator`.
+- CI: добавлен job `docs` с запуском `DocValidator`, проверкой JSON (`jq`) и Markdown-ссылок (`lychee`).
 
 ### Исправлено
 - `docs/kimi/json/viewmodels.json`: `DebtRepaymentViewModel` помечен как `registeredInDi: false` (создаётся вручную в `DebtReportViewModel`).
+- `docs/kimi/TRAPS.md`: раздел 5 приведён к формату `### N.N.` для синхронизации с `json/traps.json`.
+- `.github/workflows/ci.yml`: обновлена версия .NET для `build-and-test` с `8.0.x` на `10.0.x`.
 
 ## [1.2.0] - 2026-06-28
 
