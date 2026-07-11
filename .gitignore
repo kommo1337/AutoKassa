@@ -366,7 +366,6 @@ AutoKassa_Portable.zip
 publish_portable/
 
 # Agent instructions
-.kimi/
 .VSCodeCounter/
 
 # Local SQLite databases & backups
