@@ -253,7 +253,7 @@
    - `traps.json` — запреты и ловушки.
 4. Обновить соответствующие Markdown:
    - `04-models.md`, `05-services.md`, `07-viewmodels.md`, `09-flows.md`, `TRAPS.md`.
-5. При наличии запустить `tools/DocValidator`.
+5. Запустить `tools/DocValidator` и убедиться, что все валидаторы проходят.
 6. Запустить `dotnet build` и `dotnet test`.
 
 ### Outputs
@@ -263,6 +263,7 @@
 ### Verification
 - [ ] Все изменённые сущности/сервисы/VM отражены в JSON.
 - [ ] Markdown-описания не противоречат коду.
+- [ ] `tools/DocValidator` проходит без ошибок.
 - [ ] `dotnet build` и `dotnet test` проходят.
 
 ---
@@ -307,4 +308,4 @@
 
 ---
 
-> Последнее обновление: Этап 6 — создание task templates и skills.
+> Последнее обновление: Этап 5 — DocValidator внедрён и интегрирован в процесс обновления документации.

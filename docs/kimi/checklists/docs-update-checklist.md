@@ -31,7 +31,7 @@ Update the corresponding JSON references:
 
 ## Validation
 - [ ] Cross-check docs against actual code.
-- [ ] Run `tools/DocValidator` if available (Stage 5).
+- [ ] Run `tools/DocValidator`.
 - [ ] Run `dotnet build`.
 - [ ] Run `dotnet test`.
 
@@ -39,3 +39,5 @@ Update the corresponding JSON references:
 - [ ] All changed code areas are reflected in JSON docs.
 - [ ] Markdown docs do not contradict code or other docs.
 - [ ] Build and tests pass.
+
+> Последнее обновление: Этап 5 — DocValidator внедрён, `tools/DocValidator/README.md` добавлен.
