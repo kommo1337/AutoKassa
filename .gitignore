@@ -261,6 +261,10 @@ UpgradeLog*.htm
 ServiceFabricBackup/
 *.rptproj.bak
 
+# Исключение: исходники сервисов резервного копирования — часть приложения,
+# а не временные файлы конвертации проекта (правило Backup*/ выше их перехватывает).
+!AutoKassa/Services/Backup/
+
 # SQL Server files
 *.mdf
 *.ldf

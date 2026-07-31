@@ -7,7 +7,7 @@
 ## Before starting
 - [ ] Read [`12-tests.md`](../12-tests.md).
 - [ ] Read [`PRINCIPLES.md`](../PRINCIPLES.md).
-- [ ] Read [`AutoKassa.Tests/Infrastructure/TestDatabase.cs`](../../AutoKassa.Tests/Infrastructure/TestDatabase.cs).
+- [ ] Read [`AutoKassa.Tests/Infrastructure/TestDatabase.cs`](../../../AutoKassa.Tests/Infrastructure/TestDatabase.cs).
 
 ## Test infrastructure
 - [ ] Use `TestDatabase.Create()` when the test needs a raw `AppDbContext`.

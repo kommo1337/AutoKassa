@@ -1,6 +1,6 @@
 # Checklist: Release / publish AutoKassa
 
-> См. также: skill `.kimi/skills/autokassa/SKILL.md`, [`CHANGELOG.md`](../CHANGELOG.md).
+> См. также: skill `.kimi/skills/autokassa/SKILL.md`, [`CHANGELOG.md`](../../../CHANGELOG.md).
 
 ---
 
@@ -21,8 +21,8 @@
 - [ ] Create `AutoKassa_Portable.zip` if required.
 
 ## Documentation and changelog
-- [ ] Update [`CHANGELOG.md`](../CHANGELOG.md) with release notes.
-- [ ] Update [`README.md`](../README.md) if user-facing behavior changed.
+- [ ] Update [`CHANGELOG.md`](../../../CHANGELOG.md) with release notes.
+- [ ] Update [`README.md`](../../../README.md) if user-facing behavior changed.
 - [ ] Update screenshots in `screenshots/` if UI changed significantly.
 
 ## Final checks
