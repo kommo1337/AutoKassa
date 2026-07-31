@@ -9,7 +9,8 @@
       "files": [
         "../../AutoKassa/Views/TransactionsView.xaml.cs",
         "../../AutoKassa/Helpers/RelayCommand.cs"
-      ]
+      ],
+      "tags": ["#mvvm", "#architecture"]
     },
     {
       "category": "Архитектурные запреты",
@@ -19,7 +20,8 @@
       "correct": "Передавай зависимости через конструктор; фабрики получают IServiceProvider явно.",
       "files": [
         "../../AutoKassa/App.xaml.cs"
-      ]
+      ],
+      "tags": ["#architecture"]
     },
     {
       "category": "Архитектурные запреты",
@@ -29,7 +31,8 @@
       "correct": "Используй await _contextFactory.CreateDbContextAsync() и await ...ToListAsync().",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#async", "#ef-core", "#wpf"]
     },
     {
       "category": "Архитектурные запреты",
@@ -39,7 +42,8 @@
       "correct": "Инжектируй сервис и вызывай его методы.",
       "files": [
         "../../AutoKassa/ViewModels/TransactionsViewModel.cs"
-      ]
+      ],
+      "tags": ["#mvvm", "#ef-core"]
     },
     {
       "category": "Архитектурные запреты",
@@ -49,7 +53,30 @@
       "correct": "Используй ленивую загрузку GetSettings() или асинхронный GetSettingsAsync().",
       "files": [
         "../../AutoKassa/Services/SettingsService.cs"
-      ]
+      ],
+      "tags": ["#architecture", "#async"]
+    },
+    {
+      "category": "Архитектурные запреты",
+      "title": "NavigationService передаёт параметр через reflection",
+      "forbidden": "Не полагайся на компилятор при передаче параметра навигации: NavigateTo<TViewModel>(object parameter) ищет метод Initialize по имени через reflection.",
+      "why": "Переименование метода Initialize или изменение его сигнатуры не ловится компилятором: если метод не найден, параметр молча не передаётся; если тип не совпал — исключение в рантайме.",
+      "correct": "Объявляй в целевой ViewModel публичный метод Initialize с одним параметром нужного типа; при рефакторинге ищи все вызовы NavigateTo<T>(parameter).",
+      "files": [
+        "../../AutoKassa/Services/NavigationService.cs"
+      ],
+      "tags": ["#architecture", "#mvvm"]
+    },
+    {
+      "category": "Архитектурные запреты",
+      "title": "DialogService находит View по соглашению имён",
+      "forbidden": "Не нарушай соглашение именования диалогов: ViewModels.X.YViewModel -> Views.X.YView.",
+      "why": "ResolveViewType строит имя View заменой ViewModels -> Views и ViewModel -> View в полном имени типа и ищет его через Type.GetType; при нарушении соглашения диалог падает с InvalidOperationException в рантайме, а не при сборке.",
+      "correct": "Держи диалоговые View и ViewModel в зеркальных пространствах имён и согласованных именах; после переименования проверяй открытие диалога вручную.",
+      "files": [
+        "../../AutoKassa/Services/DialogService.cs"
+      ],
+      "tags": ["#architecture", "#wpf", "#mvvm"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -59,7 +86,8 @@
       "correct": "Устанавливай IsDeleted = true и используй RestoreAsync для отката.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business", "#ef-core"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -70,7 +98,8 @@
       "files": [
         "../../AutoKassa/Services/ReportService.cs",
         "../../AutoKassa/Models/Enums/PaymentType.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -80,7 +109,8 @@
       "correct": "Можно деактивировать (IsActive = false), но не удалять.",
       "files": [
         "../../AutoKassa/Services/CategoryService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -91,7 +121,8 @@
       "files": [
         "../../AutoKassa/Services/AppDbContext.cs",
         "../../AutoKassa/Services/CategoryService.cs"
-      ]
+      ],
+      "tags": ["#business", "#sqlite"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -101,7 +132,8 @@
       "correct": "Сначала измени категорию по умолчанию в настройках.",
       "files": [
         "../../AutoKassa/Services/CategoryService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -111,7 +143,8 @@
       "correct": "Удали старое погашение (soft delete) и создай новое.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -121,7 +154,8 @@
       "correct": "Деактивируй контрагента (IsActive = false).",
       "files": [
         "../../AutoKassa/Services/CounterpartyService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -131,7 +165,8 @@
       "correct": "Сначала удалить (soft delete) все погашения долга.",
       "files": [
         "../../AutoKassa/Services/DebtService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -142,7 +177,8 @@
       "files": [
         "../../AutoKassa/Services/TransactionService.cs",
         "../../AutoKassa/Services/CreditCardService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -152,7 +188,8 @@
       "correct": "Используй Cash или NonCash.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -162,7 +199,8 @@
       "correct": "Сначала погаси долг по карте.",
       "files": [
         "../../AutoKassa/Services/CreditCardService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -172,7 +210,8 @@
       "correct": "Проверяй доступный лимит через GetAvailableLimitAsync до создания операции.",
       "files": [
         "../../AutoKassa/Services/CreditCardOperationHelper.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -183,7 +222,8 @@
       "files": [
         "../../AutoKassa/Services/TransactionService.cs",
         "../../AutoKassa/Services/CreditCardService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -193,7 +233,8 @@
       "correct": "В TransactionFilterParameters установи IsDebtFilter = true, чтобы получить долги.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -203,7 +244,8 @@
       "correct": "Активируй категорию или выбери активную.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -213,7 +255,8 @@
       "correct": "Предупреди пользователя или запрети смену типа, если есть погашения.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business", "#ef-core"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -223,7 +266,8 @@
       "correct": "Рассчитывай остаток через GetRemainingAmountAsync до погашения.",
       "files": [
         "../../AutoKassa/Services/DebtService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -234,7 +278,8 @@
       "files": [
         "../../AutoKassa/Services/CounterpartyService.cs",
         "../../AutoKassa/Services/AppDbContext.cs"
-      ]
+      ],
+      "tags": ["#business", "#sqlite"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -245,7 +290,8 @@
       "files": [
         "../../AutoKassa/Services/CategoryService.cs",
         "../../AutoKassa/Services/AppDbContext.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Бизнес-правила-ловушки",
@@ -255,17 +301,43 @@
       "correct": "При фильтрации по NonCash / CreditCard не учитывай InitialBalance.",
       "files": [
         "../../AutoKassa/Services/ReportService.cs"
-      ]
+      ],
+      "tags": ["#business"]
+    },
+    {
+      "category": "Бизнес-правила-ловушки",
+      "title": "Seed-ID категорий 1–11 зафиксированы миграциями",
+      "forbidden": "Не меняй Id существующих seed-категорий (1–4 — доходы, 5–11 — расходы) и не вставляй новые категории в середину этого диапазона.",
+      "why": "Id 1–11 записаны в миграциях и снапшоте модели; существующие БД уже содержат эти строки, и их изменение приведёт к конфликту данных при миграции.",
+      "correct": "Новые системные категории добавляй отдельной миграцией со свободными Id (12+); список seed-значений — в CONSTANTS.md.",
+      "files": [
+        "../../AutoKassa/Services/AppDbContext.cs"
+      ],
+      "tags": ["#business", "#ef-core"]
+    },
+    {
+      "category": "Бизнес-правила-ловушки",
+      "title": "Категория «Погашение кредита» ищется по имени, а не по Id",
+      "forbidden": "Не переименовывай системную категорию «Погашение кредита» (seed Id = 11) и не зашивай число 11 в новый код.",
+      "why": "Бизнес-логика находит её по имени через константу CreditCardOperationHelper.RepaymentCategoryName (CreditCardService, TransactionService, TransactionEditViewModel); переименование в БД без смены константы сломает учёт погашений. Число 11 встречается только в seed-данных и миграциях.",
+      "correct": "Во всех проверках используй константу RepaymentCategoryName; при необходимости переименования — миграция данных + правка константы + обновление CONSTANTS.md.",
+      "files": [
+        "../../AutoKassa/Services/CreditCardOperationHelper.cs",
+        "../../AutoKassa/Services/CreditCardService.cs",
+        "../../AutoKassa/Services/TransactionService.cs"
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Технические ловушки",
       "title": "SQLite LOWER() не поддерживает кириллицу",
       "forbidden": "Не используй SQL-фильтрацию по Description с LOWER/Contains для кириллицы.",
       "why": "SQLite не применяет LOWER к Unicode; поиск станет некорректным.",
-      "correct": "Фильтруй в памяти после SQL-выборки с ограничением MaxInMemoryFilterLimit.",
+      "correct": "Используй FTS5-поиск через виртуальную таблицу TransactionsFts (MATCH с префиксными фразами из BuildFtsMatchQuery); unicode61 делает регистронезависимый case folding, в т.ч. для кириллицы. Фильтрацию в памяти не применяй.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#sqlite", "#ef-core"]
     },
     {
       "category": "Технические ловушки",
@@ -275,7 +347,8 @@
       "correct": "Устанавливай Category = null; CreditCard = null; Counterparty = null; перед Add.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#ef-core"]
     },
     {
       "category": "Технические ловушки",
@@ -286,17 +359,19 @@
       "files": [
         "../../AutoKassa/Models/AppSettings.cs",
         "../../AutoKassa/Services/SettingsService.cs"
-      ]
+      ],
+      "tags": ["#ef-core", "#business"]
     },
     {
       "category": "Технические ловушки",
-      "title": "Ограничение поиска в памяти MaxInMemoryFilterLimit",
-      "forbidden": "Не загружай неограниченное количество записей для текстового поиска.",
-      "why": "Большая таблица операций может вызвать RAM-всплеск.",
-      "correct": "Используй Take(MaxInMemoryFilterLimit) перед фильтрацией в памяти.",
+      "title": "Поиск по описанию — FTS5 по префиксам слов",
+      "forbidden": "Не фильтруй описания операций в памяти и не рассчитывай на совпадение по подстроке в середине слова.",
+      "why": "Поиск переведён на SQLite FTS5 (виртуальная таблица TransactionsFts, токенизатор unicode61, миграция AddTransactionsFts); MATCH работает по токенам с префиксом: «рем» находит «ремонт», но «ожо» не находит «похоже».",
+      "correct": "Строй MATCH-запрос через BuildFtsMatchQuery (только букво-цифровые токены, в кавычках, с суффиксом *, пробел = AND); синхронизацию TransactionsFts с Transactions обеспечивают триггеры миграции.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#sqlite", "#ef-core"]
     },
     {
       "category": "Технические ловушки",
@@ -306,7 +381,8 @@
       "correct": "При изменении суммы покупки пересчитывай RemainingDebt = max(0, Amount - paid).",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business", "#ef-core"]
     },
     {
       "category": "Технические ловушки",
@@ -317,7 +393,8 @@
       "files": [
         "../../AutoKassa/Services/AppDbContext.cs",
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#ef-core", "#business"]
     },
     {
       "category": "Технические ловушки",
@@ -327,7 +404,8 @@
       "correct": "Изменяй поля и вызывай SaveSettingsAsync(settings), который обновит БД и кеш.",
       "files": [
         "../../AutoKassa/Services/SettingsService.cs"
-      ]
+      ],
+      "tags": ["#architecture"]
     },
     {
       "category": "Технические ловушки",
@@ -337,7 +415,8 @@
       "correct": "Выбирай путь внутри %USERPROFILE% или папки приложения.",
       "files": [
         "../../AutoKassa/Services/SettingsService.cs"
-      ]
+      ],
+      "tags": ["#security"]
     },
     {
       "category": "Технические ловушки",
@@ -347,7 +426,8 @@
       "correct": "Используй RestoreBackupAsync, который очищает пулы, копирует файл и вызывает MigrateAsync.",
       "files": [
         "../../AutoKassa/Services/SettingsService.cs"
-      ]
+      ],
+      "tags": ["#ef-core", "#sqlite", "#security"]
     },
     {
       "category": "Технические ловушки",
@@ -357,7 +437,8 @@
       "correct": "Группируй по CategoryId и бери имя из g.First().Category.",
       "files": [
         "../../AutoKassa/Services/ReportService.cs"
-      ]
+      ],
+      "tags": ["#ef-core", "#sqlite"]
     },
     {
       "category": "Технические ловушки",
@@ -367,7 +448,87 @@
       "correct": "Уважай константы MaxDetailTransactions / MaxCategoryTransactions при кастомных отчётах.",
       "files": [
         "../../AutoKassa/Services/ReportService.cs"
-      ]
+      ],
+      "tags": ["#business"]
+    },
+    {
+      "category": "Технические ловушки",
+      "title": "GetSettings() — синхронный метод с блокировкой; не вызывай до разогрева кеша",
+      "forbidden": "Не вызывай синхронный GetSettings() из UI-потока до разогрева кеша и не вызывай его из конструкторов сервисов.",
+      "why": "Метод берёт _settingsLock.Wait() и при холодном кеше выполняет синхронный запрос к БД (LoadSettings с синхронным FirstOrDefault()) — это блокирует вызывающий поток. Разогрев делается один раз при старте в App.InitializeAsync через GetSettingsAsync().",
+      "correct": "В асинхронном коде используй GetSettingsAsync(); синхронный GetSettings() допустим только после разогрева (свойства UI, синхронные геттеры).",
+      "files": [
+        "../../AutoKassa/Services/SettingsService.cs",
+        "../../AutoKassa/App.xaml.cs"
+      ],
+      "tags": ["#async", "#wpf"]
+    },
+    {
+      "category": "MVVM и команды",
+      "title": "AsyncRelayCommand — async void: исключения уходят только в лог",
+      "forbidden": "Не ожидай, что исключение из асинхронной команды всплывёт в UI или глобальный обработчик.",
+      "why": "ICommand.Execute синхронный, поэтому Execute объявлен async void; все исключения перехватываются внутри и пишутся в Serilog. Пользователь не узнает о сбое, если ты не покажешь его сам.",
+      "correct": "Внутри обработчика команды показывай ошибку через IDialogService или toast; искать детали сбоя — в logs/autokassa-.log.",
+      "files": [
+        "../../AutoKassa/Helpers/AsyncRelayCommand.cs"
+      ],
+      "tags": ["#mvvm", "#async"]
+    },
+    {
+      "category": "MVVM и команды",
+      "title": "CanExecute не пересчитывается автоматически при смене свойств ViewModel",
+      "forbidden": "Не ожидай мгновенного обновления доступности кнопки при программном изменении состояния.",
+      "why": "RelayCommand и AsyncRelayCommand подписывают CanExecuteChanged на CommandManager.RequerySuggested, который срабатывает на ввод пользователя, а не на изменение свойств ViewModel.",
+      "correct": "После изменения свойств, влияющих на CanExecute, вызывай RaiseCanExecuteChanged() (у RelayCommand) или CommandManager.InvalidateRequerySuggested().",
+      "files": [
+        "../../AutoKassa/Helpers/RelayCommand.cs",
+        "../../AutoKassa/Helpers/AsyncRelayCommand.cs"
+      ],
+      "tags": ["#mvvm", "#wpf"]
+    },
+    {
+      "category": "WPF и конвертеры",
+      "title": "BoolToVisibilityConverter считает любой не-null объект true",
+      "forbidden": "Не биндь на него не-bool значения, ожидая осмысленной проверки истинности.",
+      "why": "Конвертер возвращает Visible для любого не-null объекта и для любой непустой строки; параметр inverse инвертирует результат.",
+      "correct": "Для проверок строк и null используй специализированные конвертеры (например, StringToVisibilityConverter); полный каталог — в 15-converters.md.",
+      "files": [
+        "../../AutoKassa/Helpers/Converters/BoolToVisibilityConverter.cs"
+      ],
+      "tags": ["#wpf"]
+    },
+    {
+      "category": "WPF и конвертеры",
+      "title": "DecimalToStringConverter зависит от CurrentCulture",
+      "forbidden": "Не используй его там, где нужен стабильный формат независимо от культуры ОС.",
+      "why": "Форматирование (N2 + символ рубля) и парсинг идут через CultureInfo.CurrentCulture; на машине с другой культурой изменятся разделители, а fallback жёстко задан как 0,00 ₽ в русском формате.",
+      "correct": "Для сумм операций со знаком используй TransactionAmountConverter (жёстко ru-RU); детали — в 15-converters.md.",
+      "files": [
+        "../../AutoKassa/Helpers/Converters/DecimalToStringConverter.cs"
+      ],
+      "tags": ["#wpf"]
+    },
+    {
+      "category": "WPF и конвертеры",
+      "title": "TransactionAmountConverter жёстко использует ru-RU и N0",
+      "forbidden": "Не ожидай от него копеек, учёта культуры ОС или обратного преобразования.",
+      "why": "Это IMultiValueConverter с входом (decimal Amount, OperationType): формат N0 в культуре ru-RU отбрасывает дробную часть, а ConvertBack бросает NotImplementedException.",
+      "correct": "Передавай оба значения через MultiBinding; для полей ввода суммы он не подходит — см. 15-converters.md.",
+      "files": [
+        "../../AutoKassa/Helpers/Converters/TransactionAmountConverter.cs"
+      ],
+      "tags": ["#wpf"]
+    },
+    {
+      "category": "WPF и конвертеры",
+      "title": "CategoryColorConverter кеширует замороженные кисти",
+      "forbidden": "Не мутируй возвращаемый Brush и не ожидай исключения на битом HEX.",
+      "why": "Кисти кешируются в статическом ConcurrentDictionary и замораживаются (Freeze()); попытка изменить кисть выбросит исключение. Невалидный HEX молча возвращает серую кисть по умолчанию.",
+      "correct": "Проверяй формат цвета до биндинга; новые конвертеры с кешем делай по тому же образцу — см. 15-converters.md.",
+      "files": [
+        "../../AutoKassa/Helpers/Converters/CategoryColorConverter.cs"
+      ],
+      "tags": ["#wpf"]
     },
     {
       "category": "Частые ошибки при изменениях",
@@ -378,7 +539,8 @@
       "files": [
         "../../AutoKassa/Services/IDataChangeService.cs",
         "../../AutoKassa/ViewModels/TransactionsViewModel.cs"
-      ]
+      ],
+      "tags": ["#mvvm", "#architecture"]
     },
     {
       "category": "Частые ошибки при изменениях",
@@ -388,7 +550,8 @@
       "correct": "Добавь services.AddTransient<T>() / AddSingleton<T>() с правильным lifetime.",
       "files": [
         "../../AutoKassa/App.xaml.cs"
-      ]
+      ],
+      "tags": ["#architecture"]
     },
     {
       "category": "Частые ошибки при изменениях",
@@ -398,7 +561,8 @@
       "correct": "Добавь <DataTemplate DataType=\"{x:Type vm:NewViewModel}\"> в ресурсы MainWindow.xaml.",
       "files": [
         "../../AutoKassa/MainWindow.xaml"
-      ]
+      ],
+      "tags": ["#wpf", "#mvvm"]
     },
     {
       "category": "Частые ошибки при изменениях",
@@ -408,7 +572,8 @@
       "correct": "Создай миграцию dotnet ef migrations add <Name> и протестируй на чистой БД.",
       "files": [
         "../../AutoKassa/Migrations/"
-      ]
+      ],
+      "tags": ["#ef-core"]
     },
     {
       "category": "Частые ошибки при изменениях",
@@ -419,7 +584,8 @@
       "files": [
         "../../AutoKassa/Helpers/ViewModelBase.cs",
         "../../AutoKassa/Services/IDataChangeService.cs"
-      ]
+      ],
+      "tags": ["#mvvm"]
     },
     {
       "category": "Частые ошибки при изменениях",
@@ -430,7 +596,42 @@
       "files": [
         "TRAPS.md",
         "json/traps.json"
-      ]
+      ],
+      "tags": ["#architecture"]
+    },
+    {
+      "category": "Тестовые ловушки",
+      "title": "In-memory SQLite исчезает при закрытии соединения",
+      "forbidden": "Не закрывай SqliteConnection до конца теста.",
+      "why": "База DataSource=:memory: живёт, пока открыто соединение; TestDatabase.Create() специально держит его открытым, а закрытие обнуляет БД посреди теста.",
+      "correct": "Храни соединение в поле тестового класса и освобождай его в Dispose() вместе с контекстом.",
+      "files": [
+        "../../AutoKassa.Tests/Infrastructure/TestDatabase.cs"
+      ],
+      "tags": ["#testing", "#sqlite"]
+    },
+    {
+      "category": "Тестовые ловушки",
+      "title": "EnsureCreated() в тестах не равен миграциям",
+      "forbidden": "Не считай зелёные тесты доказательством корректности миграций.",
+      "why": "TestDatabase создаёт схему через EnsureCreated() (напрямую по модели, с seed из OnModelCreating), а приложение — через MigrateAsync(). Ошибка в миграции пройдёт мимо тестов и упадёт при старте приложения.",
+      "correct": "После добавления миграции проверяй запуск приложения на чистой и на существующей БД вручную.",
+      "files": [
+        "../../AutoKassa.Tests/Infrastructure/TestDatabase.cs",
+        "../../AutoKassa/App.xaml.cs"
+      ],
+      "tags": ["#testing", "#ef-core"]
+    },
+    {
+      "category": "Тестовые ловушки",
+      "title": "Время жизни DbContext в тестах: не переиспользуй и не читай через устаревший контекст",
+      "forbidden": "Не переиспользуй AppDbContext или соединение между тестами и не перечитывай через старый контекст данные, изменённые сервисом.",
+      "why": "xUnit создаёт новый экземпляр тестового класса на каждый тест, поэтому TestDatabase даёт изолированную БД; сервисы работают через собственные контексты из TestDbContextFactory, и сущности, отслеживаемые тестовым контекстом, устаревают в его ChangeTracker.",
+      "correct": "Создавай БД в конструкторе теста, освобождай в Dispose(); для повторного чтения создавай новый контекст из фабрики или вызывай ctx.ChangeTracker.Clear().",
+      "files": [
+        "../../AutoKassa.Tests/Infrastructure/TestDatabase.cs"
+      ],
+      "tags": ["#testing", "#ef-core"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -440,7 +641,8 @@
       "correct": "Согласуй изменение и проверь всех потребителей в relationships.json.",
       "files": [
         "../../AutoKassa/App.xaml.cs"
-      ]
+      ],
+      "tags": ["#architecture"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -450,7 +652,8 @@
       "correct": "Используй Restrict + явную логику soft delete.",
       "files": [
         "../../AutoKassa/Services/AppDbContext.cs"
-      ]
+      ],
+      "tags": ["#ef-core"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -460,7 +663,8 @@
       "correct": "Используй soft delete (IsDeleted = true).",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business", "#ef-core"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -471,7 +675,8 @@
       "files": [
         "../../AutoKassa/Services/AppDbContext.cs",
         "../../AutoKassa/Services/CategoryService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -482,7 +687,8 @@
       "files": [
         "../../AutoKassa/Models/AppSettings.cs",
         "../../AutoKassa/Services/SettingsService.cs"
-      ]
+      ],
+      "tags": ["#ef-core", "#architecture"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -492,7 +698,8 @@
       "correct": "Согласуй изменение и проверь старт приложения на чистой БД.",
       "files": [
         "../../AutoKassa/App.xaml.cs"
-      ]
+      ],
+      "tags": ["#architecture", "#async"]
     },
     {
       "category": "Что нельзя делать без согласования",
@@ -502,7 +709,8 @@
       "correct": "Согласуй изменение, покрой тестами и обновь flows.json / TRAPS.md.",
       "files": [
         "../../AutoKassa/Services/TransactionService.cs"
-      ]
+      ],
+      "tags": ["#business"]
     }
   ]
 }

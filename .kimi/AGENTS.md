@@ -23,6 +23,10 @@
 - Перед изменением **ViewModel** прочитать [`docs/kimi/07-viewmodels.md`](docs/kimi/07-viewmodels.md) и [`docs/kimi/json/viewmodels.json`](docs/kimi/json/viewmodels.json).
 - Перед изменением **View** прочитать [`docs/kimi/08-views.md`](docs/kimi/08-views.md).
 - Перед изменением **бизнес-логики операций/долгов/кредиток** прочитать [`docs/kimi/06-business-logic.md`](docs/kimi/06-business-logic.md) и [`docs/kimi/json/flows.json`](docs/kimi/json/flows.json).
+- Перед изменением **запуска и инициализации** (`App.xaml.cs`, порядок миграций/WAL/кеша) прочитать [`docs/kimi/14-startup.md`](docs/kimi/14-startup.md).
+- Перед добавлением **новой константы, лимита или дефолта** проверить [`docs/kimi/CONSTANTS.md`](docs/kimi/CONSTANTS.md) и [`docs/kimi/json/constants.json`](docs/kimi/json/constants.json) — возможно, значение уже существует.
+- При **диагностике любой проблемы** сначала смотреть [`docs/kimi/TROUBLESHOOTING.md`](docs/kimi/TROUBLESHOOTING.md).
+- Перед изменением **CI workflow** (`.github/workflows/`) или **DocValidator** (`tools/DocValidator/`) прочитать [`docs/kimi/16-cicd.md`](docs/kimi/16-cicd.md).
 
 ---
 
@@ -85,3 +89,8 @@
 | Бизнес-логика | [`docs/kimi/06-business-logic.md`](docs/kimi/06-business-logic.md) |
 | Тесты | [`docs/kimi/12-tests.md`](docs/kimi/12-tests.md) |
 | Соглашения | [`docs/kimi/13-conventions.md`](docs/kimi/13-conventions.md) |
+| Устранение неполадок | [`docs/kimi/TROUBLESHOOTING.md`](docs/kimi/TROUBLESHOOTING.md) |
+| Константы и лимиты | [`docs/kimi/CONSTANTS.md`](docs/kimi/CONSTANTS.md), [`docs/kimi/json/constants.json`](docs/kimi/json/constants.json) |
+| Запуск приложения / DI | [`docs/kimi/14-startup.md`](docs/kimi/14-startup.md) |
+| XAML-конвертеры | [`docs/kimi/15-converters.md`](docs/kimi/15-converters.md) |
+| CI/CD / валидация документации | [`docs/kimi/16-cicd.md`](docs/kimi/16-cicd.md) |

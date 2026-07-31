@@ -141,9 +141,10 @@ UI-координатор:
 
 **Lifetime:** Singleton
 
-- `DispatcherTimer` с интервалом из `SettingsService.GetAutoLockTimeout()`.
+- `DispatcherTimer` с интервалом из `SettingsService.GetAutoLockTimeout()`. Таймер не стартует, если `AutoLockEnabled == false` или таймаут `<= 0`.
 - `Lock()` создаёт `LockScreenViewModel` через DI и показывает `LockScreenView` через `DialogService.ShowLockScreen`.
 - При успешной разблокировке сбрасывается таймер.
+- При запуске приложения экран блокировки не показывается: настройка `RequirePasswordOnStartup` хранится в БД и UI настроек, но в `OnStartup` не проверяется — сразу открывается `MainWindow` (см. [`14-startup.md`](14-startup.md) §4). Блокировка срабатывает только в процессе работы — по таймеру или вручную.
 
 ### 5.4. Восстановление пароля
 

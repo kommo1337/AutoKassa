@@ -81,11 +81,10 @@
 | Lifetime | Сервисы |
 |----------|---------|
 | Singleton | `NavigationService`, `PasswordService`, `SettingsService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
-| Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator`, все ViewModels |
-| Scoped | `CreditCardService` |
+| Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator`, все ViewModels |
 
-- `AppDbContext` — Transient.
-- `IDbContextFactory<AppDbContext>` — фабрика по умолчанию.
+- `AppDbContext` не инжектируется в конструкторы — доступ к БД только через фабрику (контролирует `DbContextInjectionValidator` из DocValidator).
+- `IDbContextFactory<AppDbContext>` — Singleton (регистрация по умолчанию `AddDbContextFactory`); сам контекст неявно разрешим как Scoped.
 
 ---
 
@@ -106,7 +105,7 @@
 
 - **Софт-делит:** удаление операций только через `IsDeleted = true`. Восстановление через `RestoreAsync`.
 - **Категории:** нельзя удалить системную, категорию по умолчанию или с привязанными операциями (даже удалёнными).
-- **Поиск по описанию:** выполняется в памяти, т.к. SQLite `LOWER()` не поддерживает кириллицу.
+- **Поиск по описанию:** через SQLite FTS5 (`TransactionsFts`, unicode61) — регистронезависимо, по префиксам слов; SQL `LOWER()`/`Contains` для кириллицы не используем.
 - **Язык интерфейса и документации:** русский.
 - **Single-row настройки:** `AppSettings.Id = 1`.
 - **Долги не влияют на фактический баланс.**

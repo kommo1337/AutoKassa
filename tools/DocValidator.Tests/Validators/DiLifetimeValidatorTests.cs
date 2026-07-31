@@ -172,9 +172,10 @@ public class DiLifetimeValidatorTests : IDisposable
     [Fact]
     public void Validate_WithDbContext_AcceptsCompositeLifetime()
     {
+        // Зеркалит реальный App.xaml.cs: явной регистрации AddDbContext нет, только фабрика.
+        // Фабрика — Singleton, сам контекст неявно разрешим как Scoped (поведение EF Core).
         ValidationContext context = CreateContext(
             @"
-            services.AddDbContext<AppDbContext>(ServiceLifetime.Transient);
             services.AddDbContextFactory<AppDbContext>();
             ",
             new[]
@@ -184,7 +185,7 @@ public class DiLifetimeValidatorTests : IDisposable
                     Name = "AppDbContext",
                     Interface = "DbContext / IDbContextFactory<AppDbContext>",
                     Implementation = "AppDbContext",
-                    Lifetime = "Transient (DbContext) / Singleton (IDbContextFactory<AppDbContext>)",
+                    Lifetime = "Scoped (via AddDbContextFactory) / Singleton (IDbContextFactory<AppDbContext>)",
                 },
             });
 

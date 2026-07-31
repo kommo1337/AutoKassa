@@ -6,6 +6,8 @@
     "kimi": "docs/kimi/kimi.md",
     "principles": "docs/kimi/PRINCIPLES.md",
     "traps": "docs/kimi/TRAPS.md",
+    "troubleshooting": "docs/kimi/TROUBLESHOOTING.md",
+    "constants": "docs/kimi/CONSTANTS.md",
     "index": "docs/kimi/INDEX.md"
   },
   "structure": [
@@ -15,7 +17,8 @@
       "files": [
         { "id": "kimi", "file": "docs/kimi/kimi.md", "purpose": "Главная точка входа" },
         { "id": "principles", "file": "docs/kimi/PRINCIPLES.md", "purpose": "Принципы правильного кода" },
-        { "id": "traps", "file": "docs/kimi/TRAPS.md", "purpose": "Запреты и ловушки" }
+        { "id": "traps", "file": "docs/kimi/TRAPS.md", "purpose": "Запреты и ловушки" },
+        { "id": "troubleshooting", "file": "docs/kimi/TROUBLESHOOTING.md", "purpose": "Устранение неполадок: симптом → причина → решение" }
       ]
     },
     {
@@ -30,7 +33,8 @@
         { "id": "viewmodels", "file": "docs/kimi/json/viewmodels.json", "purpose": "ViewModels" },
         { "id": "relationships", "file": "docs/kimi/json/relationships.json", "purpose": "Граф связей" },
         { "id": "flows", "file": "docs/kimi/json/flows.json", "purpose": "Пользовательские сценарии" },
-        { "id": "traps-json", "file": "docs/kimi/json/traps.json", "purpose": "Запреты в машиночитаемом виде" }
+        { "id": "traps-json", "file": "docs/kimi/json/traps.json", "purpose": "Запреты в машиночитаемом виде" },
+        { "id": "constants-json", "file": "docs/kimi/json/constants.json", "purpose": "Константы, лимиты и значения по умолчанию" }
       ]
     },
     {
@@ -50,7 +54,13 @@
         { "id": "reports", "file": "docs/kimi/10-reports.md", "purpose": "Отчёты" },
         { "id": "settings-security", "file": "docs/kimi/11-settings-security.md", "purpose": "Настройки и безопасность" },
         { "id": "tests", "file": "docs/kimi/12-tests.md", "purpose": "Тесты" },
-        { "id": "conventions", "file": "docs/kimi/13-conventions.md", "purpose": "Соглашения" }
+        { "id": "conventions", "file": "docs/kimi/13-conventions.md", "purpose": "Соглашения" },
+        { "id": "startup", "file": "docs/kimi/14-startup.md", "purpose": "Запуск и инициализация приложения, DI-контейнер" },
+        { "id": "converters", "file": "docs/kimi/15-converters.md", "purpose": "Каталог XAML-конвертеров" },
+        { "id": "cicd", "file": "docs/kimi/16-cicd.md", "purpose": "CI/CD: workflow, валидация документации, релизный процесс" },
+        { "id": "troubleshooting-md", "file": "docs/kimi/TROUBLESHOOTING.md", "purpose": "Устранение неполадок, как читать логи" },
+        { "id": "constants-md", "file": "docs/kimi/CONSTANTS.md", "purpose": "Константы, лимиты и значения по умолчанию" },
+        { "id": "task-templates", "file": "docs/kimi/TASK_TEMPLATES.md", "purpose": "Шаблоны типовых задач" }
       ]
     }
   ],
@@ -67,9 +77,32 @@
     { "term": "ReportService", "files": ["docs/kimi/05-services.md", "docs/kimi/json/services.json"] },
     { "term": "DashboardViewModel", "files": ["docs/kimi/07-viewmodels.md", "docs/kimi/json/relationships.json"] },
     { "term": "MVVM", "files": ["docs/kimi/02-architecture.md", "docs/kimi/PRINCIPLES.md"] },
-    { "term": "DI", "files": ["docs/kimi/02-architecture.md", "docs/kimi/PRINCIPLES.md"] },
+    { "term": "DI", "files": ["docs/kimi/02-architecture.md", "docs/kimi/PRINCIPLES.md", "docs/kimi/14-startup.md"] },
     { "term": "SoftDelete", "files": ["docs/kimi/03-database.md", "docs/kimi/TRAPS.md"] },
-    { "term": "Export", "files": ["docs/kimi/10-reports.md", "docs/kimi/json/flows.json"] }
+    { "term": "Export", "files": ["docs/kimi/10-reports.md", "docs/kimi/json/flows.json"] },
+    { "term": "Troubleshooting", "files": ["docs/kimi/TROUBLESHOOTING.md"] },
+    { "term": "Constants", "files": ["docs/kimi/CONSTANTS.md", "docs/kimi/json/constants.json"] },
+    { "term": "TransactionsFts", "files": ["docs/kimi/03-database.md", "docs/kimi/TRAPS.md"] },
+    { "term": "Startup", "files": ["docs/kimi/14-startup.md", "docs/kimi/09-flows.md"] },
+    { "term": "InitializeAsync", "files": ["docs/kimi/14-startup.md"] },
+    { "term": "WAL", "files": ["docs/kimi/14-startup.md", "docs/kimi/TROUBLESHOOTING.md"] },
+    { "term": "Converters", "files": ["docs/kimi/15-converters.md", "docs/kimi/08-views.md"] },
+    { "term": "BoolToVisibilityConverter", "files": ["docs/kimi/15-converters.md", "docs/kimi/TRAPS.md"] },
+    { "term": "AsyncRelayCommand", "files": ["docs/kimi/PRINCIPLES.md", "docs/kimi/07-viewmodels.md", "docs/kimi/TRAPS.md"] },
+    { "term": "CancellationTokenSource", "files": ["docs/kimi/PRINCIPLES.md", "docs/kimi/13-conventions.md"] },
+    { "term": "SettingsService", "files": ["docs/kimi/11-settings-security.md", "docs/kimi/PRINCIPLES.md", "docs/kimi/05-services.md"] },
+    { "term": "NavigationService", "files": ["docs/kimi/02-architecture.md", "docs/kimi/05-services.md", "docs/kimi/TRAPS.md"] },
+    { "term": "DialogService", "files": ["docs/kimi/05-services.md", "docs/kimi/TRAPS.md"] },
+    { "term": "LockService", "files": ["docs/kimi/11-settings-security.md", "docs/kimi/05-services.md"] },
+    { "term": "BackupCoordinator", "files": ["docs/kimi/11-settings-security.md", "docs/kimi/05-services.md"] },
+    { "term": "TestDatabase", "files": ["docs/kimi/12-tests.md", "docs/kimi/TRAPS.md"] },
+    { "term": "EnsureCreated", "files": ["docs/kimi/TRAPS.md", "docs/kimi/TROUBLESHOOTING.md"] },
+    { "term": "Serilog", "files": ["docs/kimi/14-startup.md", "docs/kimi/TROUBLESHOOTING.md", "docs/kimi/CONSTANTS.md"] },
+    { "term": "Seed", "files": ["docs/kimi/03-database.md", "docs/kimi/CONSTANTS.md"] },
+    { "term": "Миграции", "files": ["docs/kimi/03-database.md", "docs/kimi/TROUBLESHOOTING.md"] },
+    { "term": "Логи", "files": ["docs/kimi/TROUBLESHOOTING.md", "docs/kimi/CONSTANTS.md"] },
+    { "term": "CI/CD", "files": ["docs/kimi/16-cicd.md"] },
+    { "term": "DocValidator", "files": ["docs/kimi/16-cicd.md"] }
   ],
   "iNeedTo": [
     {
@@ -93,6 +126,22 @@
       "read": ["docs/kimi/TRAPS.md", "docs/kimi/06-business-logic.md", "docs/kimi/json/services.json"]
     },
     {
+      "task": "Диагностировать любую проблему",
+      "read": ["docs/kimi/TROUBLESHOOTING.md", "docs/kimi/TRAPS.md", "docs/kimi/json/traps.json"]
+    },
+    {
+      "task": "Найти константу, лимит или дефолт",
+      "read": ["docs/kimi/CONSTANTS.md", "docs/kimi/json/constants.json"]
+    },
+    {
+      "task": "Понять запуск приложения и DI",
+      "read": ["docs/kimi/14-startup.md", "docs/kimi/02-architecture.md"]
+    },
+    {
+      "task": "Разобраться с XAML-конвертером",
+      "read": ["docs/kimi/15-converters.md", "docs/kimi/08-views.md", "docs/kimi/json/enums.json"]
+    },
+    {
       "task": "Понять зависимости сервиса",
       "read": ["docs/kimi/json/relationships.json", "docs/kimi/05-services.md"]
     },
@@ -110,11 +159,15 @@
     },
     {
       "task": "Писать или исправить тесты",
-      "read": ["docs/kimi/12-tests.md", "docs/kimi/PRINCIPLES.md"]
+      "read": ["docs/kimi/12-tests.md", "docs/kimi/PRINCIPLES.md", "docs/kimi/TROUBLESHOOTING.md"]
     },
     {
       "task": "Настроить UI / стили / конвертеры",
-      "read": ["docs/kimi/08-views.md", "docs/kimi/13-conventions.md"]
+      "read": ["docs/kimi/08-views.md", "docs/kimi/15-converters.md", "docs/kimi/13-conventions.md"]
+    },
+    {
+      "task": "Понять CI / починить упавший пайплайн",
+      "read": ["docs/kimi/16-cicd.md", "docs/kimi/TROUBLESHOOTING.md"]
     }
   ]
 }

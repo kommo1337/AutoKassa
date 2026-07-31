@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -87,6 +87,10 @@ namespace AutoKassa.Services
             if (string.IsNullOrWhiteSpace(category.Name))
                 throw new ArgumentException("Название категории не может быть пустым", nameof(category));
 
+            // Соответствует [MaxLength(100)] в Models/Category.cs
+            if (category.Name.Length > 100)
+                throw new ArgumentException("Название категории не должно превышать 100 символов", nameof(category));
+
             if (await ExistsAsync(category.Name, category.Type).ConfigureAwait(false))
                 throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");
 
@@ -109,6 +113,10 @@ namespace AutoKassa.Services
         {
             if (string.IsNullOrWhiteSpace(category.Name))
                 throw new ArgumentException("Название категории не может быть пустым", nameof(category));
+
+            // Соответствует [MaxLength(100)] в Models/Category.cs
+            if (category.Name.Length > 100)
+                throw new ArgumentException("Название категории не должно превышать 100 символов", nameof(category));
 
             if (await ExistsAsync(category.Name, category.Type, category.Id).ConfigureAwait(false))
                 throw new InvalidOperationException($"Категория с названием «{category.Name}» уже существует");

@@ -24,13 +24,10 @@ namespace AutoKassa.ViewModels.Reports
         private readonly IDataChangeService _dataChangeService;
         private readonly ITransactionEditViewModelFactory _transactionEditViewModelFactory;
 
-        private DateTime _dateFrom;
-        private DateTime _dateTo;
         private OperationType _selectedOperationType;
         private CategoryReport _report;
         private PlotModel _plotModel;
         private ObservableCollection<DonutSliceItem> _donutSlices = new();
-        private PaymentType? _selectedPaymentType;
         private ObservableCollection<ExpandableCategoryItem> _expandableItems = new();
 
         public CategoryReportViewModel(
@@ -48,19 +45,11 @@ namespace AutoKassa.ViewModels.Reports
             _dataChangeService = dataChangeService;
             _transactionEditViewModelFactory = transactionEditViewModelFactory;
 
-            _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            _dateTo = DateTime.Now.Date;
-            ActivePeriodPreset = "Month";
             _selectedOperationType = OperationType.Expense;
             _plotModel = new PlotModel();
 
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand = new RelayCommand(_ => SetOperationType(OperationType.Income));
-
-            SetPaymentAllCommand        = new RelayCommand(_ => SelectedPaymentType = null);
-            SetPaymentCashCommand       = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
-            SetPaymentNonCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
-            SetPaymentCreditCardCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
 
             ToggleCategoryCommand = new RelayCommand(param =>
             {
@@ -86,34 +75,6 @@ namespace AutoKassa.ViewModels.Reports
         #region Properties
 
         public override string ReportName => "Структура по категориям";
-
-        public DateTime DateFrom
-        {
-            get => _dateFrom;
-            set
-            {
-                if (SetProperty(ref _dateFrom, value))
-                {
-                    OnDateChangedByUser();
-                    ValidateDateRange();
-                    AutoRefresh();
-                }
-            }
-        }
-
-        public DateTime DateTo
-        {
-            get => _dateTo;
-            set
-            {
-                if (SetProperty(ref _dateTo, value))
-                {
-                    OnDateChangedByUser();
-                    ValidateDateRange();
-                    AutoRefresh();
-                }
-            }
-        }
 
         public OperationType SelectedOperationType
         {
@@ -168,32 +129,6 @@ namespace AutoKassa.ViewModels.Reports
         public ICommand ShowExpensesCommand { get; }
         public ICommand ShowIncomeCommand { get; }
 
-        public PaymentType? SelectedPaymentType
-        {
-            get => _selectedPaymentType;
-            set
-            {
-                if (SetProperty(ref _selectedPaymentType, value))
-                {
-                    OnPropertyChanged(nameof(IsPaymentAll));
-                    OnPropertyChanged(nameof(IsPaymentCash));
-                    OnPropertyChanged(nameof(IsPaymentNonCash));
-                    OnPropertyChanged(nameof(IsPaymentCreditCard));
-                    AutoRefresh();
-                }
-            }
-        }
-
-        public bool IsPaymentAll        => !SelectedPaymentType.HasValue;
-        public bool IsPaymentCash       => SelectedPaymentType == PaymentType.Cash;
-        public bool IsPaymentNonCash    => SelectedPaymentType == PaymentType.NonCash;
-        public bool IsPaymentCreditCard => SelectedPaymentType == PaymentType.CreditCard;
-
-        public ICommand SetPaymentAllCommand        { get; }
-        public ICommand SetPaymentCashCommand       { get; }
-        public ICommand SetPaymentNonCashCommand    { get; }
-        public ICommand SetPaymentCreditCardCommand { get; }
-
         public ICommand ToggleCategoryCommand { get; }
         public ICommand EditTransactionCommand { get; }
         public ICommand DeleteTransactionCommand { get; }
@@ -201,12 +136,6 @@ namespace AutoKassa.ViewModels.Reports
         #endregion
 
         #region Methods
-
-        private void ValidateDateRange()
-        {
-            if (DateFrom > DateTo)
-                DateTo = DateFrom;
-        }
 
         private void SetOperationType(OperationType type)
         {
@@ -263,17 +192,6 @@ namespace AutoKassa.ViewModels.Reports
             DonutSlices = slices;
         }
 
-        public void SetPeriod(string period)
-        {
-            BatchUpdate(() =>
-            {
-                var (from, to) = AutoKassa.Helpers.PeriodHelper.GetDateRange(period);
-                DateFrom = from;
-                DateTo = to;
-            });
-            ActivePeriodPreset = period;
-        }
-
         private void EditTransaction(Transaction transaction)
         {
             var vm = _transactionEditViewModelFactory.CreateForEdit(transaction);
@@ -313,11 +231,7 @@ namespace AutoKassa.ViewModels.Reports
             }
 
             var filePath = await _exportService.ExportCategoryReportToPdfAsync(Report);
-            _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(filePath))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(filePath, "PDF");
         }
 
         protected override async Task ExportToExcelAsync()
@@ -329,11 +243,7 @@ namespace AutoKassa.ViewModels.Reports
             }
 
             var filePath = await _exportService.ExportCategoryReportToExcelAsync(Report);
-            _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(filePath))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(filePath, "Excel");
         }
 
         #endregion

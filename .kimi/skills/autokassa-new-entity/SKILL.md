@@ -32,4 +32,4 @@ description: Add or change an EF Core entity, table, field, relationship, or mig
 - [ ] JSON/Markdown updated.
 
 ## Reference
-- [`docs/kimi/checklists/new-entity-checklist.md`](../../docs/kimi/checklists/new-entity-checklist.md)
+- [`docs/kimi/checklists/new-entity-checklist.md`](../../../docs/kimi/checklists/new-entity-checklist.md)

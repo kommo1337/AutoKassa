@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -120,6 +120,10 @@ namespace AutoKassa.Services
 
             if (paymentType == PaymentType.Debt)
                 throw new ArgumentException("Операция погашения не может иметь тип оплаты «Долг»", nameof(paymentType));
+
+            // Соответствует [MaxLength(500)] в Models/Transaction.cs
+            if (description?.Length > 500)
+                throw new ArgumentException("Описание не должно превышать 500 символов", nameof(description));
 
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 

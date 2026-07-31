@@ -63,6 +63,11 @@
 | Настройки и безопасность | [`11-settings-security.md`](docs/kimi/11-settings-security.md) | [`services.json`](docs/kimi/json/services.json) |
 | Тесты | [`12-tests.md`](docs/kimi/12-tests.md) | — |
 | Соглашения по коду | [`13-conventions.md`](docs/kimi/13-conventions.md) | — |
+| Запуск приложения | [`14-startup.md`](docs/kimi/14-startup.md) | — |
+| XAML-конвертеры | [`15-converters.md`](docs/kimi/15-converters.md) | — |
+| CI/CD | [`16-cicd.md`](docs/kimi/16-cicd.md) | — |
+| Устранение неполадок | [`TROUBLESHOOTING.md`](docs/kimi/TROUBLESHOOTING.md) | — |
+| Константы и лимиты | [`CONSTANTS.md`](docs/kimi/CONSTANTS.md) | [`constants.json`](docs/kimi/json/constants.json) |
 
 ---
 
@@ -92,5 +97,5 @@ sqlite3 AutoKassa/bin/Debug/net10.0-windows/AutoKassa.db ".schema"
 - Windows-only (`<UseWPF>true</UseWPF>`, `<OutputType>WinExe</OutputType>`).
 - При первом запуске требуется установка пароля (`InitialSetupView`).
 - `AppSettings` — single-row таблица, всегда `Id = 1`.
-- Поиск по описанию выполняется в памяти, потому что SQLite `LOWER()` не поддерживает кириллицу.
+- Поиск по описанию выполняется через SQLite FTS5 (`TransactionsFts`, unicode61): регистронезависимо, в т.ч. для кириллицы, по префиксам слов.
 - Подробный каталог особенностей и ловушек: [`TRAPS.md`](docs/kimi/TRAPS.md), [`13-conventions.md`](docs/kimi/13-conventions.md).

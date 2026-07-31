@@ -659,8 +659,12 @@
                         <TextBlock Text="Операции" FontSize="16" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
                         <TextBlock Grid.Column="1" Text="Все ›" Foreground="#6366f1"
-                                   Cursor="Hand" VerticalAlignment="Center" FontSize="13"
-                                   MouseLeftButtonDown="ShowAllTransactions_Click"/>
+                                   Cursor="Hand" VerticalAlignment="Center" FontSize="13">
+                            <TextBlock.InputBindings>
+                                <MouseBinding MouseAction="LeftClick"
+                                              Command="{Binding NavigateToAllTransactionsCommand}"/>
+                            </TextBlock.InputBindings>
+                        </TextBlock>
                     </Grid>
 
                     <!-- Список групп по датам -->
@@ -719,8 +723,15 @@
                                                                 BorderThickness="0,0,0,1"
                                                                 BorderBrush="{StaticResource BorderLightBrush}"
                                                                 Cursor="Hand"
-                                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                MouseLeftButtonDown="TransactionItem_MouseLeftButtonDown">
+                                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick"
+                                                                              Command="{Binding DataContext.SelectTransactionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                              CommandParameter="{Binding}"/>
+                                                                <MouseBinding MouseAction="LeftDoubleClick"
+                                                                              Command="{Binding DataContext.EditTransactionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                              CommandParameter="{Binding}"/>
+                                                            </Border.InputBindings>
                                                             <Border.ContextMenu>
                                                                 <ContextMenu Style="{StaticResource ModernContextMenuStyle}">
                                                                     <MenuItem Header="Редактировать" Tag="✏️"
@@ -937,7 +948,7 @@
                         <TextBlock Text="Нет расходов за период" FontSize="11"
                                    Foreground="{StaticResource MutedTextBrush}"
                                    HorizontalAlignment="Center"
-                                   Visibility="{Binding TopExpenses.Count, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}"
+                                   Visibility="{Binding HasTopExpenses, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
                                    Margin="0,8"/>
                         </StackPanel>
                     </Border>
@@ -976,7 +987,7 @@
                         <TextBlock Text="Нет доходов за период" FontSize="11"
                                    Foreground="{StaticResource MutedTextBrush}"
                                    HorizontalAlignment="Center"
-                                   Visibility="{Binding TopIncomes.Count, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=Inverse}"
+                                   Visibility="{Binding HasTopIncomes, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}"
                                    Margin="0,8"/>
                         </StackPanel>
                     </Border>

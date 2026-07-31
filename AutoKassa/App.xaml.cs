@@ -1,4 +1,4 @@
-﻿using AutoKassa.Services;
+using AutoKassa.Services;
 using AutoKassa.Services.Backup;
 using AutoKassa.Services.CreditCards;
 using AutoKassa.Services.Dashboard;
@@ -108,6 +108,12 @@ namespace AutoKassa
                 return;
             }
 
+            // Модальные диалоги до главного окна: при ShutdownMode.OnLastWindowClose
+            // (по умолчанию) закрытие единственного на тот момент окна инициирует
+            // Application.Shutdown(), и показанный следом MainWindow уже не спасает —
+            // приложение завершается сразу после старта. Отключаем на время диалогов.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
             // Проверяем, установлен ли пароль
             var settingsService = _serviceProvider.GetRequiredService<ISettingsService>();
 
@@ -131,10 +137,16 @@ namespace AutoKassa
             // Показываем главное окно
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
+
+            // Возвращаем штатное завершение при закрытии последнего окна
+            ShutdownMode = ShutdownMode.OnLastWindowClose;
             Log.Information("Главное окно открыто");
 
-            // Авто-бэкап в фоне (не блокирует запуск)
-            _ = settingsService.RunAutoBackupIfDueAsync();
+            // Авто-бэкап в фоне (не блокирует запуск);
+            // ошибки логируем явно, иначе они потеряются в fire-and-forget задаче
+            _ = settingsService.RunAutoBackupIfDueAsync().ContinueWith(
+                t => Log.Error(t.Exception, "Ошибка авто-бэкапа при запуске"),
+                TaskContinuationOptions.OnlyOnFaulted);
         }
 
         /// <summary>
@@ -164,8 +176,9 @@ namespace AutoKassa
         /// </summary>
         private void ConfigureServices(IServiceCollection services)
         {
-            // Регистрация DbContext + фабрика для Singleton-сервисов
-            services.AddDbContext<AppDbContext>(ServiceLifetime.Transient);
+            // Фабрика DbContext — единственный способ доступа к БД для сервисов.
+            // AppDbContext намеренно не регистрируется для прямого инжектирования:
+            // контекст создаётся короткоживущим через IDbContextFactory на каждую операцию.
             services.AddDbContextFactory<AppDbContext>();
 
             // Регистрация базовых сервисов
@@ -184,7 +197,7 @@ namespace AutoKassa
             services.AddTransient<ICounterpartyService, CounterpartyService>();
             services.AddTransient<IDebtService, DebtService>();
             services.AddTransient<IReportService, ReportService>();
-            services.AddScoped<ICreditCardService, CreditCardService>();
+            services.AddTransient<ICreditCardService, CreditCardService>();
             services.AddSingleton<IExportService, ExportService>();
             services.AddSingleton<IDataChangeService, DataChangeService>();
 
@@ -207,7 +220,6 @@ namespace AutoKassa
             // Регистрация координаторов дашборда
             services.AddTransient<IDashboardPeriodCoordinator, DashboardPeriodCoordinator>();
             services.AddTransient<IDashboardTransactionCoordinator, DashboardTransactionCoordinator>();
-            services.AddTransient<QuickAddViewModel>();
 
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();

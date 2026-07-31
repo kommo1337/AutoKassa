@@ -34,6 +34,8 @@ public sealed class ValidationContext
 
     public TrapsCatalog Traps { get; set; } = new();
 
+    public ConstantsCatalog Constants { get; set; } = new();
+
     public MetadataCatalog Metadata { get; set; } = new();
 
     public IndexCatalog Index { get; set; } = new();

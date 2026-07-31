@@ -428,6 +428,170 @@ namespace AutoKassa.Tests.Services
             result.Should().NotContain(t => t.Id == noMatch.Id);
         }
 
+        // ─────────────────────────────────────────
+        // Полнотекстовый поиск FTS5
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task Filter_BySearchText_LowercaseFindsUppercase_Cyrillic()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var match   = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "Замена масла");
+            var noMatch = TestDatabase.SeedTransaction(_ctx, cat.Id, 200m, description: "Диагностика");
+
+            // unicode61 выполняет Unicode case folding: строчный запрос находит заглавное слово
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "замена", Take = 100 });
+
+            result.Should().Contain(t => t.Id == match.Id);
+            result.Should().NotContain(t => t.Id == noMatch.Id);
+        }
+
+        [Fact]
+        public async Task Filter_BySearchText_FindsByWordPrefix()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var match   = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "ремонт двигателя");
+            var noMatch = TestDatabase.SeedTransaction(_ctx, cat.Id, 200m, description: "диагностика ходовой");
+
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "рем", Take = 100 });
+
+            result.Should().Contain(t => t.Id == match.Id);
+            result.Should().NotContain(t => t.Id == noMatch.Id);
+        }
+
+        [Fact]
+        public async Task Filter_BySearchText_MultipleWords_AndSemantics()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var match = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "Замена масла в двигателе");
+
+            var bothWords = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "замена масл", Take = 100 });
+            var missingWord = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "замена тормоз", Take = 100 });
+
+            bothWords.Should().Contain(t => t.Id == match.Id);
+            missingWord.Should().NotContain(t => t.Id == match.Id);
+        }
+
+        [Fact]
+        public async Task SearchText_TotalCountIsExact_AndPaginationWorksInSql()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var matchedIds = new List<int>();
+            for (int i = 0; i < 7; i++)
+                matchedIds.Add(TestDatabase.SeedTransaction(_ctx, cat.Id, 100m + i,
+                    date: new DateTime(2025, 1, i + 1), description: $"Замена масла {i}").Id);
+            for (int i = 0; i < 3; i++)
+                TestDatabase.SeedTransaction(_ctx, cat.Id, 500m + i, description: $"Диагностика {i}");
+
+            var filters = new TransactionFilterParameters { SearchText = "масла", Take = 100 };
+            var count = await _svc.GetTotalCountAsync(filters);
+
+            // Точный count без приближения лимитом — пагинация строится на нём
+            count.Should().Be(7);
+
+            // Skip/Take выполняются в SQL: страницы не пересекаются и в сумме дают все совпадения
+            var page1 = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "масла", Skip = 0, Take = 3 });
+            var page2 = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "масла", Skip = 3, Take = 3 });
+            var page3 = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "масла", Skip = 6, Take = 3 });
+
+            page1.Should().HaveCount(3);
+            page2.Should().HaveCount(3);
+            page3.Should().HaveCount(1);
+            page1.Select(t => t.Id).Should().NotIntersectWith(page2.Select(t => t.Id));
+            page1.Concat(page2).Concat(page3).Select(t => t.Id)
+                .Should().BeEquivalentTo(matchedIds);
+        }
+
+        [Fact]
+        public async Task Filter_BySearchText_SpecialCharacters_DoesNotThrow()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "Замена масла");
+
+            // Спецсимволы MATCH-синтаксиса и SQL не должны приводить к ошибке
+            var queries = new[] { "\"масла", "(масла)", "масла* OR 1=1", "'масла'--", "масла NEAR/0 замена" };
+            foreach (var q in queries)
+            {
+                Func<Task> act = () => _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = q, Take = 100 });
+                await act.Should().NotThrowAsync();
+            }
+        }
+
+        [Fact]
+        public async Task Filter_BySearchText_OnlyPunctuation_ReturnsEmpty()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "Замена масла");
+
+            // Текст без слов (только знаки препинания) не даёт токенов — совпадений нет
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "! () \"", Take = 100 });
+            var count = await _svc.GetTotalCountAsync(new TransactionFilterParameters { SearchText = "! () \"", Take = 100 });
+
+            result.Should().BeEmpty();
+            count.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_DescriptionChange_ReflectedInSearch()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "старое описание");
+
+            var before = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "новое", Take = 100 });
+            before.Should().NotContain(x => x.Id == t.Id);
+
+            // Триггер TransactionsFts_Update синхронизирует индекс при смене описания
+            t.Description = "новое описание";
+            await _svc.UpdateAsync(t);
+
+            var foundNew = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "новое", Take = 100 });
+            var foundOld = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "старое", Take = 100 });
+
+            foundNew.Should().Contain(x => x.Id == t.Id);
+            foundOld.Should().NotContain(x => x.Id == t.Id);
+        }
+
+        [Fact]
+        public async Task Filter_BySearchText_NullDescription_DoesNotBreakSearch()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var withNull = new Transaction
+            {
+                CategoryId = cat.Id,
+                Amount = 100m,
+                Type = OperationType.Expense,
+                Date = DateTime.Today,
+                Description = null,
+                CreatedAt = DateTime.Now,
+                IsDeleted = false
+            };
+            _ctx.Transactions.Add(withNull);
+            _ctx.SaveChanges();
+            var match = TestDatabase.SeedTransaction(_ctx, cat.Id, 200m, description: "Замена масла");
+
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "масла", Take = 100 });
+
+            result.Should().Contain(t => t.Id == match.Id);
+            result.Should().NotContain(t => t.Id == withNull.Id);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_SoftDeleted_ExcludedFromSearch()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, description: "Замена масла");
+
+            await _svc.DeleteAsync(t.Id);
+
+            var result = await _svc.GetTransactionsAsync(new TransactionFilterParameters { SearchText = "масла", Take = 100 });
+            var count = await _svc.GetTotalCountAsync(new TransactionFilterParameters { SearchText = "масла", Take = 100 });
+
+            // FTS-запись остаётся (soft delete), но фильтр IsDeleted исключает её из выдачи
+            result.Should().NotContain(x => x.Id == t.Id);
+            count.Should().Be(0);
+        }
+
+
         [Fact]
         public async Task Filter_ByAmountRange()
         {
@@ -1183,6 +1347,42 @@ namespace AutoKassa.Tests.Services
             var (income, _, _, _) = await _svc.GetPeriodTotalsAsync(day, day);
 
             income.Should().Be(10_000_000_000.00m);
+        }
+
+        [Fact]
+        public async Task AddAsync_TooLongDescription_ThrowsArgumentException()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+
+            Func<Task> act = async () => await _svc.AddAsync(new Transaction
+            {
+                CategoryId  = cat.Id,
+                Amount      = 500m,
+                Type        = OperationType.Expense,
+                Date        = DateTime.Today,
+                Description = new string('X', 501)
+            });
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_TooLongDescription_ThrowsArgumentException()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = await _svc.AddAsync(new Transaction
+            {
+                CategoryId  = cat.Id,
+                Amount      = 500m,
+                Type        = OperationType.Expense,
+                Date        = DateTime.Today,
+                Description = "Короткое"
+            });
+            t.Description = new string('X', 501);
+
+            Func<Task> act = async () => await _svc.UpdateAsync(t);
+
+            await act.Should().ThrowAsync<ArgumentException>();
         }
     }
 }

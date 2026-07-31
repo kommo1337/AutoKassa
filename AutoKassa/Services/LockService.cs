@@ -1,4 +1,4 @@
-﻿using AutoKassa.ViewModels;
+using AutoKassa.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 using System.Windows.Threading;
@@ -74,9 +74,11 @@ namespace AutoKassa.Services
         /// </summary>
         public void StartAutoLockTimer()
         {
+            if (!_settingsService.GetSettings().AutoLockEnabled) return; // Автоблокировка отключена в настройках
+
             var timeout = _settingsService.GetAutoLockTimeout();
 
-            if (timeout <= 0) return; // Автоблокировка отключена
+            if (timeout <= 0) return; // Автоблокировка отключена (таймаут 0)
 
             if (_autoLockTimer == null)
             {

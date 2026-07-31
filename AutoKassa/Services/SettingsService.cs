@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +16,13 @@ namespace AutoKassa.Services
     public class SettingsService : ISettingsService
     {
         private static readonly ILogger _log = Log.ForContext<SettingsService>();
+
+        // Явные опции JSON: MaxDepth=32 достаточно для плоской структуры настроек и защищает
+        // от чрезмерно вложенного JSON при импорте (неявный дефолт System.Text.Json — 64).
+        private static readonly JsonSerializerOptions JsonOptions = new() { MaxDepth = 32, PropertyNameCaseInsensitive = false };
+
+        // Отдельные опции для экспорта: файл настроек записывается с отступами для читаемости.
+        private static readonly JsonSerializerOptions JsonExportOptions = new() { MaxDepth = 32, PropertyNameCaseInsensitive = false, WriteIndented = true };
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private AppSettings _cachedSettings;
@@ -345,8 +352,7 @@ namespace AutoKassa.Services
                     ExportDate = DateTime.Now
                 };
 
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(exportData, options);
+                var json = JsonSerializer.Serialize(exportData, JsonExportOptions);
                 await File.WriteAllTextAsync(filePath, json);
                 return true;
             }
@@ -365,40 +371,43 @@ namespace AutoKassa.Services
             try
             {
                 var json = await File.ReadAllTextAsync(filePath);
-                var importData = JsonSerializer.Deserialize<SettingsExportData>(json);
+                var importData = JsonSerializer.Deserialize<SettingsExportData>(json, JsonOptions);
 
                 if (importData == null) return false;
 
                 var settings = GetSettings();
 
-                settings.AutoLockTimeout = importData.AutoLockTimeout;
+                // Значения из файла могли быть отредактированы вручную — приводим их
+                // к допустимым диапазонам (согласованы с SettingsValidator), иначе
+                // в приложение попадут некорректные настройки
+                settings.AutoLockTimeout = NormalizeImportedValue(nameof(AppSettings.AutoLockTimeout), importData.AutoLockTimeout, 1, 60, 10);
                 settings.AutoLockEnabled = importData.AutoLockEnabled;
-                settings.Theme = importData.Theme ?? "Light";
+                settings.Theme = NormalizeImportedString(nameof(AppSettings.Theme), importData.Theme, "Light", "Light", "Dark");
                 settings.DefaultPeriodFilter = importData.DefaultPeriodFilter ?? "Month";
                 settings.ShowNotifications = importData.ShowNotifications;
                 settings.ShowOperationsInSidebar = importData.ShowOperationsInSidebar;
-                settings.DefaultPageSize = importData.DefaultPageSize;
+                settings.DefaultPageSize = NormalizeImportedValue(nameof(AppSettings.DefaultPageSize), importData.DefaultPageSize, 10, 100, 20);
                 settings.ConfirmDelete = importData.ConfirmDelete;
                 settings.AutoGenerateReports = importData.AutoGenerateReports;
                 settings.BackupEnabled = importData.BackupEnabled;
-                settings.AutoBackupDays = importData.AutoBackupDays;
-                settings.BackupFrequency = importData.BackupFrequency ?? "Weekly";
-                settings.BackupKeepCount = importData.BackupKeepCount;
+                settings.AutoBackupDays = NormalizeImportedValue(nameof(AppSettings.AutoBackupDays), importData.AutoBackupDays, 1, 365, 7);
+                settings.BackupFrequency = NormalizeImportedString(nameof(AppSettings.BackupFrequency), importData.BackupFrequency, "Weekly", "Daily", "Weekly", "Monthly");
+                settings.BackupKeepCount = NormalizeImportedValue(nameof(AppSettings.BackupKeepCount), importData.BackupKeepCount, 1, 100, 10);
                 settings.BackupPath = SanitizeBackupPath(importData.BackupPath);
                 settings.RequirePasswordOnStartup = importData.RequirePasswordOnStartup;
-                settings.PasswordExpireDays = importData.PasswordExpireDays;
-                settings.Language = importData.Language ?? "ru-RU";
-                settings.WindowWidth = importData.WindowWidth;
-                settings.WindowHeight = importData.WindowHeight;
-                settings.DefaultOperationType = importData.DefaultOperationType;
-                settings.DefaultPaymentType = importData.DefaultPaymentType;
-                settings.InitialBalance = importData.InitialBalance;
-                settings.CreditCardLimit = importData.CreditCardLimit;
-                settings.CreditCardCurrentDebt = importData.CreditCardCurrentDebt;
-                settings.CreditCardInterestRate = importData.CreditCardInterestRate;
-                settings.CreditCardPaymentDay = importData.CreditCardPaymentDay;
+                settings.PasswordExpireDays = NormalizeImportedValue(nameof(AppSettings.PasswordExpireDays), importData.PasswordExpireDays, 0, 365, 0);
+                settings.Language = NormalizeImportedString(nameof(AppSettings.Language), importData.Language, "ru-RU", "ru-RU");
+                settings.WindowWidth = NormalizeImportedValue(nameof(AppSettings.WindowWidth), importData.WindowWidth, 800, 7680, 1200);
+                settings.WindowHeight = NormalizeImportedValue(nameof(AppSettings.WindowHeight), importData.WindowHeight, 600, 4320, 700);
+                settings.DefaultOperationType = NormalizeImportedEnum<OperationType>(nameof(AppSettings.DefaultOperationType), importData.DefaultOperationType, (int)OperationType.Expense);
+                settings.DefaultPaymentType = NormalizeImportedEnum<PaymentType>(nameof(AppSettings.DefaultPaymentType), importData.DefaultPaymentType, 1);
+                settings.InitialBalance = NormalizeImportedNonNegative(nameof(AppSettings.InitialBalance), importData.InitialBalance);
+                settings.CreditCardLimit = NormalizeImportedNonNegative(nameof(AppSettings.CreditCardLimit), importData.CreditCardLimit);
+                settings.CreditCardCurrentDebt = NormalizeImportedNonNegative(nameof(AppSettings.CreditCardCurrentDebt), importData.CreditCardCurrentDebt);
+                settings.CreditCardInterestRate = NormalizeImportedNonNegative(nameof(AppSettings.CreditCardInterestRate), importData.CreditCardInterestRate);
+                settings.CreditCardPaymentDay = NormalizeImportedValue(nameof(AppSettings.CreditCardPaymentDay), importData.CreditCardPaymentDay, 1, 31, 10);
                 settings.CreditCardLastPaymentDate = importData.CreditCardLastPaymentDate;
-                settings.CreditCardMinimumPaymentPercent = importData.CreditCardMinimumPaymentPercent;
+                settings.CreditCardMinimumPaymentPercent = NormalizeImportedValue(nameof(AppSettings.CreditCardMinimumPaymentPercent), importData.CreditCardMinimumPaymentPercent, 0m, 100m, 5m);
 
                 await SaveSettingsAsync(settings);
                 _log.Information("Настройки импортированы из {FilePath}", filePath);
@@ -409,6 +418,90 @@ namespace AutoKassa.Services
                 _log.Error(ex, "Ошибка импорта настроек из {FilePath}", filePath);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Нормализовать целочисленное значение из импортируемого файла:
+        /// значение вне диапазона заменяется на <paramref name="fallback"/> с предупреждением в лог.
+        /// </summary>
+        private static int NormalizeImportedValue(string fieldName, int value, int min, int max, int fallback)
+        {
+            if (value >= min && value <= max)
+                return value;
+
+            _log.Warning("Импорт настроек: {Field}={Value} вне диапазона {Min}..{Max}, заменено на {Fallback}",
+                fieldName, value, min, max, fallback);
+            return fallback;
+        }
+
+        /// <summary>
+        /// Нормализовать вещественное значение из импортируемого файла (см. перегрузку для int).
+        /// </summary>
+        private static double NormalizeImportedValue(string fieldName, double value, double min, double max, double fallback)
+        {
+            if (value >= min && value <= max)
+                return value;
+
+            _log.Warning("Импорт настроек: {Field}={Value} вне диапазона {Min}..{Max}, заменено на {Fallback}",
+                fieldName, value, min, max, fallback);
+            return fallback;
+        }
+
+        /// <summary>
+        /// Нормализовать decimal-значение из импортируемого файла (см. перегрузку для int).
+        /// </summary>
+        private static decimal NormalizeImportedValue(string fieldName, decimal value, decimal min, decimal max, decimal fallback)
+        {
+            if (value >= min && value <= max)
+                return value;
+
+            _log.Warning("Импорт настроек: {Field}={Value} вне диапазона {Min}..{Max}, заменено на {Fallback}",
+                fieldName, value, min, max, fallback);
+            return fallback;
+        }
+
+        /// <summary>
+        /// Нормализовать неотрицательное decimal-значение из импортируемого файла.
+        /// </summary>
+        private static decimal NormalizeImportedNonNegative(string fieldName, decimal value)
+        {
+            if (value >= 0m)
+                return value;
+
+            _log.Warning("Импорт настроек: {Field}={Value} не может быть отрицательным, заменено на 0", fieldName, value);
+            return 0m;
+        }
+
+        /// <summary>
+        /// Нормализовать значение enum из импортируемого файла:
+        /// значение, не определённое в <typeparamref name="TEnum"/>, заменяется на <paramref name="fallback"/>.
+        /// </summary>
+        private static int NormalizeImportedEnum<TEnum>(string fieldName, int value, int fallback) where TEnum : struct, Enum
+        {
+            if (Enum.IsDefined(typeof(TEnum), value))
+                return value;
+
+            _log.Warning("Импорт настроек: {Field}={Value} не является значением {EnumType}, заменено на {Fallback}",
+                fieldName, value, typeof(TEnum).Name, fallback);
+            return fallback;
+        }
+
+        /// <summary>
+        /// Нормализовать строковое значение из импортируемого файла:
+        /// значение вне списка допустимых заменяется на <paramref name="fallback"/>.
+        /// Отсутствующее в файле поле (null) заменяется дефолтом без предупреждения.
+        /// </summary>
+        private static string NormalizeImportedString(string fieldName, string? value, string fallback, params string[] allowedValues)
+        {
+            if (value == null)
+                return fallback;
+
+            if (allowedValues.Contains(value, StringComparer.OrdinalIgnoreCase))
+                return value;
+
+            _log.Warning("Импорт настроек: {Field}={Value} не входит в допустимые ({Allowed}), заменено на {Fallback}",
+                fieldName, value, string.Join("/", allowedValues), fallback);
+            return fallback;
         }
 
         /// <summary>

@@ -16,9 +16,13 @@ description: Update docs/kimi documentation and JSON references in AutoKassa. Us
 ## Steps
 1. Identify changed entities, services, ViewModels, flows, and traps.
 2. Update JSON catalogs:
-   - `models.json`, `services.json`, `viewmodels.json`, `relationships.json`, `flows.json`, `traps.json`, `enums.json`.
+   - `models.json`, `services.json`, `viewmodels.json`, `relationships.json`, `flows.json`, `traps.json`, `enums.json`, `constants.json`, `index.json`.
 3. Update Markdown files:
    - `04-models.md`, `05-services.md`, `07-viewmodels.md`, `08-views.md`, `09-flows.md`, `TRAPS.md`, `INDEX.md`, `kimi.md`.
+   - `CONSTANTS.md` — when constants, limits, defaults, or seed IDs change (keep in sync with `json/constants.json`).
+   - `TROUBLESHOOTING.md` — when a new recurring problem/solution is discovered.
+   - `14-startup.md` — when startup order, DI registrations, or initialization change.
+   - `15-converters.md` — when XAML converters are added, removed, or changed.
 4. Run `tools/DocValidator`.
 5. Run `dotnet build` and `dotnet test`.
 
@@ -29,4 +33,4 @@ description: Update docs/kimi documentation and JSON references in AutoKassa. Us
 - [ ] Tests pass.
 
 ## Reference
-- [`docs/kimi/checklists/docs-update-checklist.md`](../../docs/kimi/checklists/docs-update-checklist.md)
+- [`docs/kimi/checklists/docs-update-checklist.md`](../../../docs/kimi/checklists/docs-update-checklist.md)

@@ -286,6 +286,20 @@
 | Income | decimal |
 | Expense | decimal |
 
+### 2.3. CreditCardMetrics
+
+Агрегированные метрики по кредитной карте. Возвращается пакетным методом `ICreditCardService.GetCardsMetricsAsync` для загрузки метрик всех карт без N+1.
+
+**Файл:** [`AutoKassa/Models/CreditCardMetrics.cs`](../../AutoKassa/Models/CreditCardMetrics.cs)
+
+| Поле | Тип | Описание |
+|------|-----|----------|
+| Card | CreditCard | Кредитная карта |
+| CurrentDebt | decimal | Текущий долг |
+| AvailableLimit | decimal | Доступный остаток лимита |
+| MinimumPayment | decimal | Минимальный платёж |
+| NextPaymentDate | DateTime? | Дата ближайшего платежа |
+
 ---
 
 ## 3. Отчётные модели

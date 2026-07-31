@@ -150,5 +150,40 @@ namespace AutoKassa.Tests.Services
 
             exists.Should().BeFalse();
         }
+
+        [Fact]
+        public async Task AddAsync_TooLongName_ThrowsArgumentException()
+        {
+            Func<Task> act = async () => await _svc.AddAsync(new Counterparty { Name = new string('X', 151), Type = CounterpartyType.Client });
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task AddAsync_TooLongPhone_ThrowsArgumentException()
+        {
+            Func<Task> act = async () => await _svc.AddAsync(new Counterparty { Name = "Телефон-тест", Phone = new string('1', 21), Type = CounterpartyType.Client });
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task AddAsync_TooLongNotes_ThrowsArgumentException()
+        {
+            Func<Task> act = async () => await _svc.AddAsync(new Counterparty { Name = "Заметки-тест", Notes = new string('Z', 501), Type = CounterpartyType.Client });
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_TooLongName_ThrowsArgumentException()
+        {
+            var counterparty = await _svc.AddAsync(new Counterparty { Name = "Норма", Type = CounterpartyType.Client });
+            counterparty.Name = new string('X', 151);
+
+            Func<Task> act = async () => await _svc.UpdateAsync(counterparty);
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
     }
 }

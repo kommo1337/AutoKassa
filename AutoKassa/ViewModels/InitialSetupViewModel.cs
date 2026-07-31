@@ -1,4 +1,4 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using System.Threading.Tasks;
@@ -20,10 +20,6 @@ namespace AutoKassa.ViewModels
         private SecurityQuestionItem _selectedQuestion;
         private string _customQuestion;
         private string _answer;
-        private string _passwordError;
-        private string _confirmPasswordError;
-        private string _answerError;
-        private string _customQuestionError;
 
         public InitialSetupViewModel(
             IPasswordService passwordService,
@@ -174,29 +170,12 @@ namespace AutoKassa.ViewModels
 
         #region Ошибки валидации
 
-        public string PasswordError
-        {
-            get => _passwordError;
-            set => SetProperty(ref _passwordError, value);
-        }
-
-        public string ConfirmPasswordError
-        {
-            get => _confirmPasswordError;
-            set => SetProperty(ref _confirmPasswordError, value);
-        }
-
-        public string AnswerError
-        {
-            get => _answerError;
-            set => SetProperty(ref _answerError, value);
-        }
-
-        public string CustomQuestionError
-        {
-            get => _customQuestionError;
-            set => SetProperty(ref _customQuestionError, value);
-        }
+        // Ошибки хранятся в INotifyDataErrorInfo (ViewModelBase),
+        // свойства — computed для привязки в XAML
+        public string PasswordError => GetFirstError(nameof(Password));
+        public string ConfirmPasswordError => GetFirstError(nameof(ConfirmPassword));
+        public string AnswerError => GetFirstError(nameof(Answer));
+        public string CustomQuestionError => GetFirstError(nameof(CustomQuestion));
 
         #endregion
 
@@ -212,16 +191,17 @@ namespace AutoKassa.ViewModels
         {
             if (string.IsNullOrEmpty(Password))
             {
-                PasswordError = "Введите пароль";
+                SetErrors(nameof(Password), new[] { "Введите пароль" });
             }
             else if (Password.Length < 6)
             {
-                PasswordError = "Пароль должен содержать минимум 6 символов";
+                SetErrors(nameof(Password), new[] { "Пароль должен содержать минимум 6 символов" });
             }
             else
             {
-                PasswordError = null;
+                ClearErrors(nameof(Password));
             }
+            OnPropertyChanged(nameof(PasswordError));
 
             // Перепроверить подтверждение пароля
             if (!string.IsNullOrEmpty(ConfirmPassword))
@@ -234,32 +214,34 @@ namespace AutoKassa.ViewModels
         {
             if (string.IsNullOrEmpty(ConfirmPassword))
             {
-                ConfirmPasswordError = "Подтвердите пароль";
+                SetErrors(nameof(ConfirmPassword), new[] { "Подтвердите пароль" });
             }
             else if (Password != ConfirmPassword)
             {
-                ConfirmPasswordError = "Пароли не совпадают";
+                SetErrors(nameof(ConfirmPassword), new[] { "Пароли не совпадают" });
             }
             else
             {
-                ConfirmPasswordError = null;
+                ClearErrors(nameof(ConfirmPassword));
             }
+            OnPropertyChanged(nameof(ConfirmPasswordError));
         }
 
         private void ValidateAnswer()
         {
             if (string.IsNullOrEmpty(Answer))
             {
-                AnswerError = "Введите ответ на секретный вопрос";
+                SetErrors(nameof(Answer), new[] { "Введите ответ на секретный вопрос" });
             }
             else if (Answer.Length < 2)
             {
-                AnswerError = "Ответ слишком короткий";
+                SetErrors(nameof(Answer), new[] { "Ответ слишком короткий" });
             }
             else
             {
-                AnswerError = null;
+                ClearErrors(nameof(Answer));
             }
+            OnPropertyChanged(nameof(AnswerError));
         }
 
         private void ValidateCustomQuestion()
@@ -270,33 +252,31 @@ namespace AutoKassa.ViewModels
             {
                 if (string.IsNullOrEmpty(CustomQuestion))
                 {
-                    CustomQuestionError = "Введите свой вопрос";
+                    SetErrors(nameof(CustomQuestion), new[] { "Введите свой вопрос" });
                 }
                 else if (CustomQuestion.Length < 5)
                 {
-                    CustomQuestionError = "Вопрос слишком короткий";
+                    SetErrors(nameof(CustomQuestion), new[] { "Вопрос слишком короткий" });
                 }
                 else if (CustomQuestion.Length > MaxCustomQuestionLength)
                 {
-                    CustomQuestionError = $"Свой вопрос не должен превышать {MaxCustomQuestionLength} символов";
+                    SetErrors(nameof(CustomQuestion), new[] { $"Свой вопрос не должен превышать {MaxCustomQuestionLength} символов" });
                 }
                 else
                 {
-                    CustomQuestionError = null;
+                    ClearErrors(nameof(CustomQuestion));
                 }
             }
             else
             {
-                CustomQuestionError = null;
+                ClearErrors(nameof(CustomQuestion));
             }
+            OnPropertyChanged(nameof(CustomQuestionError));
         }
 
         private bool CanContinue()
         {
-            return string.IsNullOrEmpty(PasswordError) &&
-                   string.IsNullOrEmpty(ConfirmPasswordError) &&
-                   string.IsNullOrEmpty(AnswerError) &&
-                   string.IsNullOrEmpty(CustomQuestionError) &&
+            return !HasErrors &&
                    !string.IsNullOrEmpty(Password) &&
                    !string.IsNullOrEmpty(ConfirmPassword) &&
                    !string.IsNullOrEmpty(Answer) &&

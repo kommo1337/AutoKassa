@@ -49,6 +49,13 @@ namespace AutoKassa.Services.Transactions
                 return null;
             }
 
+            // Соответствует [MaxLength(500)] в Models/Transaction.cs
+            if (input.Description?.Length > 500)
+            {
+                showError("Описание не должно превышать 500 символов");
+                return null;
+            }
+
             var transaction = new Transaction
             {
                 Date = input.Date,

@@ -124,8 +124,10 @@ namespace AutoKassa.ViewModels
             // Standard commands
             LoadCommand = new RelayCommand(async _ => await LoadDataAsync());
             AddCommand = new RelayCommand(_ => AddTransaction());
-            EditCommand = new RelayCommand(_ => EditTransaction(), _ => SelectedTransaction != null);
-            DeleteCommand = new RelayCommand(async _ => await DeleteTransactionAsync(), _ => SelectedTransaction != null);
+            // Параметр = конкретная операция (строка списка) или null → используем SelectedTransaction
+            EditCommand = new RelayCommand(p => EditTransaction(p as Transaction ?? SelectedTransaction), p => (p as Transaction ?? SelectedTransaction) != null);
+            DeleteCommand = new RelayCommand(async p => await DeleteTransactionAsync(p as Transaction ?? SelectedTransaction), p => (p as Transaction ?? SelectedTransaction) != null);
+            SelectTransactionCommand = new RelayCommand(p => SelectedTransaction = p as Transaction);
             ApplyFiltersCommand = new RelayCommand(async _ => await ApplyFiltersAsync());
             ResetFiltersCommand = new RelayCommand(async _ => await ResetFiltersAsync());
             LoadMoreCommand = new RelayCommand(async _ => await LoadMoreAsync());
@@ -282,7 +284,15 @@ namespace AutoKassa.ViewModels
         public Transaction SelectedTransaction
         {
             get => _selectedTransaction;
-            set => SetProperty(ref _selectedTransaction, value);
+            set
+            {
+                if (SetProperty(ref _selectedTransaction, value))
+                {
+                    // CanExecute команд Edit/Delete зависит от SelectedTransaction —
+                    // просим CommandManager пересчитать состояние кнопок
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
         }
 
         public bool IsLoading
@@ -387,9 +397,8 @@ namespace AutoKassa.ViewModels
             get => _amountFromText;
             set
             {
-                _amountFromText = value;
-                _amountFrom = decimal.TryParse(value, NumberStyles.Any, RuCulture, out var v) ? v : (decimal?)null;
-                OnPropertyChanged();
+                if (SetProperty(ref _amountFromText, value))
+                    _amountFrom = decimal.TryParse(value, NumberStyles.Any, RuCulture, out var v) ? v : (decimal?)null;
             }
         }
 
@@ -398,9 +407,8 @@ namespace AutoKassa.ViewModels
             get => _amountToText;
             set
             {
-                _amountToText = value;
-                _amountTo = decimal.TryParse(value, NumberStyles.Any, RuCulture, out var v) ? v : (decimal?)null;
-                OnPropertyChanged();
+                if (SetProperty(ref _amountToText, value))
+                    _amountTo = decimal.TryParse(value, NumberStyles.Any, RuCulture, out var v) ? v : (decimal?)null;
             }
         }
 
@@ -565,6 +573,7 @@ namespace AutoKassa.ViewModels
         public ICommand AddCommand { get; }
         public ICommand EditCommand { get; }
         public ICommand DeleteCommand { get; }
+        public ICommand SelectTransactionCommand { get; }
         public ICommand ApplyFiltersCommand { get; }
         public ICommand ResetFiltersCommand { get; }
         public ICommand LoadMoreCommand { get; }
@@ -911,11 +920,11 @@ namespace AutoKassa.ViewModels
             IsModalOpen = true;
         }
 
-        private void EditTransaction()
+        private void EditTransaction(Transaction transaction)
         {
-            if (SelectedTransaction == null) return;
+            if (transaction == null) return;
 
-            var vm = _transactionEditViewModelFactory.CreateForEdit(SelectedTransaction);
+            var vm = _transactionEditViewModelFactory.CreateForEdit(transaction);
             vm.OnSaved = async () => { IsModalOpen = false; await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnCancelled = () => { IsModalOpen = false; };
@@ -936,11 +945,10 @@ namespace AutoKassa.ViewModels
             RunAsync(RefreshGroupsAsync);
         }
 
-        private async Task DeleteTransactionAsync()
+        private async Task DeleteTransactionAsync(Transaction t)
         {
-            if (SelectedTransaction == null) return;
+            if (t == null) return;
 
-            var t = SelectedTransaction;
             var deletedId = t.Id;
 
             try
@@ -1085,6 +1093,8 @@ namespace AutoKassa.ViewModels
             navCts?.Dispose();
 
             (_editViewModel as IDisposable)?.Dispose();
+
+            base.OnDispose();
         }
 
         #endregion

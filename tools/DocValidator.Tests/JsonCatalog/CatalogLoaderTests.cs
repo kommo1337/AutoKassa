@@ -39,6 +39,7 @@ public class CatalogLoaderTests : IDisposable
         context.Relationships.Should().NotBeNull();
         context.Flows.Should().NotBeNull();
         context.Traps.Should().NotBeNull();
+        context.Constants.Should().NotBeNull();
         context.Metadata.Should().NotBeNull();
         context.Index.Should().NotBeNull();
 
@@ -60,6 +61,9 @@ public class CatalogLoaderTests : IDisposable
         context.Flows.Flows.Should().HaveCount(1);
         context.Traps.Traps.Should().HaveCount(1);
         context.Index.Structure.Should().HaveCount(1);
+        context.Constants.Categories.Should().HaveCount(1);
+        context.Constants.Categories[0].Constants.Should().HaveCount(1);
+        context.Constants.SourceRoot.Should().Be("AutoKassa/");
 
         var service = context.Services.Services.First();
         service.Name.Should().Be("TransactionService");
@@ -90,6 +94,7 @@ public class CatalogLoaderTests : IDisposable
         WriteCatalog(docs, "relationships.json", "{ \"viewsToViewModels\": [], \"viewModelsToServices\": [], \"servicesToServices\": [] }");
         WriteCatalog(docs, "flows.json", "{ \"flows\": [] }");
         WriteCatalog(docs, "traps.json", "{ \"traps\": [] }");
+        WriteCatalog(docs, "constants.json", "{ \"categories\": [] }");
         WriteCatalog(docs, "metadata.json", "{ \"version\": \"1.0.0\" }");
         WriteCatalog(docs, "index.json", "{ \"structure\": [], \"skills\": [], \"keywords\": [], \"iNeedTo\": [] }");
 
@@ -114,6 +119,7 @@ public class CatalogLoaderTests : IDisposable
         WriteCatalog(docs, "relationships.json", "{ \"viewsToViewModels\": [], \"viewModelsToServices\": [], \"servicesToServices\": [] }");
         WriteCatalog(docs, "flows.json", "{ \"flows\": [] }");
         WriteCatalog(docs, "traps.json", "{ \"traps\": [] }");
+        WriteCatalog(docs, "constants.json", "{ \"categories\": [] }");
         WriteCatalog(docs, "index.json", "{ \"structure\": [], \"skills\": [], \"keywords\": [], \"iNeedTo\": [] }");
 
         var context = CatalogLoader.Load(docs, docsPath: docs);
@@ -212,6 +218,18 @@ public class CatalogLoaderTests : IDisposable
   ""skills"": [],
   ""keywords"": [],
   ""iNeedTo"": []
+}");
+
+        WriteCatalog(docs, "constants.json", @"{
+  ""sourceRoot"": ""AutoKassa/"",
+  ""categories"": [
+    {
+      ""name"": ""Database"",
+      ""constants"": [
+        { ""name"": ""DatabaseFileName"", ""value"": ""AutoKassa.db"", ""type"": ""string"", ""sourceFiles"": [""Services/AppDbContext.cs""], ""description"": ""Имя файла БД"" }
+      ]
+    }
+  ]
 }");
 
         return docs;

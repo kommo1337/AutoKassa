@@ -169,9 +169,12 @@ public class ModalViewModel : ViewModelBase
 Абстрактный базовый класс для всех отчётов:
 
 - `IsLoading`, `HasData`
-- `ActivePeriodPreset`
+- `DateFrom`, `DateTo` (сеттер: `OnDateChangedByUser()` + `ValidateDateRange()` + `AutoRefresh()`), `ValidateDateRange()`
+- `ActivePeriodPreset`, `SetPeriod(string)`, `SetPeriodCommand`
+- `SelectedPaymentType` + `IsPaymentAll/Cash/NonCash/CreditCard`, команды `SetPaymentAll/Cash/NonCash/CreditCardCommand` (используются тремя отчётами; `DebtReportViewModel` их не биндит)
 - `Modal` — для встроенного редактирования
 - `GenerateCommand`, `ExportToPdfCommand`, `ExportToExcelCommand`
+- `ShowExportedToast(filePath, formatName)` — общий тост «Отчёт сохранён» после экспорта
 - `InitializeAsync()` → `GenerateReportAsync()`
 - `AutoRefresh()` с дебаунсом через `DispatcherTimer`
 - `BatchUpdate()` — подавление автоматического обновления при массовых изменениях
@@ -225,7 +228,6 @@ public interface IReportViewModelFactory
 | `ChangePasswordViewModel` | [`ChangePasswordViewModel.cs`](../../AutoKassa/ViewModels/ChangePasswordViewModel.cs) | [`ChangePasswordView.xaml`](../../AutoKassa/Views/ChangePasswordView.xaml) | Смена пароля | Save, Cancel |
 | `PasswordRecoveryViewModel` | [`PasswordRecoveryViewModel.cs`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) | Восстановление пароля | VerifyAnswer, ResetPassword |
 | `TransactionEditViewModel` | [`TransactionEditViewModel.cs`](../../AutoKassa/ViewModels/TransactionEditViewModel.cs) | [`TransactionEditView.xaml`](../../AutoKassa/Views/TransactionEditView.xaml) | Редактор операции | Save, SaveAndAddNext, Cancel |
-| `QuickAddViewModel` | [`QuickAddViewModel.cs`](../../AutoKassa/ViewModels/QuickAddViewModel.cs) | встроен в [`DashboardView.xaml`](../../AutoKassa/Views/DashboardView.xaml) | Быстрое добавление | Save |
 | `CalculatorViewModel` | [`CalculatorViewModel.cs`](../../AutoKassa/ViewModels/CalculatorViewModel.cs) | встроен в `TransactionEditView` | Калькулятор | Digit, Op, Equals, Clear |
 | `DebtRepaymentViewModel` | [`DebtRepaymentViewModel.cs`](../../AutoKassa/ViewModels/DebtRepaymentViewModel.cs) | [`DebtRepaymentView.xaml`](../../AutoKassa/Views/DebtRepaymentView.xaml) | Погашение долга | Repay, Cancel |
 

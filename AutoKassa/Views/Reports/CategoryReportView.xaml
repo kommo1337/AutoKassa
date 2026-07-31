@@ -121,7 +121,7 @@
                 <!-- Строка 2: быстрые фильтры + тип оплаты -->
                 <StackPanel Grid.Row="1">
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Сегодня" Click="QuickFilter_Click" Tag="Today" Margin="0,0,6,0">
+                        <Button Content="Сегодня" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Today" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -134,7 +134,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Неделя" Click="QuickFilter_Click" Tag="Week" Margin="0,0,6,0">
+                        <Button Content="Неделя" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Week" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -147,7 +147,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Месяц" Click="QuickFilter_Click" Tag="Month" Margin="0,0,6,0">
+                        <Button Content="Месяц" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Month" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -160,7 +160,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Квартал" Click="QuickFilter_Click" Tag="Quarter" Margin="0,0,6,0">
+                        <Button Content="Квартал" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Quarter" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -173,7 +173,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Год" Click="QuickFilter_Click" Tag="Year">
+                        <Button Content="Год" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Year">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -408,8 +408,12 @@
                                                 BorderBrush="{StaticResource BorderLightBrush}"
                                                 BorderThickness="0,0,0,1"
                                                 Cursor="Hand"
-                                                Background="Transparent"
-                                                MouseLeftButtonDown="CategoryHeader_Click">
+                                                Background="Transparent">
+                                            <Border.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick"
+                                                              Command="{Binding DataContext.ToggleCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                              CommandParameter="{Binding}"/>
+                                            </Border.InputBindings>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
@@ -482,9 +486,10 @@
                                                             BorderBrush="#F1F3F5"
                                                             BorderThickness="0,0,0,1"
                                                             Background="Transparent"
-                                                            Cursor="Hand">
+                                                            Cursor="Hand"
+                                                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                         <Border.ContextMenu>
-                                                            <ContextMenu Opened="TransactionContextMenu_Opened">
+                                                            <ContextMenu>
                                                                 <ContextMenu.Style>
                                                                     <Style TargetType="ContextMenu">
                                                                         <Setter Property="Background" Value="White"/>
@@ -511,7 +516,8 @@
                                                                     </Style>
                                                                 </ContextMenu.Style>
                                                                 <MenuItem Header="Редактировать"
-                                                                          Click="EditMenuItem_Click">
+                                                                          Command="{Binding PlacementTarget.Tag.EditTransactionCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
                                                                     <MenuItem.Style>
                                                                         <Style TargetType="MenuItem">
                                                                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -535,7 +541,8 @@
                                                                     </MenuItem.Style>
                                                                 </MenuItem>
                                                                 <MenuItem Header="Удалить"
-                                                                          Click="DeleteMenuItem_Click">
+                                                                          Command="{Binding PlacementTarget.Tag.DeleteTransactionCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
                                                                     <MenuItem.Style>
                                                                         <Style TargetType="MenuItem">
                                                                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>

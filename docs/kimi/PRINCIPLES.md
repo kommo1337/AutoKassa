@@ -20,8 +20,13 @@ public class TransactionEditViewModel : ViewModelBase
     public TransactionEditViewModel(ITransactionService transactionService, ...)
     {
         _transactionService = transactionService;
-        SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
+        // Для async-операций — только AsyncRelayCommand.
+        // НЕ пиши new RelayCommand(async _ => await SaveAsync(), ...):
+        // это async void без перехвата ошибок и блокировки повторного запуска.
+        SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
     }
+
+    private bool CanSave() => /* проверка заполненности полей */ true;
 
     private async Task SaveAsync()
     {
@@ -30,6 +35,8 @@ public class TransactionEditViewModel : ViewModelBase
     }
 }
 ```
+
+Подробный паттерн `AsyncRelayCommand` (перехват исключений, показ ошибок в UI) — см. раздел 10.
 
 ---
 
@@ -213,4 +220,143 @@ public static (AppDbContext context, SqliteConnection connection) Create()
 
 ---
 
-> Последнее обновление: подэтапы 3.1–3.2 — Markdown-описания.
+## 10. AsyncRelayCommand: правильный паттерн
+
+- Для асинхронных действий используй [`AsyncRelayCommand`](../../AutoKassa/Helpers/AsyncRelayCommand.cs) (без параметра) или `AsyncRelayCommand<T>` (с параметром). Оба класса реализуют `ICommand` напрямую — отдельного интерфейса `IAsyncRelayCommand` в проекте **нет**, свойство объявляй как `ICommand`.
+- Конструктор: `new AsyncRelayCommand(Func<Task> execute, Func<bool> canExecute = null)`. Передавай методы группой: `new AsyncRelayCommand(SaveAsync, CanSave)`.
+- Повторный запуск блокируется флагом `_isExecuting`: пока команда выполняется, `CanExecute` возвращает `false`. `CanExecuteChanged` привязан к `CommandManager.RequerySuggested`, поэтому вручную вызывать `RaiseCanExecuteChanged` не нужно.
+- **Исключения глотаются.** `Execute` — это `async void`, весь вызов обёрнут в `try/catch`, и любое исключение уходит только в лог (`_log.Error(ex, "Ошибка выполнения асинхронной команды")`). UI о сбое **не узнаёт автоматически**: ни toast, ни диалог не появятся. Ошибки, о которых должен знать пользователь, обрабатывай внутри самого метода: `try/catch` + `_dialogService.ShowError(...)` / `_toastService.ShowError(...)`.
+- `OperationCanceledException` тоже попадёт в лог — если отмена штатная, лови её внутри метода до общего `catch` (см. §11).
+
+```csharp
+// ../AutoKassa/ViewModels/ChangePasswordViewModel.cs
+public ICommand SaveCommand { get; }
+
+public ChangePasswordViewModel(...)
+{
+    SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
+}
+
+private async Task SaveAsync()
+{
+    try
+    {
+        var settings = await _settingsService.GetSettingsAsync();
+        // ... проверка и сохранение ...
+        _toastService.ShowSuccess("Пароль успешно изменен");
+    }
+    catch (Exception ex)
+    {
+        // Без этого catch пользователь не увидит ошибку: AsyncRelayCommand только залогирует её
+        _dialogService.ShowError($"Ошибка смены пароля: {ex.Message}");
+    }
+}
+```
+
+> См. также [`TRAPS.md`](TRAPS.md) — ловушки про `async void` и команды.
+
+---
+
+## 11. CancellationTokenSource в ViewModel
+
+- Если операцию можно перезапустить (смена периода, повторная загрузка данных), отменяй предыдущий запрос через `CancellationTokenSource`.
+- Заменяй CTS **атомарно** через `Interlocked.Exchange` — иначе при быстром переключении возможны гонки (`ObjectDisposedException`, двойной `Dispose`).
+- Отмена — штатная ситуация: лови `OperationCanceledException` и игнорируй.
+- Освобождение ресурсов — в `OnDispose()`: [`ViewModelBase`](../../AutoKassa/Helpers/ViewModelBase.cs) реализует невиртуальный `Dispose()`, который вызывает `protected virtual void OnDispose()`. Переопределяй именно `OnDispose()`, а не `Dispose()`. Там же отписывайся от событий и вызывай `base.OnDispose()`.
+
+```csharp
+// Паттерн из ../AutoKassa/ViewModels/DashboardViewModel.cs
+private CancellationTokenSource _loadCts;
+
+private async Task LoadDataAsync()
+{
+    // Атомарная замена — защита от гонки при быстром переключении периода
+    var newCts = new CancellationTokenSource();
+    var oldCts = Interlocked.Exchange(ref _loadCts, newCts);
+    oldCts?.Cancel();
+    oldCts?.Dispose();
+    var ct = newCts.Token;
+
+    try
+    {
+        IsLoading = true;
+        var data = await _dashboardService.LoadDashboardDataAsync(DateFrom, DateTo, ct);
+        ApplyDashboardData(data);
+    }
+    catch (OperationCanceledException) { /* пользователь сменил период — игнорируем */ }
+    finally
+    {
+        IsLoading = false;
+    }
+}
+
+protected override void OnDispose()
+{
+    _dataChangeService.DataChanged -= OnDataChanged;
+
+    var cts = Interlocked.Exchange(ref _loadCts, null);
+    cts?.Cancel();
+    cts?.Dispose();
+
+    base.OnDispose();
+}
+```
+
+> См. также [`TRAPS.md`](TRAPS.md) — ловушка «Забыть отписаться от `IDataChangeService.DataChanged`» и другие async-ловушки.
+
+---
+
+## 12. Обновление json/relationships.json при изменении зависимостей
+
+[`relationships.json`](json/relationships.json) — машиночитаемая карта связей: `viewsToViewModels`, `viewModelsToServices`, `commands`, `servicesToServices`, `servicesToDbContext`, `dataTemplates`. Её проверяет [`tools/DocValidator`](../../tools/DocValidator/README.md) — при рассинхронизации падает CI job `docs`.
+
+Правило: **изменил зависимости — обнови `relationships.json` в том же коммите.**
+
+1. Найди затронутый раздел: новая View → `viewsToViewModels` и `dataTemplates`; новый сервис в конструкторе ViewModel → `viewModelsToServices`; новая связь сервисов → `servicesToServices`.
+2. Добавь/удали записи и обнови поле `lastUpdated`.
+3. Проверь соответствие коду:
+
+```bash
+dotnet run --project tools/DocValidator -- --project-root .
+```
+
+---
+
+## 13. Работа с SettingsService
+
+[`SettingsService`](../../AutoKassa/Services/SettingsService.cs) кеширует `AppSettings` в поле `_cachedSettings` и возвращает **один и тот же объект по ссылке** из `GetSettings()` и `GetSettingsAsync()`.
+
+- **Асинхронный код → `GetSettingsAsync()`.** Синхронный `GetSettings()` блокирует поток семафором (`SemaphoreSlim.Wait()`), а при первом вызове ещё и делает синхронное чтение из БД. Кеш разогревается при старте в `App.InitializeAsync`, но в новых async-сценариях используй `GetSettingsAsync()`.
+- **Не мутируй закешированный объект.** Изменение свойств объекта, полученного из `GetSettings()`/`GetSettingsAsync()`, молча меняет состояние всего приложения, но не попадает в БД — а при следующем сохранении из другого места эти правки будут перезаписаны. Считай возвращённый объект read-only.
+- **Паттерн редактирования** (как в `SettingsViewModel`): скопируй значения в свойства ViewModel (`SettingsMapper.MapToViewModel` + `Clone` для снимка «до»), дай пользователю редактировать копию, при сохранении собери объект (`MapToModel`) и вызови `SaveSettingsAsync(settings)` — он сохраняет в БД и обновляет кеш.
+- Для точечных изменений есть готовые методы: `UpdatePasswordAsync`, `SetThemeAsync`, `SetAutoLockTimeoutAsync`, `SetDefaultOperationTypeAsync`, `SetDefaultCategoryIdAsync` — используй их вместо ручной сборки `AppSettings`.
+- После сохранения настроек, влияющих на другие экраны, вызови `IDataChangeService.NotifyDataChanged()`.
+
+> См. также [`TRAPS.md`](TRAPS.md), раздел «Технические ловушки»: настройки кешируются, `AppSettings` — single-row таблица.
+
+---
+
+## 14. Code-behind View: что разрешено и что запрещено
+
+Code-behind (`.xaml.cs`) содержит **только UI-логику**, которую невозможно или непрактично выразить в XAML и ViewModel.
+
+**Разрешено** (реальные примеры в проекте):
+
+- Обработчики чисто визуальных событий, которые делегируют работу ViewModel: двойной клик по строке, контекстное меню — с проверкой `CanExecute` перед `Execute` ([`TransactionsView.xaml.cs`](../../AutoKassa/Views/TransactionsView.xaml.cs)).
+- Drag-and-drop: `PreviewMouseMove` → `DragDrop.DoDragDrop`, `Drop` → вызов публичного метода ViewModel ([`CategoryManagerView.xaml.cs`](../../AutoKassa/Views/CategoryManagerView.xaml.cs)).
+- Window chrome: кнопки тайтлбара, `WndProc` для `WM_GETMINMAXINFO`, подписка toast-оверлея, dispose `DataContext` при закрытии окна ([`MainWindow.xaml.cs`](../../AutoKassa/MainWindow.xaml.cs)).
+- Фильтрация ввода в текстовые поля (`PreviewTextInput` + regex).
+- `async void` в обработчиках допустим, но оборачивай тело в `try/catch` с логированием — иначе исключение уйдёт в необработанные исключения приложения.
+
+**Запрещено:**
+
+- Бизнес-логика, расчёты, бизнес-правила — это сервисы и ViewModel.
+- Прямые вызовы сервисов и `DbContext` из View.
+- `.Result` / `.Wait()` / `GetAwaiter().GetResult()` — deadlock на UI-потоке.
+- Создание ViewModel вручную (`new XxxViewModel(...)`); единственное исключение — корень композиции: `MainWindow` получает VM через конструктор из DI.
+
+> См. также [`TRAPS.md`](TRAPS.md), раздел «Архитектурные запреты».
+
+---
+
+> Последнее обновление: этап 7.4.5 — добавлены разделы 10–14 (`AsyncRelayCommand`, `CancellationTokenSource`, обновление `relationships.json`, `SettingsService`, code-behind).

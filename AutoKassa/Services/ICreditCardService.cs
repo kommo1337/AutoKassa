@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Services
@@ -59,9 +59,22 @@ namespace AutoKassa.Services
         Task<DateTime?> GetNextPaymentDateAsync(int creditCardId, CancellationToken ct = default);
 
         /// <summary>
+        /// Получить метрики (долг, лимит, минимальный платёж, дата платежа) по всем картам
+        /// одним пакетом — взамен поодиночных вызовов на каждую карту (N+1)
+        /// </summary>
+        Task<IReadOnlyList<CreditCardMetrics>> GetCardsMetricsAsync(CancellationToken ct = default);
+
+        /// <summary>
         /// Получить общий текущий долг по всем активным картам
         /// </summary>
         Task<decimal> GetTotalDebtAsync(CancellationToken ct = default);
+
+        /// <summary>
+        /// Получить общий долг по всем активным картам на конец указанной даты:
+        /// начальный долг + покупки до конца даты − погашения до конца даты.
+        /// Покупки и погашения после <paramref name="asOfDate"/> не учитываются.
+        /// </summary>
+        Task<decimal> GetTotalDebtAsOfAsync(DateTime asOfDate, CancellationToken ct = default);
 
         /// <summary>
         /// Зарегистрировать покупку по кредитной карте

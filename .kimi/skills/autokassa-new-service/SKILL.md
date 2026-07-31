@@ -35,4 +35,4 @@ description: Create a new service, interface, or business-logic layer in AutoKas
 - [ ] JSON/Markdown updated.
 
 ## Reference
-- [`docs/kimi/checklists/new-service-checklist.md`](../../docs/kimi/checklists/new-service-checklist.md)
+- [`docs/kimi/checklists/new-service-checklist.md`](../../../docs/kimi/checklists/new-service-checklist.md)

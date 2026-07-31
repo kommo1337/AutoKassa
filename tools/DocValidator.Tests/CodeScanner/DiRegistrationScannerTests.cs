@@ -66,22 +66,37 @@ public class DiRegistrationScannerTests : IDisposable
     }
 
     [Fact]
-    public void Scan_WithDbContext_ParsesLifetime()
+    public void Scan_WithDbContext_ParsesExplicitLifetime()
     {
         (string projectRoot, string appPath) = CreateProjectWithAppXamlCs(@"
             services.AddDbContext<AppDbContext>(ServiceLifetime.Transient);
+        ");
+
+        IReadOnlyList<ScannedDiRegistration> result = DiRegistrationScanner.Scan(appPath);
+
+        result.Should().ContainSingle(r =>
+            r.NormalizedServiceType == "AppDbContext" &&
+            r.Lifetime == "Transient");
+    }
+
+    [Fact]
+    public void Scan_WithDbContextFactory_RegistersFactoryAndImplicitContext()
+    {
+        // Зеркалит реальный App.xaml.cs: явной регистрации AddDbContext нет, только фабрика.
+        (string projectRoot, string appPath) = CreateProjectWithAppXamlCs(@"
             services.AddDbContextFactory<AppDbContext>();
         ");
 
         IReadOnlyList<ScannedDiRegistration> result = DiRegistrationScanner.Scan(appPath);
 
         result.Should().Contain(r =>
-            r.NormalizedServiceType == "AppDbContext" &&
-            r.Lifetime == "Transient");
-
-        result.Should().Contain(r =>
             r.NormalizedServiceType == "IDbContextFactory<AppDbContext>" &&
             r.Lifetime == "Singleton");
+
+        // EF Core при регистрации фабрики неявно регистрирует сам контекст (Scoped).
+        result.Should().Contain(r =>
+            r.NormalizedServiceType == "AppDbContext" &&
+            r.Lifetime == "Scoped");
     }
 
     [Fact]

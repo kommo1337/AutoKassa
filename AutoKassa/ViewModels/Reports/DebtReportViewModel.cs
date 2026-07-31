@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -24,8 +24,6 @@ namespace AutoKassa.ViewModels.Reports
         private readonly IDebtService _debtService;
         private readonly IDataChangeService _dataChangeService;
 
-        private DateTime _dateFrom;
-        private DateTime _dateTo;
         private OperationType? _direction;
         private DebtStatus? _status;
         private DebtReport _report;
@@ -47,10 +45,6 @@ namespace AutoKassa.ViewModels.Reports
             _debtService = debtService;
             _dataChangeService = dataChangeService;
 
-            _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            _dateTo = DateTime.Now.Date;
-            ActivePeriodPreset = "Month";
-
             SetDirectionAllCommand = new RelayCommand(_ => Direction = null);
             SetDirectionIncomeCommand = new RelayCommand(_ => Direction = OperationType.Income);
             SetDirectionExpenseCommand = new RelayCommand(_ => Direction = OperationType.Expense);
@@ -60,8 +54,6 @@ namespace AutoKassa.ViewModels.Reports
             SetStatusRepaidCommand = new RelayCommand(_ => Status = DebtStatus.Repaid);
             SetStatusWrittenOffCommand = new RelayCommand(_ => Status = DebtStatus.WrittenOff);
 
-            SetPeriodCommand = new RelayCommand<string>(period => SetPeriod(period));
-
             NavigateToCounterpartyCommand = new RelayCommand<DebtItem>(item => NavigateToCounterparty(item));
             RepayDebtCommand = new RelayCommand<DebtItem>(item => OpenRepaymentForm(item), item => item != null && item.Status == DebtStatus.Active);
         }
@@ -69,34 +61,6 @@ namespace AutoKassa.ViewModels.Reports
         #region Свойства
 
         public override string ReportName => "Отчёт по долгам";
-
-        public DateTime DateFrom
-        {
-            get => _dateFrom;
-            set
-            {
-                if (SetProperty(ref _dateFrom, value))
-                {
-                    OnDateChangedByUser();
-                    ValidateDateRange();
-                    AutoRefresh();
-                }
-            }
-        }
-
-        public DateTime DateTo
-        {
-            get => _dateTo;
-            set
-            {
-                if (SetProperty(ref _dateTo, value))
-                {
-                    OnDateChangedByUser();
-                    ValidateDateRange();
-                    AutoRefresh();
-                }
-            }
-        }
 
         /// <summary>
         /// Направление долга (Income = нам должны, Expense = мы должны)
@@ -174,20 +138,12 @@ namespace AutoKassa.ViewModels.Reports
         public ICommand SetStatusRepaidCommand { get; }
         public ICommand SetStatusWrittenOffCommand { get; }
 
-        public ICommand SetPeriodCommand { get; }
-
         public ICommand NavigateToCounterpartyCommand { get; }
         public ICommand RepayDebtCommand { get; }
 
         #endregion
 
         #region Методы
-
-        private void ValidateDateRange()
-        {
-            if (DateFrom > DateTo)
-                DateTo = DateFrom;
-        }
 
         protected override bool CheckHasData() => Report?.Items?.Any() == true;
 
@@ -226,17 +182,6 @@ namespace AutoKassa.ViewModels.Reports
             return date.ToString("d MMMM, dddd", new CultureInfo("ru-RU"));
         }
 
-        public void SetPeriod(string period)
-        {
-            BatchUpdate(() =>
-            {
-                var (from, to) = PeriodHelper.GetDateRange(period);
-                DateFrom = from;
-                DateTo = to;
-            });
-            ActivePeriodPreset = period;
-        }
-
         protected override async Task ExportToPdfAsync()
         {
             if (Report == null)
@@ -246,11 +191,7 @@ namespace AutoKassa.ViewModels.Reports
             }
 
             var filePath = await _exportService.ExportDebtReportToPdfAsync(Report);
-            _toastService.ShowWithAction("Отчёт PDF сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(filePath))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(filePath, "PDF");
         }
 
         protected override async Task ExportToExcelAsync()
@@ -262,11 +203,7 @@ namespace AutoKassa.ViewModels.Reports
             }
 
             var filePath = await _exportService.ExportDebtReportToExcelAsync(Report);
-            _toastService.ShowWithAction("Отчёт Excel сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(filePath))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(filePath, "Excel");
         }
 
         private void NavigateToCounterparty(DebtItem? item)

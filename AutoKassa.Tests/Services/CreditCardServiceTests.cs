@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.Tests.Infrastructure;
@@ -48,7 +48,7 @@ namespace AutoKassa.Tests.Services
             return card;
         }
 
-        private Transaction SeedPurchaseTransaction(int categoryId, decimal amount, PaymentType paymentType = PaymentType.CreditCard)
+        private Transaction SeedPurchaseTransaction(int categoryId, decimal amount, PaymentType paymentType = PaymentType.CreditCard, DateTime? date = null)
         {
             var t = new Transaction
             {
@@ -56,7 +56,7 @@ namespace AutoKassa.Tests.Services
                 Amount = amount,
                 Type = OperationType.Expense,
                 PaymentType = paymentType,
-                Date = DateTime.Today,
+                Date = date ?? DateTime.Today,
                 Description = "Покупка",
                 CreatedAt = DateTime.Now,
                 IsDeleted = false
@@ -66,7 +66,7 @@ namespace AutoKassa.Tests.Services
             return t;
         }
 
-        private Transaction SeedRepaymentTransaction(int creditCardId, decimal amount)
+        private Transaction SeedRepaymentTransaction(int creditCardId, decimal amount, DateTime? date = null)
         {
             var category = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
             var t = new Transaction
@@ -76,7 +76,7 @@ namespace AutoKassa.Tests.Services
                 Amount = amount,
                 Type = OperationType.Expense,
                 PaymentType = PaymentType.Cash,
-                Date = DateTime.Today,
+                Date = date ?? DateTime.Today,
                 Description = "Погашение",
                 CreatedAt = DateTime.Now,
                 IsDeleted = false
@@ -294,6 +294,121 @@ namespace AutoKassa.Tests.Services
             Func<Task> act = () => _svc.DeleteAsync(card.Id);
 
             await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        [Fact]
+        public async Task GetCardsMetricsAsync_MatchesPerCardMethods()
+        {
+            var cardA = SeedCard(limit: 10000m, initialDebt: 4000m, minPercent: 10m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var purchase = SeedPurchaseTransaction(category.Id, 3000m);
+            await _svc.AddPurchaseAsync(cardA.Id, purchase.Id, purchase.Amount);
+            SeedRepaymentTransaction(cardA.Id, 1500m);
+
+            var cardB = SeedCard(limit: 50000m, initialDebt: 0m, minPercent: 5m);
+
+            var metrics = await _svc.GetCardsMetricsAsync();
+
+            metrics.Should().HaveCount(2);
+            foreach (var card in new[] { cardA, cardB })
+            {
+                var m = metrics.Single(x => x.Card.Id == card.Id);
+                m.CurrentDebt.Should().Be(await _svc.GetCurrentDebtAsync(card.Id));
+                m.AvailableLimit.Should().Be(await _svc.GetAvailableLimitAsync(card.Id));
+                m.MinimumPayment.Should().Be(await _svc.GetMinimumPaymentAsync(card.Id));
+                m.NextPaymentDate.Should().Be(await _svc.GetNextPaymentDateAsync(card.Id));
+            }
+        }
+
+        [Fact]
+        public async Task GetCardsMetricsAsync_ReturnsAllCardsOrderedByName()
+        {
+            _ctx.CreditCards.Add(new CreditCard { Name = "Вторая", Limit = 1000m, IsActive = true, CreatedAt = DateTime.Now });
+            _ctx.CreditCards.Add(new CreditCard { Name = "Первая", Limit = 1000m, IsActive = false, CreatedAt = DateTime.Now });
+            _ctx.CreditCards.Add(new CreditCard { Name = "Третья", Limit = 1000m, IsActive = true, CreatedAt = DateTime.Now });
+            _ctx.SaveChanges();
+
+            var metrics = await _svc.GetCardsMetricsAsync();
+
+            metrics.Select(m => m.Card.Name).Should().Equal("Вторая", "Первая", "Третья");
+        }
+
+        [Fact]
+        public async Task GetCardsMetricsAsync_NoCards_ReturnsEmpty()
+        {
+            var metrics = await _svc.GetCardsMetricsAsync();
+
+            metrics.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task CreateAsync_TooLongName_ThrowsArgumentException()
+        {
+            var card = new CreditCard { Name = new string('X', 101), Limit = 1000m, MinimumPaymentPercent = 5m };
+
+            Func<Task> act = async () => await _svc.CreateAsync(card);
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task CreateAsync_TooLongBankName_ThrowsArgumentException()
+        {
+            var card = new CreditCard { Name = "Карта", BankName = new string('B', 101), Limit = 1000m, MinimumPaymentPercent = 5m };
+
+            Func<Task> act = async () => await _svc.CreateAsync(card);
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task RepayDebtAsync_TooLongDescription_ThrowsArgumentException()
+        {
+            var card = SeedCard(limit: 50000m, initialDebt: 1000m);
+
+            Func<Task> act = async () => await _svc.RepayDebtAsync(
+                card.Id, 100m, PaymentType.Cash, DateTime.Today, new string('X', 501));
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task GetTotalDebtAsOfAsync_ExcludesPurchasesAndRepaymentsAfterDate()
+        {
+            var card = SeedCard(limit: 100000m, initialDebt: 1000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var asOf = new DateTime(2025, 6, 15);
+
+            // Покупки до и после даты сверки
+            var purchaseBefore = SeedPurchaseTransaction(category.Id, 500m, date: asOf.AddDays(-1));
+            await _svc.AddPurchaseAsync(card.Id, purchaseBefore.Id, purchaseBefore.Amount);
+            var purchaseAfter = SeedPurchaseTransaction(category.Id, 700m, date: asOf.AddDays(1));
+            await _svc.AddPurchaseAsync(card.Id, purchaseAfter.Id, purchaseAfter.Amount);
+
+            // Погашения до и после даты сверки
+            SeedRepaymentTransaction(card.Id, 300m, date: asOf.AddDays(-2));
+            SeedRepaymentTransaction(card.Id, 200m, date: asOf.AddDays(3));
+
+            var debt = await _svc.GetTotalDebtAsOfAsync(asOf);
+
+            // 1000 (начальный долг) + 500 (покупка до даты) − 300 (погашение до даты)
+            debt.Should().Be(1200m);
+        }
+
+        [Fact]
+        public async Task GetTotalDebtAsOfAsync_IncludesOperationsOnTheDateItself()
+        {
+            var card = SeedCard(limit: 100000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var asOf = new DateTime(2025, 6, 15);
+
+            var purchase = SeedPurchaseTransaction(category.Id, 800m, date: asOf);
+            await _svc.AddPurchaseAsync(card.Id, purchase.Id, purchase.Amount);
+            SeedRepaymentTransaction(card.Id, 300m, date: asOf);
+
+            var debt = await _svc.GetTotalDebtAsOfAsync(asOf);
+
+            debt.Should().Be(500m);
         }
     }
 }

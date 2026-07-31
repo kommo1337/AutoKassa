@@ -17,9 +17,6 @@ namespace AutoKassa.ViewModels
         private string _currentPassword = string.Empty;
         private string _newPassword = string.Empty;
         private string _confirmPassword = string.Empty;
-        private string _currentPasswordError = string.Empty;
-        private string _newPasswordError = string.Empty;
-        private string _confirmPasswordError = string.Empty;
 
         public ChangePasswordViewModel(
             ISettingsService settingsService,
@@ -73,23 +70,11 @@ namespace AutoKassa.ViewModels
             }
         }
 
-        public string CurrentPasswordError
-        {
-            get => _currentPasswordError;
-            set => SetProperty(ref _currentPasswordError, value);
-        }
-
-        public string NewPasswordError
-        {
-            get => _newPasswordError;
-            set => SetProperty(ref _newPasswordError, value);
-        }
-
-        public string ConfirmPasswordError
-        {
-            get => _confirmPasswordError;
-            set => SetProperty(ref _confirmPasswordError, value);
-        }
+        // Ошибки хранятся в INotifyDataErrorInfo (ViewModelBase),
+        // свойства — computed для привязки в XAML
+        public string CurrentPasswordError => GetFirstError(nameof(CurrentPassword));
+        public string NewPasswordError => GetFirstError(nameof(NewPassword));
+        public string ConfirmPasswordError => GetFirstError(nameof(ConfirmPassword));
 
         /// <summary>
         /// Событие закрытия окна
@@ -111,48 +96,51 @@ namespace AutoKassa.ViewModels
         {
             if (string.IsNullOrEmpty(CurrentPassword))
             {
-                CurrentPasswordError = "Введите текущий пароль";
+                SetErrors(nameof(CurrentPassword), new[] { "Введите текущий пароль" });
             }
             else
             {
-                CurrentPasswordError = string.Empty;
+                ClearErrors(nameof(CurrentPassword));
             }
+            OnPropertyChanged(nameof(CurrentPasswordError));
         }
 
         private void ValidateNewPassword()
         {
             if (string.IsNullOrEmpty(NewPassword))
             {
-                NewPasswordError = "Введите новый пароль";
+                SetErrors(nameof(NewPassword), new[] { "Введите новый пароль" });
             }
             else if (NewPassword.Length < 4)
             {
-                NewPasswordError = "Пароль должен содержать минимум 4 символа";
+                SetErrors(nameof(NewPassword), new[] { "Пароль должен содержать минимум 4 символа" });
             }
             else if (NewPassword == CurrentPassword)
             {
-                NewPasswordError = "Новый пароль должен отличаться от текущего";
+                SetErrors(nameof(NewPassword), new[] { "Новый пароль должен отличаться от текущего" });
             }
             else
             {
-                NewPasswordError = string.Empty;
+                ClearErrors(nameof(NewPassword));
             }
+            OnPropertyChanged(nameof(NewPasswordError));
         }
 
         private void ValidateConfirmPassword()
         {
             if (string.IsNullOrEmpty(ConfirmPassword))
             {
-                ConfirmPasswordError = "Подтвердите пароль";
+                SetErrors(nameof(ConfirmPassword), new[] { "Подтвердите пароль" });
             }
             else if (ConfirmPassword != NewPassword)
             {
-                ConfirmPasswordError = "Пароли не совпадают";
+                SetErrors(nameof(ConfirmPassword), new[] { "Пароли не совпадают" });
             }
             else
             {
-                ConfirmPasswordError = string.Empty;
+                ClearErrors(nameof(ConfirmPassword));
             }
+            OnPropertyChanged(nameof(ConfirmPasswordError));
         }
 
         private bool CanSave()
@@ -160,9 +148,7 @@ namespace AutoKassa.ViewModels
             return !string.IsNullOrEmpty(CurrentPassword) &&
                    !string.IsNullOrEmpty(NewPassword) &&
                    !string.IsNullOrEmpty(ConfirmPassword) &&
-                   string.IsNullOrEmpty(CurrentPasswordError) &&
-                   string.IsNullOrEmpty(NewPasswordError) &&
-                   string.IsNullOrEmpty(ConfirmPasswordError);
+                   !HasErrors;
         }
 
         private async Task SaveAsync()
@@ -173,7 +159,8 @@ namespace AutoKassa.ViewModels
                 var settings = await _settingsService.GetSettingsAsync();
                 if (!BCrypt.Net.BCrypt.Verify(CurrentPassword, settings.PasswordHash))
                 {
-                    CurrentPasswordError = "Неверный текущий пароль";
+                    SetErrors(nameof(CurrentPassword), new[] { "Неверный текущий пароль" });
+                    OnPropertyChanged(nameof(CurrentPasswordError));
                     return;
                 }
 

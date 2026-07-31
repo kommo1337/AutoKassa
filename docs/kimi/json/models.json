@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-06T23:11:21+03:00",
+  "lastUpdated": "2026-07-31T01:53:41+03:00",
   "entities": [
     {
       "name": "Transaction",
@@ -1229,6 +1229,45 @@
       ]
     },
     {
+      "name": "CreditCardMetrics",
+      "file": "AutoKassa/Models/CreditCardMetrics.cs",
+      "table": null,
+      "isDto": true,
+      "fields": [
+        {
+          "name": "Card",
+          "type": "CreditCard",
+          "nullable": false
+        },
+        {
+          "name": "CurrentDebt",
+          "type": "decimal",
+          "nullable": false
+        },
+        {
+          "name": "AvailableLimit",
+          "type": "decimal",
+          "nullable": false
+        },
+        {
+          "name": "MinimumPayment",
+          "type": "decimal",
+          "nullable": false
+        },
+        {
+          "name": "NextPaymentDate",
+          "type": "DateTime?",
+          "nullable": true
+        }
+      ],
+      "navigation": [],
+      "indexes": [],
+      "seedData": null,
+      "notes": [
+        "DTO с агрегированными метриками по кредитной карте; возвращается пакетным методом ICreditCardService.GetCardsMetricsAsync для устранения N+1. Не является таблицей БД."
+      ]
+    },
+    {
       "name": "ReportBase",
       "file": "AutoKassa/Models/ReportBase.cs",
       "table": null,
@@ -1901,6 +1940,10 @@
     {
       "name": "CreditCardPaymentNavigationFix",
       "file": "AutoKassa/Migrations/20260704233933_CreditCardPaymentNavigationFix.cs"
+    },
+    {
+      "name": "AddTransactionsFts",
+      "file": "AutoKassa/Migrations/20260731181733_AddTransactionsFts.cs"
     }
   ]
 }

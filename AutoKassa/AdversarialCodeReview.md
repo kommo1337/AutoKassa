@@ -55,124 +55,12 @@
 
 
 
-### 2.18 Утечки подписок на события / неполное освобождение
-- **Файлы:** `Views/ConfirmationDialogView.xaml.cs`, `Views/InitialSetupView.xaml.cs`, `Views/ChangePasswordView.xaml.cs`, `Views/LockScreenView.xaml.cs`, `ViewModels/CategoriesViewModel.cs`, `ViewModels/ReportsViewModel.cs`, `Services/NavigationService.cs`
-- **Описание:** Подписки на события `RequestClose`, `OnSetupCompleted`, `OnClose`, `OnUnlocked`, `DataChanged` не отписываются при закрытии окна/навигации. `NavigationService` и `ReportsViewModel` кэшируют VM без `Dispose`.
-- **Риск:** утечка памяти, накопление обработчиков, stale-данные.
-- **Рекомендация:** явно отписываться в `Unloaded`/`OnDispose` и вызывать `Dispose()` при замене кэшированных VM.
-
-### 2.19 Отсутствие валидации длины пользовательских строк перед записью в БД
-- **Файлы:** `ViewModels/TransactionEditViewModel.cs` (строки 201–205), `ViewModels/CounterpartyEditViewModel.cs` (строки 72–82), `ViewModels/CreditCardEditViewModel.cs` (строки 70–74), `ViewModels/InitialSetupViewModel.cs` (строки 264–285), `Helpers/CategoryItemViewModel.cs` (строки 42–46)
-- **Описание:** В моделях `MaxLength` ограничен, но ViewModel не валидируют верхнюю границу.
-- **Риск:** исключение EF Core или неявное обрезание, DoS, порча данных.
-- **Рекомендация:** добавить `MaxLength`-валидацию во все VM перед сохранением.
 
 ---
 
 ## 3. Средние риски (Medium)
 
-### 3.1 `CancellationToken.None` вместо проброса токена
-- **Файл:** `Services/TransactionService.cs` (строки 133, 168, 647, 664)
-- **Описание:** Вызовы `_creditCardService.RepayDebtAsync`, `_creditCardService.AddPurchaseAsync`, `_creditCardService.DistributeRepaymentForTransactionAsync`, `_creditCardService.RecalculateOnRepaymentDeletedAsync` передают `CancellationToken.None`, игнорируя токен вызывающего.
-- **Риск:** долгие операции нельзя отменить.
-- **Рекомендация:** пробрасывать `CancellationToken` через всю цепочку.
 
-### 3.2 N+1 / множественные запросы к БД
-- **Файлы:** `ViewModels/CreditCardsViewModel.cs` (строки 262–268), `Services/ReportService.cs` (строки 47–91, 470–496), `ViewModels/DashboardViewModel.cs` (строки 879–888)
-- **Описание:** Для каждой кредитной карты параллельно выполняются 4 асинхронных вызова сервиса, каждый — с новым DbContext.
-- **Риск:** лавинный рост запросов при большом числе карт, нагрузка на SQLite/WAL.
-- **Рекомендация:** добавить batch-методы в `ICreditCardService`.
-
-### 3.3 `AddDbContext<AppDbContext>(ServiceLifetime.Transient)` — лишняя регистрация
-- **Файл:** `App.xaml.cs` (строка 162)
-- **Описание:** Сервисы используют `IDbContextFactory`, но `AppDbContext` как Transient остаётся доступным для прямого инжектирования.
-- **Риск:** непреднамеренное совместное использование контекста.
-- **Рекомендация:** убрать регистрацию или явно задокументировать.
-
-### 3.4 `ICreditCardService` зарегистрирован как Scoped, остальные сервисы — Transient
-- **Файл:** `App.xaml.cs` (строка 177)
-- **Описание:** В WPF нет HTTP-запроса/scope по умолчанию; Scoped-регистрация фактически ведёт себя как Singleton.
-- **Риск:** неожиданное поведение lifetime.
-- **Рекомендация:** привести к `AddTransient` для единообразия.
-
-### 3.5 Отчёт «Структура по категориям» включает долговые операции
-- **Файл:** `Services/ReportService.cs` (строки 176–179)
-- **Описание:** Запрос фильтрует только по `Type`, не исключая `PaymentType.Debt`.
-- **Риск:** расхождение между отчётом по категориям и балансом/прибылью.
-- **Рекомендация:** добавить `.Where(t => t.PaymentType != PaymentType.Debt)`.
-
-### 3.6 «Детализация операций» показывает долги, но итоги их исключают
-- **Файл:** `Services/ReportService.cs` (строки 265–323)
-- **Описание:** Список транзакций формируется без фильтра по `PaymentType`, но итоги считаются с исключением долгов.
-- **Риск:** пользователь видит операцию в списке, но она не входит в итоги — неинтуитивно.
-- **Рекомендация:** либо включать долги в итоги с отдельной колонкой, либо фильтровать их в списке.
-
-### 3.7 `DebtReport.TotalReceivable` / `TotalPayable` учитывают уже погашенные долги
-- **Файл:** `Models/Reports/DebtReport.cs`, `Services/ReportService.cs` (строки 396–397)
-- **Описание:** Суммируют `Amount` для всех долгов со статусом не `WrittenOff`, включая `Repaid`.
-- **Риск:** завышенная сумма задолженности.
-- **Рекомендация:** учитывать только `Active` долги.
-
-### 3.8 Неполнота текстового поиска на больших объёмах
-- **Файл:** `Services/TransactionService.cs` (строки 53–60, 79–86)
-- **Описание:** При наличии `SearchText` выборка ограничивается `MaxInMemoryFilterLimit = 5000`. `GetTotalCountAsync` возвращает `5000` как приближённое значение.
-- **Риск:** потеря результатов поиска и неверная пагинация.
-- **Рекомендация:** реализовать полнотекстовый поиск SQLite (FTS5).
-
-### 3.9 `GetReconciliationDataAsync` показывает текущий кредитный долг вместо долга на дату сверки
-- **Файл:** `Services/ReportService.cs` (строки 444–465)
-- **Описание:** `CreditDebt` запрашивает `_creditCardService.GetTotalDebtAsync()`, который считает долг за всё время.
-- **Риск:** сверка кассы на прошлую дату показывает актуальный кредитный долг.
-- **Рекомендация:** передавать дату сверки в метод расчёта долга.
-
-### 3.10 Race condition при проверке лимита кредитной карты
-- **Файл:** `Services/CreditCardService.cs` (строки 237–239)
-- **Описание:** `currentDebt` вычисляется в одном DbContext, запись `CreditCardPurchase` создаётся в том же, но `TransactionService` открывает новый контекст.
-- **Риск:** возможное превышение кредитного лимита при одновременных операциях.
-- **Рекомендация:** единый контекст + явная транзакция.
-
-
-### 3.12 Импорт настроек не валидирует критичные значения
-- **Файл:** `Services/SettingsService.cs` (строки 328–355)
-- **Описание:** Числовые/строковые поля принимаются как есть. Возможны `BackupKeepCount = int.MaxValue`, `AutoLockTimeout = 0`, `CreditCardPaymentDay = 0`.
-- **Риск:** некорректная работа UI и расчётов, краши.
-- **Рекомендация:** валидировать все поля при импорте JSON.
-
-### 3.13 `JsonSerializer` без явного `MaxDepth`
-- **Файл:** `Services/SettingsService.cs` (строки 302, 322)
-- **Описание:** Используются настройки по умолчанию.
-- **Риск:** усложнение аудита и защиты от специально подготовленных JSON.
-- **Рекомендация:** явно задать `JsonSerializerOptions` с `MaxDepth` и `PropertyNameCaseInsensitive = false`.
-
-### 3.14 Fire-and-forget авто-бэкап без обработки ошибок
-- **Файл:** `App.xaml.cs` (строка 144)
-- **Описание:** `_ = settingsService.RunAutoBackupIfDueAsync();` — исключения не ловятся.
-- **Риск:** скрытые сбои бэкапа.
-- **Рекомендация:** добавить `.ContinueWith` с логированием ошибок.
-
-### 3.15 Бизнес-логика / вызовы команд VM из code-behind Views
-- **Файлы:** `Views/DashboardView.xaml.cs`, `Views/TransactionsView.xaml.cs`, `Views/Reports/CategoryReportView.xaml.cs`, `Views/Reports/BalanceReportView.xaml.cs`, `Views/Reports/TransactionDetailReportView.xaml.cs`
-- **Описание:** Code-behind напрямую вызывает команды VM и меняет `SelectedTransaction`.
-- **Риск:** нарушение MVVM, дублирование логики.
-- **Рекомендация:** перенести обработчики в VM через `CommandParameter` и behaviors.
-
-### 3.16 Дублирование кода в отчётах
-- **Файлы:** `ViewModels/Reports/BalanceReportViewModel.cs`, `CategoryReportViewModel.cs`, `TransactionDetailReportViewModel.cs`, `DebtReportViewModel.cs`
-- **Описание:** `ValidateDateRange()`, `SetPeriod(string period)`, `ExportToPdfAsync()` / `ExportToExcelAsync()` почти идентичны.
-- **Риск:** расхождения при изменениях, сложность поддержки.
-- **Рекомендация:** вынести общую логику в базовый класс `BaseReportViewModel`.
-
-### 3.17 Проблемы с командами (CanExecute без уведомлений)
-- **Файлы:** `ViewModels/TransactionsViewModel.cs` (строки 113–115), `ViewModels/DashboardViewModel.cs` (строки 148–154)
-- **Описание:** `EditCommand`/`DeleteCommand` зависят от `SelectedTransaction`, но setter не вызывает `RaiseCanExecuteChanged()`.
-- **Риск:** кнопки остаются активными/неактивными некорректно.
-- **Рекомендация:** добавить вызов `CommandManager.InvalidateRequerySuggested()` или событие `CanExecuteChanged`.
-
-### 3.18 Проблемы INotifyPropertyChanged / валидация
-- **Файлы:** `ViewModels/TransactionsViewModel.cs` (строки 372–392), `ViewModels/InitialSetupViewModel.cs` (строки 176–199), `ViewModels/ChangePasswordViewModel.cs` (строки 75–91)
-- **Описание:** Некоторые свойства не используют `SetProperty`, ошибки валидации хранятся в обычных свойствах вместо `INotifyDataErrorInfo`.
-- **Риск:** UI не обновляется, неединообразие.
-- **Рекомендация:** привести все VM к единому механизму валидации.
 
 ---
 
@@ -230,8 +118,6 @@
 | **P1 — High** | Внедрить `IDialogService` и убрать зависимости VM от View | `ViewModels/SettingsViewModel.cs`, `Services/LockService.cs` |
 | **P1 — High** | Отказ от service locator `App.GetService<T>` | `App.xaml.cs`, `ViewModels/DashboardViewModel.cs`, `ReportsViewModel.cs` |
 | **P1 — High** | Суммировать `decimal` без приведения к `double` | `Services/*Service.cs` |
-| **P2 — Medium** | Проброс `CancellationToken`, batch-методы для карт, валидация импорта настроек | `Services/*Service.cs` |
-| **P2 — Medium** | Унификация фильтрации долгов в отчётах | `Services/ReportService.cs` |
 | **P3 — Low** | Локализация, именованные константы, `DateTime.UtcNow`, async dispose | По всему проекту |
 
 ---

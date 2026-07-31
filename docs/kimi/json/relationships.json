@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-07T02:14:25+03:00",
+  "lastUpdated": "2026-07-31T17:20:00+03:00",
   "viewsToViewModels": [
     {
       "view": "AutoKassa/MainWindow.xaml",
@@ -134,12 +134,6 @@
       "notes": "Диалог смены пароля; показывается через DialogService"
     },
     {
-      "view": "AutoKassa/Views/ConfirmationDialogView.xaml",
-      "viewModel": "AutoKassa/ViewModels/ConfirmationDialogViewModel.cs",
-      "dataTemplateIn": null,
-      "notes": "Диалог подтверждения; показывается через DialogService"
-    },
-    {
       "view": "AutoKassa/Views/ToastOverlayView.xaml",
       "viewModel": null,
       "dataTemplateIn": null,
@@ -167,8 +161,7 @@
         { "service": "IDialogService", "via": "constructor", "commands": [] },
         { "service": "IToastNotificationService", "via": "constructor", "commands": [] },
         { "service": "ITransactionEditViewModelFactory", "via": "constructor", "commands": [] },
-        { "service": "ICategoryService", "via": "constructor", "commands": [] },
-        { "service": "QuickAddViewModel", "via": "constructor", "commands": [], "notes": "Вложенная ViewModel быстрого добавления операции" }
+        { "service": "ICategoryService", "via": "constructor", "commands": [] }
       ]
     },
     {
@@ -378,15 +371,6 @@
       ]
     },
     {
-      "viewModel": "QuickAddViewModel",
-      "services": [
-        { "service": "ITransactionService", "via": "constructor", "commands": ["AddQuickTransactionCommand"] },
-        { "service": "ICategoryService", "via": "constructor", "commands": [] },
-        { "service": "IDialogService", "via": "constructor", "commands": [] },
-        { "service": "IToastNotificationService", "via": "constructor", "commands": [] }
-      ]
-    },
-    {
       "viewModel": "ReconciliationViewModel",
       "services": [
         { "service": "IReportService", "via": "constructor", "commands": ["SetTodayCommand"] }
@@ -483,8 +467,7 @@
     { "viewModel": "LockScreenViewModel", "command": "UnlockCommand", "method": "Unlock", "callsService": "IPasswordService.VerifyPassword" },
     { "viewModel": "PasswordRecoveryViewModel", "command": "VerifyAnswerCommand", "method": "VerifyAnswerAsync", "callsService": "IPasswordService.VerifyPassword" },
     { "viewModel": "PasswordRecoveryViewModel", "command": "ResetPasswordCommand", "method": "ResetPasswordAsync", "callsService": "ISettingsService.UpdatePasswordAsync" },
-    { "viewModel": "ReconciliationViewModel", "command": "SetTodayCommand", "method": "ReconciliationDate = Today", "callsService": "IReportService.GetReconciliationDataAsync" },
-    { "viewModel": "QuickAddViewModel", "command": "AddQuickTransactionCommand", "method": "AddAsync", "callsService": "ITransactionService.AddAsync" }
+    { "viewModel": "ReconciliationViewModel", "command": "SetTodayCommand", "method": "ReconciliationDate = Today", "callsService": "IReportService.GetReconciliationDataAsync" }
   ],
   "servicesToServices": [
     { "service": "TransactionService", "dependsOn": [] },

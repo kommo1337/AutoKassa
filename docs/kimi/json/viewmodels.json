@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-07-08",
-  "totalCount": 36,
+  "lastUpdated": "2026-07-31",
+  "totalCount": 34,
   "viewModels": [
     {
       "name": "CalculatorViewModel",
@@ -73,18 +73,6 @@
       "interfaces": [],
       "keyCommands": ["SaveCommand", "CancelCommand"],
       "purpose": "ViewModel диалога смены пароля с валидацией и BCrypt-хешированием."
-    },
-    {
-      "name": "ConfirmationDialogViewModel",
-      "file": "AutoKassa/ViewModels/ConfirmationDialogViewModel.cs",
-      "category": "dialog",
-      "view": "AutoKassa/Views/ConfirmationDialogView.xaml",
-      "screen": "Диалог подтверждения",
-      "registeredInDi": false,
-      "dependencies": [],
-      "interfaces": [],
-      "keyCommands": ["ConfirmCommand", "CancelCommand"],
-      "purpose": "ViewModel кастомного диалога подтверждения с действиями Да/Нет."
     },
     {
       "name": "CounterpartiesViewModel",
@@ -173,9 +161,9 @@
       "view": "AutoKassa/Views/DashboardView.xaml",
       "screen": "Главная (дашборд)",
       "registeredInDi": true,
-      "dependencies": ["ITransactionService", "ICategoryService", "IDialogService", "IToastNotificationService", "IDataChangeService", "INavigationService", "IDashboardService", "ITransactionEditViewModelFactory", "IDashboardPeriodCoordinator", "IDashboardTransactionCoordinator", "QuickAddViewModel"],
+      "dependencies": ["ITransactionService", "ICategoryService", "IDialogService", "IToastNotificationService", "IDataChangeService", "INavigationService", "IDashboardService", "ITransactionEditViewModelFactory", "IDashboardPeriodCoordinator", "IDashboardTransactionCoordinator"],
       "interfaces": ["INavigationAware"],
-      "keyCommands": ["SelectPeriodCommand", "ApplyCustomPeriodCommand", "TogglePeriodPickerCommand", "OpenAddTransactionCommand", "RefreshCommand", "CloseModalCommand", "OpenTransactionCommand", "EditTransactionCommand", "DeleteTransactionCommand", "NavigateToAllTransactionsCommand", "OpenFullReportCommand"],
+      "keyCommands": ["SelectPeriodCommand", "ApplyCustomPeriodCommand", "TogglePeriodPickerCommand", "OpenAddTransactionCommand", "RefreshCommand", "CloseModalCommand", "SelectTransactionCommand", "OpenTransactionCommand", "EditTransactionCommand", "DeleteTransactionCommand", "NavigateToAllTransactionsCommand", "OpenFullReportCommand"],
       "purpose": "ViewModel главного экрана (дашборда) со сводкой, графиком, последними операциями и быстрым добавлением."
     },
     {
@@ -265,18 +253,6 @@
       "notes": "Зарегистрирован, но не используется. В LockScreenView.xaml реализована заглушка восстановления пароля."
     },
     {
-      "name": "QuickAddViewModel",
-      "file": "AutoKassa/ViewModels/QuickAddViewModel.cs",
-      "category": "helper",
-      "view": "AutoKassa/Views/DashboardView.xaml",
-      "screen": "Быстрое добавление операции на дашборде",
-      "registeredInDi": true,
-      "dependencies": ["ITransactionService", "ICategoryService", "IDialogService", "IToastNotificationService"],
-      "interfaces": [],
-      "keyCommands": ["AddQuickTransactionCommand", "ToggleTransactionTypeCommand", "ToggleDescriptionCommand", "ToggleDateCommand"],
-      "purpose": "ViewModel панели быстрого добавления операции на дашборде."
-    },
-    {
       "name": "ReconciliationViewModel",
       "file": "AutoKassa/ViewModels/ReconciliationViewModel.cs",
       "category": "mainScreen",
@@ -297,7 +273,7 @@
       "registeredInDi": true,
       "dependencies": ["IReportService", "IExportService", "IDialogService", "IToastNotificationService"],
       "interfaces": [],
-      "keyCommands": ["SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": ["SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
       "purpose": "ViewModel отчёта «Баланс за период» с графиком и экспортом PDF/Excel."
     },
     {
@@ -309,8 +285,8 @@
       "registeredInDi": false,
       "dependencies": ["IDialogService", "IToastNotificationService"],
       "interfaces": [],
-      "keyCommands": ["GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
-      "purpose": "Базовая абстрактная ViewModel для всех отчётов с автообновлением и командами экспорта."
+      "keyCommands": ["GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand", "SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand"],
+      "purpose": "Базовая абстрактная ViewModel для всех отчётов: период (DateFrom/DateTo, SetPeriod), фильтр типа оплаты, автообновление, команды экспорта и общий тост ShowExportedToast."
     },
     {
       "name": "CategoryReportViewModel",
@@ -321,7 +297,7 @@
       "registeredInDi": true,
       "dependencies": ["IReportService", "IExportService", "IDialogService", "IToastNotificationService", "ITransactionService", "IDataChangeService", "ITransactionEditViewModelFactory"],
       "interfaces": [],
-      "keyCommands": ["ShowExpensesCommand", "ShowIncomeCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "ToggleCategoryCommand", "EditTransactionCommand", "DeleteTransactionCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": ["ShowExpensesCommand", "ShowIncomeCommand", "SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "ToggleCategoryCommand", "EditTransactionCommand", "DeleteTransactionCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
       "purpose": "ViewModel отчёта «Структура по категориям» с donut-диаграммой и раскрываемыми операциями.",
       "nestedClasses": [
         {
@@ -393,7 +369,7 @@
       "registeredInDi": true,
       "dependencies": ["IReportService", "ICategoryService", "IExportService", "IDialogService", "IToastNotificationService"],
       "interfaces": [],
-      "keyCommands": ["ShowAllCommand", "ShowExpensesCommand", "ShowIncomeCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": ["ShowAllCommand", "ShowExpensesCommand", "ShowIncomeCommand", "SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
       "purpose": "ViewModel детального отчёта по операциям с ежедневной группировкой и фильтрами."
     },
     {
@@ -460,7 +436,7 @@
       "registeredInDi": true,
       "dependencies": ["ITransactionService", "ITransactionListService", "ITransactionGroupingService", "IInlineTransactionService", "ITransactionSelectionService", "ICategoryService", "ICreditCardService", "ICounterpartyService", "IDialogService", "IToastNotificationService", "IDataChangeService", "ITransactionEditViewModelFactory"],
       "interfaces": ["INavigationAware"],
-      "keyCommands": ["LoadCommand", "AddCommand", "EditCommand", "DeleteCommand", "ApplyFiltersCommand", "ResetFiltersCommand", "LoadMoreCommand", "SelectAllPaymentCommand", "SelectCashFilterCommand", "SelectNonCashFilterCommand", "SelectCreditCardFilterCommand", "SelectDebtFilterCommand", "SelectDebtStatusFilterCommand", "FilterByIncomeCommand", "FilterByExpenseCommand", "ResetTypeFilterCommand", "TogglePeriodPickerCommand", "SelectPeriodCommand", "ToggleCategoryPickerCommand", "SelectCategoryCommand", "DeleteSelectedCommand", "ClearSelectionCommand", "OpenInlineCommand", "InlineSaveCommand", "InlineCancelCommand", "InlineToggleTypeCommand", "InlineSelectExpenseCommand", "InlineSelectIncomeCommand", "InlineSelectCashCommand", "InlineSelectNonCashCommand", "InlineSelectCreditCardCommand", "InlineTogglePaymentTypeCommand"],
+      "keyCommands": ["LoadCommand", "AddCommand", "EditCommand", "DeleteCommand", "SelectTransactionCommand", "ApplyFiltersCommand", "ResetFiltersCommand", "LoadMoreCommand", "SelectAllPaymentCommand", "SelectCashFilterCommand", "SelectNonCashFilterCommand", "SelectCreditCardFilterCommand", "SelectDebtFilterCommand", "SelectDebtStatusFilterCommand", "FilterByIncomeCommand", "FilterByExpenseCommand", "ResetTypeFilterCommand", "TogglePeriodPickerCommand", "SelectPeriodCommand", "ToggleCategoryPickerCommand", "SelectCategoryCommand", "DeleteSelectedCommand", "ClearSelectionCommand", "OpenInlineCommand", "InlineSaveCommand", "InlineCancelCommand", "InlineToggleTypeCommand", "InlineSelectExpenseCommand", "InlineSelectIncomeCommand", "InlineSelectCashCommand", "InlineSelectNonCashCommand", "InlineSelectCreditCardCommand", "InlineTogglePaymentTypeCommand"],
       "purpose": "ViewModel экрана операций: фильтры, постраничная загрузка, группировка, массовое выделение и инлайн-добавление."
     }
   ],
@@ -477,7 +453,6 @@
   "dialogs": [
     "CategoryManagerViewModel",
     "ChangePasswordViewModel",
-    "ConfirmationDialogViewModel",
     "CounterpartyEditViewModel",
     "CreditCardEditViewModel",
     "CreditCardRepaymentViewModel",
@@ -506,7 +481,6 @@
     "ReconciliationViewModel",
     "SettingsViewModel",
     "ChangePasswordViewModel",
-    "LockScreenViewModel",
-    "QuickAddViewModel"
+    "LockScreenViewModel"
   ]
 }

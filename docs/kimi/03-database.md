@@ -406,6 +406,17 @@ EF Core миграции применяются автоматически пр�
 | AddCreditCardPayments | Погашения кредитных карт |
 | CreditCardPaymentCascadeDelete | Каскадное удаление погашений |
 | CreditCardPaymentNavigationFix | Исправление навигации погашений |
+| AddTransactionsFts | FTS5-поиск по описаниям операций: виртуальная таблица `TransactionsFts` + триггеры синхронизации |
+
+### Полнотекстовый поиск (FTS5)
+
+Миграция `AddTransactionsFts` создаёт виртуальную таблицу `TransactionsFts` (`fts5("Description")`, токенизатор unicode61 — регистронезависимый, в т.ч. для кириллицы) и триггеры синхронизации с `Transactions`:
+
+- `TransactionsFts_Insert` — `AFTER INSERT`;
+- `TransactionsFts_Update` — `AFTER UPDATE OF "Description"`;
+- `TransactionsFts_Delete` — `AFTER DELETE` (в проекте только soft delete, поэтому срабатывает редко; soft-deleted записи исключаются фильтром `IsDeleted` в запросе).
+
+Поиск выполняется подзапросом `WHERE "Id" IN (SELECT rowid FROM "TransactionsFts" WHERE "TransactionsFts" MATCH ?)` в `TransactionService` (`BuildFtsMatchQuery` строит префиксные фразы). В EF-модели таблица не отображается — миграция содержит только raw SQL. В тестовых БД (`TestDatabase`, `EnsureCreated` не применяет миграции) те же объекты создаются SQL-константой `FtsSetupSql` — при изменении миграции синхронизируй её.
 
 ### Как создать новую миграцию
 

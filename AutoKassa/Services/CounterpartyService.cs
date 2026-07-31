@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -80,6 +80,16 @@ namespace AutoKassa.Services
             if (string.IsNullOrWhiteSpace(counterparty.Name))
                 throw new ArgumentException("Название контрагента не может быть пустым", nameof(counterparty));
 
+            // Лимиты соответствуют [MaxLength] в Models/Counterparty.cs
+            if (counterparty.Name.Length > 150)
+                throw new ArgumentException("Название контрагента не должно превышать 150 символов", nameof(counterparty));
+
+            if (counterparty.Phone?.Length > 20)
+                throw new ArgumentException("Телефон не должен превышать 20 символов", nameof(counterparty));
+
+            if (counterparty.Notes?.Length > 500)
+                throw new ArgumentException("Заметки не должны превышать 500 символов", nameof(counterparty));
+
             if (await ExistsAsync(counterparty.Name, ct).ConfigureAwait(false))
                 throw new InvalidOperationException($"Контрагент с названием «{counterparty.Name}» уже существует");
 
@@ -105,6 +115,16 @@ namespace AutoKassa.Services
 
             if (string.IsNullOrWhiteSpace(counterparty.Name))
                 throw new ArgumentException("Название контрагента не может быть пустым", nameof(counterparty));
+
+            // Лимиты соответствуют [MaxLength] в Models/Counterparty.cs
+            if (counterparty.Name.Length > 150)
+                throw new ArgumentException("Название контрагента не должно превышать 150 символов", nameof(counterparty));
+
+            if (counterparty.Phone?.Length > 20)
+                throw new ArgumentException("Телефон не должен превышать 20 символов", nameof(counterparty));
+
+            if (counterparty.Notes?.Length > 500)
+                throw new ArgumentException("Заметки не должны превышать 500 символов", nameof(counterparty));
 
             if (await ExistsAsync(counterparty.Name, ct).ConfigureAwait(false))
             {

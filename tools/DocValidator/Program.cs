@@ -36,9 +36,11 @@ IValidator[] validators =
     new EnumValidator(),
     new ViewValidator(),
     new DiLifetimeValidator(),
+    new DbContextInjectionValidator(),
     new ModelValidator(),
     new ViewModelValidator(),
     new TrapSyncValidator(),
+    new ConstantsSyncValidator(),
 };
 
 try
@@ -56,12 +58,14 @@ try
     Console.WriteLine($"  relationships.json : {context.Relationships.ViewsToViewModels.Count} views, {context.Relationships.ViewModelsToServices.Count} vm->svc, {context.Relationships.ServicesToServices.Count} svc->svc");
     Console.WriteLine($"  flows.json         : {context.Flows.Flows.Count} flows");
     Console.WriteLine($"  traps.json         : {context.Traps.Traps.Count} traps");
+    Console.WriteLine($"  constants.json     : {context.Constants.Categories.Count} categories, {context.Constants.Categories.Sum(c => c.Constants.Count)} constants");
     Console.WriteLine($"  metadata.json      : version {context.Metadata.Version ?? "n/a"}");
     Console.WriteLine($"  index.json         : {context.Index.Structure.Count} sections");
     Console.WriteLine();
 
     bool allValid = true;
     int totalErrors = 0;
+    int totalWarnings = 0;
 
     foreach (IValidator validator in validators)
     {
@@ -87,6 +91,15 @@ try
                 Console.WriteLine($"  - {error}");
             }
         }
+
+        totalWarnings += result.WarningCount;
+
+        foreach (string warning in result.Warnings)
+        {
+            Console.ForegroundColor = ConsoleColor.DarkYellow;
+            Console.WriteLine($"  ! {warning}");
+            Console.ResetColor();
+        }
     }
 
     Console.WriteLine();
@@ -94,7 +107,9 @@ try
     if (allValid)
     {
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("All validators passed.");
+        Console.WriteLine(totalWarnings > 0
+            ? $"All validators passed ({totalWarnings} warning(s))."
+            : "All validators passed.");
         Console.ResetColor();
         return 0;
     }

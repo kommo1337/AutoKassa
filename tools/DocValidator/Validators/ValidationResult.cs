@@ -6,12 +6,20 @@ namespace AutoKassa.DocValidator.Validators;
 public sealed class ValidationResult
 {
     private readonly List<string> _errors = new();
+    private readonly List<string> _warnings = new();
 
     public IReadOnlyList<string> Errors => _errors;
+
+    /// <summary>
+    /// Некритичные замечания: не влияют на <see cref="IsValid"/>, но выводятся в отчёт.
+    /// </summary>
+    public IReadOnlyList<string> Warnings => _warnings;
 
     public bool IsValid => _errors.Count == 0;
 
     public int ErrorCount => _errors.Count;
+
+    public int WarningCount => _warnings.Count;
 
     public void AddError(string message)
     {
@@ -25,6 +33,12 @@ public sealed class ValidationResult
         {
             AddError(message);
         }
+    }
+
+    public void AddWarning(string message)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(message);
+        _warnings.Add(message);
     }
 
     public static ValidationResult Success() => new();

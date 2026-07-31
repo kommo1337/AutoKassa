@@ -6,6 +6,7 @@
 
 ## Before starting
 - [ ] Read [`TRAPS.md`](../TRAPS.md).
+- [ ] Check [`TROUBLESHOOTING.md`](../TROUBLESHOOTING.md) — the symptom may already have a known cause and solution.
 - [ ] Read [`06-business-logic.md`](../06-business-logic.md).
 - [ ] Read [`json/flows.json`](../json/flows.json) and [`json/services.json`](../json/services.json).
 

@@ -46,12 +46,16 @@
 | Добавить новую сущность | [`PRINCIPLES.md`](PRINCIPLES.md), [`04-models.md`](04-models.md), [`json/models.json`](json/models.json), [`03-database.md`](03-database.md) |
 | Добавить новый сервис | [`PRINCIPLES.md`](PRINCIPLES.md), [`05-services.md`](05-services.md), [`json/services.json`](json/services.json), [`json/relationships.json`](json/relationships.json) |
 | Исправить баг в операциях | [`TRAPS.md`](TRAPS.md), [`06-business-logic.md`](06-business-logic.md), [`json/services.json`](json/services.json) |
+| Диагностировать любую проблему | [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md), [`TRAPS.md`](TRAPS.md) |
+| Найти константу, лимит или дефолт | [`CONSTANTS.md`](CONSTANTS.md), [`json/constants.json`](json/constants.json) |
+| Понять запуск приложения и DI | [`14-startup.md`](14-startup.md), [`02-architecture.md`](02-architecture.md) |
 | Понять зависимости сервиса | [`json/relationships.json`](json/relationships.json), [`05-services.md`](05-services.md) |
 | Разобраться с отчётами | [`10-reports.md`](10-reports.md), [`json/viewmodels.json`](json/viewmodels.json) |
 | Разобраться с кредитками / долгами | [`TRAPS.md`](TRAPS.md), [`06-business-logic.md`](06-business-logic.md), [`json/flows.json`](json/flows.json) |
 | Настроить backup / безопасность | [`11-settings-security.md`](11-settings-security.md) |
 | Писать или исправить тесты | [`12-tests.md`](12-tests.md), [`PRINCIPLES.md`](PRINCIPLES.md) |
-| Настроить UI / стили / конвертеры | [`08-views.md`](08-views.md), [`13-conventions.md`](13-conventions.md) |
+| Настроить UI / стили / конвертеры | [`08-views.md`](08-views.md), [`15-converters.md`](15-converters.md), [`13-conventions.md`](13-conventions.md) |
+| Понять CI / починить упавший пайплайн | [`16-cicd.md`](16-cicd.md), [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) |
 
 ---
 
@@ -59,6 +63,11 @@
 
 - [`PRINCIPLES.md`](PRINCIPLES.md) — как правильно писать код в проекте.
 - [`TRAPS.md`](TRAPS.md) — запреты, ловушки, типичные ошибки.
+- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — устранение неполадок: симптом → причина → решение, как читать логи.
+- [`CONSTANTS.md`](CONSTANTS.md) — константы, лимиты и значения по умолчанию.
+- [`14-startup.md`](14-startup.md) — запуск приложения: инициализация, DI, стартовое окно.
+- [`15-converters.md`](15-converters.md) — каталог XAML-конвертеров.
+- [`16-cicd.md`](16-cicd.md) — CI/CD: workflow, проверки документации, релизный процесс.
 - [`INDEX.md`](INDEX.md) — полная карта документации.
 - [`json/index.json`](json/index.json) — машиночитаемая навигация.
 - [`json/metadata.json`](json/metadata.json) — метаданные проекта.
@@ -69,7 +78,8 @@
 - [`json/relationships.json`](json/relationships.json) — граф связей.
 - [`json/flows.json`](json/flows.json) — пользовательские сценарии.
 - [`json/traps.json`](json/traps.json) — запреты в машиночитаемом виде.
+- [`json/constants.json`](json/constants.json) — константы и лимиты в машиночитаемом виде.
 
 ---
 
-> Последнее обновление: Этап 4 — дополнение TRAPS.md, синхронизация json/traps.json, исправление ссылок, обновление AGENTS.md.
+> Последнее обновление: Этап 7 — добавлены ссылки на TROUBLESHOOTING.md, CONSTANTS.md, 14-startup.md, 15-converters.md и json/constants.json. Добавлен 16-cicd.md (CI/CD).

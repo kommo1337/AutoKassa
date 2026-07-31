@@ -190,6 +190,7 @@ public class TrapSyncValidatorTests : IDisposable
         File.WriteAllText(Path.Combine(docsPath, "flows.json"), "{ \"flows\": [] }");
         File.WriteAllText(Path.Combine(docsPath, "metadata.json"), "{ \"version\": \"1.0.0\" }");
         File.WriteAllText(Path.Combine(docsPath, "index.json"), "{ \"structure\": [], \"skills\": [], \"keywords\": [], \"iNeedTo\": [] }");
+        File.WriteAllText(Path.Combine(docsPath, "constants.json"), "{ \"categories\": [] }");
     }
 
     private static void CreateFiles(string projectRoot, string[] relativePaths)

@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="AutoKassa.Views.TransactionsView"
+<UserControl x:Class="AutoKassa.Views.TransactionsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
@@ -1264,6 +1264,7 @@
                                     Background="White" BorderBrush="#E8EAED" BorderThickness="1"
                                     CornerRadius="8" Padding="8,5" Margin="0,5,0,0">
                                 <TextBox Text="{Binding InlineDescription, UpdateSourceTrigger=PropertyChanged}"
+                                         MaxLength="500"
                                          FontSize="12" Background="Transparent" BorderThickness="0"
                                          VerticalContentAlignment="Center" Foreground="#344054">
                                     <TextBox.InputBindings>
@@ -1724,6 +1725,7 @@
                                                             Background="White" BorderBrush="#E8EAED"
                                                             BorderThickness="1" CornerRadius="8" Padding="8,5" Margin="0,5,0,0">
                                                         <TextBox Text="{Binding InlineDescription, UpdateSourceTrigger=PropertyChanged}"
+                                                                 MaxLength="500"
                                                                  FontSize="12" Background="Transparent" BorderThickness="0"
                                                                  VerticalContentAlignment="Center" Foreground="#344054">
                                                             <TextBox.InputBindings>
@@ -1770,8 +1772,16 @@
                                                         <Border x:Name="RowBorder"
                                                                 Padding="14,11,20,11"
                                                                 BorderBrush="#F8F9FB" BorderThickness="0,0,0,1"
-                                                                MouseLeftButtonDown="Row_MouseLeftButtonDown"
+                                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                 Cursor="Arrow">
+                                                            <Border.InputBindings>
+                                                                <MouseBinding MouseAction="LeftClick"
+                                                                              Command="{Binding DataContext.SelectTransactionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                              CommandParameter="{Binding Transaction}"/>
+                                                                <MouseBinding MouseAction="LeftDoubleClick"
+                                                                              Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                              CommandParameter="{Binding Transaction}"/>
+                                                            </Border.InputBindings>
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
                                                                     <Style.Triggers>
@@ -1785,14 +1795,15 @@
                                                                 </Style>
                                                             </Border.Style>
                                                             <Border.ContextMenu>
-                                                                <ContextMenu Style="{StaticResource ModernContextMenuStyle}"
-                                                                             Opened="ContextMenu_Opened">
+                                                                <ContextMenu Style="{StaticResource ModernContextMenuStyle}">
                                                                     <MenuItem Header="Редактировать (F2)" Tag="✏️"
                                                                               Style="{StaticResource MenuItemStyle}"
-                                                                              Click="EditMenuItem_Click"/>
+                                                                              Command="{Binding PlacementTarget.Tag.EditCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                              CommandParameter="{Binding PlacementTarget.DataContext.Transaction, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                     <MenuItem Header="Удалить" Tag="🗑️"
                                                                               Style="{StaticResource DeleteMenuItemStyle}"
-                                                                              Click="DeleteMenuItem_Click"/>
+                                                                              Command="{Binding PlacementTarget.Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                                              CommandParameter="{Binding PlacementTarget.DataContext.Transaction, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                 </ContextMenu>
                                                             </Border.ContextMenu>
 

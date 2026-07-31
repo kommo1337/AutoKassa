@@ -31,4 +31,4 @@ description: Fix a bug, exception, or incorrect behavior in AutoKassa. Use when 
 - [ ] Fix respects `TRAPS.md` rules.
 
 ## Reference
-- [`docs/kimi/checklists/bugfix-checklist.md`](../../docs/kimi/checklists/bugfix-checklist.md)
+- [`docs/kimi/checklists/bugfix-checklist.md`](../../../docs/kimi/checklists/bugfix-checklist.md)

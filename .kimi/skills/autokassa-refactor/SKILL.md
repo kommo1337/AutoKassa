@@ -29,4 +29,4 @@ description: Refactor, rename, clean up, or simplify code in AutoKassa without c
 - [ ] JSON/Markdown updated if names or dependencies changed.
 
 ## Reference
-- [`docs/kimi/checklists/refactor-checklist.md`](../../docs/kimi/checklists/refactor-checklist.md)
+- [`docs/kimi/checklists/refactor-checklist.md`](../../../docs/kimi/checklists/refactor-checklist.md)

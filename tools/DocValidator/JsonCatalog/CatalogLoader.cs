@@ -36,6 +36,7 @@ public static class CatalogLoader
             Relationships = LoadCatalog<RelationshipsCatalog>(docs, "relationships.json"),
             Flows = LoadCatalog<FlowsCatalog>(docs, "flows.json"),
             Traps = LoadCatalog<TrapsCatalog>(docs, "traps.json"),
+            Constants = LoadCatalog<ConstantsCatalog>(docs, "constants.json"),
             Metadata = LoadCatalog<MetadataCatalog>(docs, "metadata.json"),
             Index = LoadCatalog<IndexCatalog>(docs, "index.json"),
         };

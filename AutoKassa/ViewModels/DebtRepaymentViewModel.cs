@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -98,12 +98,18 @@ namespace AutoKassa.ViewModels
         public string? Description
         {
             get => _description;
-            set => SetProperty(ref _description, value);
+            set
+            {
+                if (SetProperty(ref _description, value))
+                    ValidateDescription();
+            }
         }
 
         public string AmountError => GetFirstError(nameof(Amount));
 
         public string DateError => GetFirstError(nameof(Date));
+
+        public string DescriptionError => GetFirstError(nameof(Description));
 
         public ICommand RepayCommand { get; }
         public ICommand CancelCommand { get; }
@@ -140,6 +146,7 @@ namespace AutoKassa.ViewModels
             SavedTransaction = null;
             ClearErrors(nameof(Amount));
             ClearErrors(nameof(Date));
+            ClearErrors(nameof(Description));
             AmountText = debt.RemainingAmount.ToString("N2", CultureInfo.CurrentCulture);
         }
 
@@ -172,6 +179,20 @@ namespace AutoKassa.ViewModels
             (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
+        private void ValidateDescription()
+        {
+            // Соответствует [MaxLength(500)] в Models/Transaction.cs
+            const int MaxDescriptionLength = 500;
+
+            if ((_description ?? string.Empty).Length > MaxDescriptionLength)
+                SetErrors(nameof(Description), new[] { $"Описание не должно превышать {MaxDescriptionLength} символов" });
+            else
+                ClearErrors(nameof(Description));
+
+            OnPropertyChanged(nameof(DescriptionError));
+            (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+
         private bool CanRepay() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText);
 
         private async Task RepayAsync()
@@ -180,6 +201,7 @@ namespace AutoKassa.ViewModels
 
             ValidateAmount();
             ValidateDate();
+            ValidateDescription();
             if (HasErrors) return;
 
             _isSaving = true;

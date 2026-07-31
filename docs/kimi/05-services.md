@@ -36,13 +36,13 @@
 |-------|----------|
 | `GetTransactionsAsync(filters, ct)` | Список операций с фильтрами |
 | `GetTotalCountAsync(filters, ct)` | Общее количество по фильтрам |
-| `GetByIdAsync(id)` | Операция по ID |
-| `AddAsync(transaction)` | Добавление операции |
-| `UpdateAsync(transaction)` | Обновление операции |
-| `DeleteAsync(id)` | Soft delete |
-| `RestoreAsync(id)` | Восстановление удалённой операции |
+| `GetByIdAsync(id, ct)` | Операция по ID |
+| `AddAsync(transaction, ct)` | Добавление операции |
+| `UpdateAsync(transaction, ct)` | Обновление операции |
+| `DeleteAsync(id, ct)` | Soft delete |
+| `RestoreAsync(id, ct)` | Восстановление удалённой операции |
 | `IsRepaymentTransactionAsync(id, ct)` | Является ли операция погашением |
-| `GetRecentAsync(count)` | Последние N операций |
+| `GetRecentAsync(count, ct)` | Последние N операций |
 | `GetPeriodTotalsAsync(from, to, paymentType, ct)` | Итоги за период |
 | `GetDailyTotalsAsync(from, to, paymentType, ct)` | Дневные итоги |
 | `GetTopCategoriesAsync(from, to, type, count, paymentType, ct)` | Топ категорий |
@@ -53,7 +53,7 @@
 - Операции с `PaymentType.Debt` получают `DebtStatus.Active`.
 - Операции с `PaymentType.CreditCard` создают `CreditCardPurchase`.
 - Удаление операции — только soft delete.
-- Поиск по `SearchText` выполняется в памяти из-за ограничений SQLite с Unicode.
+- Поиск по `SearchText` выполняется через SQLite FTS5 (`TransactionsFts`, unicode61) — регистронезависимо, в т.ч. для кириллицы, по префиксам слов.
 
 ### 2.2. TransactionListService
 
@@ -192,7 +192,7 @@
 
 **Интерфейс:** `ICreditCardService`
 
-**Lifetime:** Scoped
+**Lifetime:** Transient
 
 **Зависимости:** `IDbContextFactory<AppDbContext>`
 
@@ -210,6 +210,7 @@
 | `GetCurrentDebtAsync(id, ct)` | Текущий долг |
 | `GetAvailableLimitAsync(id, ct)` | Доступный лимит |
 | `GetMinimumPaymentAsync(id, ct)` | Минимальный платёж |
+| `GetCardsMetricsAsync(ct)` | Метрики по всем картам одним пакетом (без N+1) |
 | `RepayDebtAsync(id, amount, paymentType, date, description, ct)` | Погасить долг |
 | `DistributeRepaymentForTransactionAsync(...)` | FIFO-распределение |
 
@@ -523,8 +524,7 @@ sequenceDiagram
 | Lifetime | Сервисы |
 |----------|---------|
 | Singleton | `NavigationService`, `PasswordService`, `SettingsService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
-| Scoped | `CreditCardService` |
-| Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator` |
+| Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator` |
 
 ---
 

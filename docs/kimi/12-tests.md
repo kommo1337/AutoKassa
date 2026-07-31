@@ -12,7 +12,8 @@
 
 - SQLite in-memory: `DataSource=:memory:`.
 - Соединение держится открытым на время теста.
-- `EnsureCreated()` создаёт схему и seed-категории.
+- `EnsureCreated()` создаёт схему и seed-категории (миграции не применяются).
+- После `EnsureCreated()` выполняется SQL-константа `FtsSetupSql`, создающая FTS5-таблицу `TransactionsFts` и триггеры — зеркало миграции `AddTransactionsFts`; при изменении миграции синхронизируй константу.
 - `Create()` → `(AppDbContext context, SqliteConnection connection)`.
 - `CreateWithFactory()` → `(TestDbContextFactory factory, SqliteConnection connection)`.
 

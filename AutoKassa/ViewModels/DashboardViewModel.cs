@@ -61,6 +61,8 @@ namespace AutoKassa.ViewModels
         private ObservableCollection<DateGroup> _groupedTransactions;
         private ObservableCollection<CategorySummaryItem> _topExpenses;
         private ObservableCollection<CategorySummaryItem> _topIncomes;
+        private bool _hasTopExpenses;
+        private bool _hasTopIncomes;
 
         // Debounce навигации — не запускаем загрузку, если пользователь быстро ушёл
         private CancellationTokenSource _navigateCts;
@@ -91,9 +93,6 @@ namespace AutoKassa.ViewModels
         private DateTime? _nextCreditPaymentDate;
         private decimal _nextCreditPaymentAmount;
 
-        // Быстрое добавление (субVM)
-        private QuickAddViewModel _quickAdd;
-
         // Модальное окно
         private bool _isModalOpen;
         private TransactionEditViewModel _editViewModel;
@@ -110,8 +109,7 @@ namespace AutoKassa.ViewModels
             IDashboardService dashboardService,
             ITransactionEditViewModelFactory transactionEditViewModelFactory,
             IDashboardPeriodCoordinator periodCoordinator,
-            IDashboardTransactionCoordinator transactionCoordinator,
-            QuickAddViewModel quickAdd)
+            IDashboardTransactionCoordinator transactionCoordinator)
         {
             _transactionService = transactionService;
             _dialogService = dialogService;
@@ -122,7 +120,6 @@ namespace AutoKassa.ViewModels
             _transactionEditViewModelFactory = transactionEditViewModelFactory;
             _periodCoordinator = periodCoordinator;
             _transactionCoordinator = transactionCoordinator;
-            _quickAdd = quickAdd;
 
             RecentTransactions = new ObservableCollection<Transaction>();
             GroupedTransactions = new ObservableCollection<DateGroup>();
@@ -145,6 +142,7 @@ namespace AutoKassa.ViewModels
                 t => OpenTransaction(t as Transaction ?? SelectedTransaction),
                 t => (t as Transaction ?? SelectedTransaction) != null);
             DeleteTransactionCommand = new RelayCommand(async t => await DeleteTransactionAsync(t as Transaction ?? SelectedTransaction));
+            SelectTransactionCommand = new RelayCommand(t => SelectedTransaction = t as Transaction);
             NavigateToAllTransactionsCommand = new RelayCommand(_ => NavigateToAllTransactions());
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
 
@@ -478,19 +476,6 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
-        #region Свойства быстрого добавления
-
-        /// <summary>
-        /// СубVM для быстрого добавления операции
-        /// </summary>
-        public QuickAddViewModel QuickAdd
-        {
-            get => _quickAdd;
-            set => SetProperty(ref _quickAdd, value);
-        }
-
-        #endregion
-
         #region Свойства последних операций
 
         /// <summary>
@@ -508,7 +493,15 @@ namespace AutoKassa.ViewModels
         public Transaction SelectedTransaction
         {
             get => _selectedTransaction;
-            set => SetProperty(ref _selectedTransaction, value);
+            set
+            {
+                if (SetProperty(ref _selectedTransaction, value))
+                {
+                    // CanExecute команд операций зависит от SelectedTransaction —
+                    // просим CommandManager пересчитать состояние кнопок
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
         }
 
         /// <summary>
@@ -562,6 +555,24 @@ namespace AutoKassa.ViewModels
         {
             get => _topIncomes;
             set => SetProperty(ref _topIncomes, value);
+        }
+
+        /// <summary>
+        /// Есть ли расходы в топе (для отображения заглушки «Нет расходов за период»)
+        /// </summary>
+        public bool HasTopExpenses
+        {
+            get => _hasTopExpenses;
+            set => SetProperty(ref _hasTopExpenses, value);
+        }
+
+        /// <summary>
+        /// Есть ли доходы в топе (для отображения заглушки «Нет доходов за период»)
+        /// </summary>
+        public bool HasTopIncomes
+        {
+            get => _hasTopIncomes;
+            set => SetProperty(ref _hasTopIncomes, value);
         }
 
         public int StatsCount
@@ -642,6 +653,7 @@ namespace AutoKassa.ViewModels
         public ICommand OpenTransactionCommand { get; }
         public ICommand EditTransactionCommand { get; }
         public ICommand DeleteTransactionCommand { get; }
+        public ICommand SelectTransactionCommand { get; }
         public ICommand NavigateToAllTransactionsCommand { get; }
         public ICommand OpenFullReportCommand { get; }
 
@@ -654,15 +666,6 @@ namespace AutoKassa.ViewModels
         /// </summary>
         private async Task InitializeAsync()
         {
-            QuickAdd.OnTransactionAdded = async () =>
-            {
-                if (QuickAdd.SavedTransaction != null)
-                    ApplyOptimisticAdd(QuickAdd.SavedTransaction);
-                await LoadDataAsync();
-                _dataChangeService?.NotifyDataChanged();
-            };
-
-            await QuickAdd.InitializeAsync();
             await LoadDataAsync();
         }
 
@@ -730,6 +733,8 @@ namespace AutoKassa.ViewModels
             StatsAvgIncome = r.AvgIncome;
             UpdateCollection(TopExpenses, r.TopExpenses);
             UpdateCollection(TopIncomes, r.TopIncomes);
+            HasTopExpenses = TopExpenses.Count > 0;
+            HasTopIncomes = TopIncomes.Count > 0;
 
             var t = data.Today;
             TodayBalance = t.Balance;
@@ -906,12 +911,9 @@ namespace AutoKassa.ViewModels
             navCts?.Cancel();
             navCts?.Dispose();
 
-            if (QuickAdd != null)
-            {
-                QuickAdd.OnTransactionAdded = null;
-            }
-
             (_editViewModel as IDisposable)?.Dispose();
+
+            base.OnDispose();
         }
 
         #endregion

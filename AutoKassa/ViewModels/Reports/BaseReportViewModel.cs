@@ -1,9 +1,10 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using AutoKassa.Helpers;
+using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.ViewModels;
 
@@ -20,6 +21,9 @@ namespace AutoKassa.ViewModels.Reports
         private bool _isLoading;
         private bool _hasData = true;
         private bool _initialized;
+        private DateTime _dateFrom;
+        private DateTime _dateTo;
+        private PaymentType? _selectedPaymentType;
 
         /// <summary>
         /// Был ли отчёт инициализирован (InitializeAsync вызывался)
@@ -45,6 +49,11 @@ namespace AutoKassa.ViewModels.Reports
             _toastService = toastService;
             Modal = new ModalViewModel();
 
+            // По умолчанию — текущий месяц (через поля, чтобы не триггерить AutoRefresh)
+            _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            _dateTo = DateTime.Now.Date;
+            _activePeriodPreset = "Month";
+
             // Команды
             GenerateCommand = new RelayCommand(async _ => await GenerateReportAsync());
             ExportToPdfCommand = new RelayCommand(async _ =>
@@ -57,6 +66,14 @@ namespace AutoKassa.ViewModels.Reports
                 try { await ExportToExcelAsync(); }
                 catch (Exception ex) { _toastService.ShowError($"Ошибка экспорта в Excel: {ex.Message}"); }
             }, _ => HasData);
+
+            SetPeriodCommand = new RelayCommand<string>(period => SetPeriod(period));
+
+            // Команды фильтра типа оплаты
+            SetPaymentAllCommand        = new RelayCommand(_ => SelectedPaymentType = null);
+            SetPaymentCashCommand       = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
+            SetPaymentNonCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
+            SetPaymentCreditCardCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
         }
 
         /// <summary>
@@ -178,6 +195,64 @@ namespace AutoKassa.ViewModels.Reports
                 ActivePeriodPreset = null;
         }
 
+        /// <summary>
+        /// Дата начала периода
+        /// </summary>
+        public DateTime DateFrom
+        {
+            get => _dateFrom;
+            set
+            {
+                if (SetProperty(ref _dateFrom, value))
+                {
+                    OnDateChangedByUser();
+                    ValidateDateRange();
+                    AutoRefresh();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Дата окончания периода
+        /// </summary>
+        public DateTime DateTo
+        {
+            get => _dateTo;
+            set
+            {
+                if (SetProperty(ref _dateTo, value))
+                {
+                    OnDateChangedByUser();
+                    ValidateDateRange();
+                    AutoRefresh();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Фильтр типа оплаты (null — все типы)
+        /// </summary>
+        public PaymentType? SelectedPaymentType
+        {
+            get => _selectedPaymentType;
+            set
+            {
+                if (SetProperty(ref _selectedPaymentType, value))
+                {
+                    OnPropertyChanged(nameof(IsPaymentAll));
+                    OnPropertyChanged(nameof(IsPaymentCash));
+                    OnPropertyChanged(nameof(IsPaymentNonCash));
+                    OnPropertyChanged(nameof(IsPaymentCreditCard));
+                    AutoRefresh();
+                }
+            }
+        }
+
+        public bool IsPaymentAll        => !SelectedPaymentType.HasValue;
+        public bool IsPaymentCash       => SelectedPaymentType == PaymentType.Cash;
+        public bool IsPaymentNonCash    => SelectedPaymentType == PaymentType.NonCash;
+        public bool IsPaymentCreditCard => SelectedPaymentType == PaymentType.CreditCard;
+
         #endregion
 
         #region Команды
@@ -185,6 +260,11 @@ namespace AutoKassa.ViewModels.Reports
         public ICommand GenerateCommand { get; }
         public ICommand ExportToPdfCommand { get; }
         public ICommand ExportToExcelCommand { get; }
+        public ICommand SetPeriodCommand { get; }
+        public ICommand SetPaymentAllCommand        { get; }
+        public ICommand SetPaymentCashCommand       { get; }
+        public ICommand SetPaymentNonCashCommand    { get; }
+        public ICommand SetPaymentCreditCardCommand { get; }
 
         #endregion
 
@@ -240,6 +320,41 @@ namespace AutoKassa.ViewModels.Reports
         /// Переопределяется в наследниках для корректного показа плейсхолдера.
         /// </summary>
         protected virtual bool CheckHasData() => true;
+
+        /// <summary>
+        /// Валидация диапазона дат: «с» не может быть позже «по»
+        /// </summary>
+        protected void ValidateDateRange()
+        {
+            if (DateFrom > DateTo)
+                DateTo = DateFrom;
+        }
+
+        /// <summary>
+        /// Быстрые фильтры периодов ("Today", "Week", "Month", "Quarter", "Year")
+        /// </summary>
+        public void SetPeriod(string period)
+        {
+            BatchUpdate(() =>
+            {
+                var (from, to) = PeriodHelper.GetDateRange(period);
+                DateFrom = from;
+                DateTo = to;
+            });
+            ActivePeriodPreset = period;
+        }
+
+        /// <summary>
+        /// Показать toast с кнопкой «Открыть» после успешного экспорта отчёта
+        /// </summary>
+        protected void ShowExportedToast(string filePath, string formatName)
+        {
+            _toastService.ShowWithAction($"Отчёт {formatName} сохранён", "Открыть", () =>
+            {
+                if (!FileLauncher.OpenExportedFile(filePath))
+                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
+            });
+        }
 
         /// <summary>
         /// Загрузить данные отчета (переопределяется в наследниках)

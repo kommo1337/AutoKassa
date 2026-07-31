@@ -210,12 +210,6 @@ flowchart TB
 | `TransactionDetailReportView` | [`Reports/TransactionDetailReportView.xaml`](../../AutoKassa/Views/Reports/TransactionDetailReportView.xaml) | Детализация операций. |
 | `DebtReportView` | [`Reports/DebtReportView.xaml`](../../AutoKassa/Views/Reports/DebtReportView.xaml) | Отчёт по долгам. |
 
-### 7.1. Вспомогательные ViewModel
-
-| ViewModel | Файл | Назначение |
-|---|---|---|
-| `QuickAddViewModel` | [`QuickAddViewModel.cs`](../../AutoKassa/ViewModels/QuickAddViewModel.cs) | Суб-VM быстрого добавления операции, встроена в `DashboardView`. |
-
 ---
 
 ## 8. Ключевые особенности отдельных Views

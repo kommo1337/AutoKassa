@@ -374,6 +374,33 @@ namespace AutoKassa.Tests.Services
             report.CategoryItems[1].Color.Should().Be("#4CAF50");
         }
 
+        [Fact]
+        public async Task GenerateCategoryReportAsync_DebtTransactions_AreExcluded()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var supplier = TestDatabase.SeedCounterparty(_ctx, "Поставщик");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 100m, OperationType.Expense, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, cat.Id, 500m, OperationType.Expense, PaymentType.Debt, day, counterpartyId: supplier.Id, debtStatus: DebtStatus.Active);
+
+            var report = await _svc.GenerateCategoryReportAsync(day, day, OperationType.Expense);
+
+            report.TotalAmount.Should().Be(100m);
+            report.TransactionCount.Should().Be(1);
+            report.CategoryItems.Should().ContainSingle(i => i.Amount == 100m && i.TransactionCount == 1);
+        }
+
+        [Fact]
+        public async Task GenerateCategoryReportAsync_DebtPaymentTypeFilter_Throws()
+        {
+            var day = new DateTime(2025, 6, 15);
+
+            Func<Task> act = () => _svc.GenerateCategoryReportAsync(day, day, OperationType.Expense, PaymentType.Debt);
+
+            await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        }
+
         // ─────────────────────────────────────────
         // GenerateTransactionDetailReportAsync
         // ─────────────────────────────────────────
@@ -440,6 +467,33 @@ namespace AutoKassa.Tests.Services
 
             report.Transactions.Should().HaveCount(1);
             report.TotalExpense.Should().Be(100m);
+        }
+
+        [Fact]
+        public async Task GenerateTransactionDetailReportAsync_DebtTransactions_ExcludedFromListAndTotals()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var client = TestDatabase.SeedCounterparty(_ctx, "Клиент");
+            var day = new DateTime(2025, 6, 15);
+
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 1000m, OperationType.Income, PaymentType.Cash, day);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 2000m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.Active);
+
+            var report = await _svc.GenerateTransactionDetailReportAsync(day, day);
+
+            // Долг не должен попадать ни в список, ни в итоги — его место в отчёте по долгам
+            report.Transactions.Should().ContainSingle(t => t.Amount == 1000m);
+            report.TotalIncome.Should().Be(1000m);
+        }
+
+        [Fact]
+        public async Task GenerateTransactionDetailReportAsync_DebtPaymentTypeFilter_Throws()
+        {
+            var day = new DateTime(2025, 6, 15);
+
+            Func<Task> act = () => _svc.GenerateTransactionDetailReportAsync(day, day, paymentType: PaymentType.Debt);
+
+            await act.Should().ThrowAsync<ArgumentOutOfRangeException>();
         }
 
         // ─────────────────────────────────────────
@@ -637,6 +691,32 @@ namespace AutoKassa.Tests.Services
             report.Items.Should().ContainSingle();
             report.TotalReceivable.Should().Be(1500m);
             report.ActiveReceivable.Should().Be(1500m);
+        }
+
+        [Fact]
+        public async Task GenerateDebtReportAsync_Totals_IncludeOnlyActiveDebts()
+        {
+            var incCat = TestDatabase.SeedIncomeCategory(_ctx);
+            var expCat = TestDatabase.SeedExpenseCategory(_ctx);
+            var client = TestDatabase.SeedCounterparty(_ctx, "Клиент");
+            var supplier = TestDatabase.SeedCounterparty(_ctx, "Поставщик");
+            var day = new DateTime(2025, 6, 15);
+
+            // Активные долги — входят в итоги
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 2000m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.Active);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 1500m, OperationType.Expense, PaymentType.Debt, day, counterpartyId: supplier.Id, debtStatus: DebtStatus.Active);
+
+            // Погашенные и списанные долги — в итоги не входят
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 5000m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.Repaid);
+            TestDatabase.SeedTransaction(_ctx, incCat.Id, 9000m, OperationType.Income, PaymentType.Debt, day, counterpartyId: client.Id, debtStatus: DebtStatus.WrittenOff);
+            TestDatabase.SeedTransaction(_ctx, expCat.Id, 7000m, OperationType.Expense, PaymentType.Debt, day, counterpartyId: supplier.Id, debtStatus: DebtStatus.Repaid);
+
+            var report = await _svc.GenerateDebtReportAsync(day, day, null, null);
+
+            report.TotalReceivable.Should().Be(2000m);
+            report.TotalPayable.Should().Be(1500m);
+            // Сами долги остаются в списке, фильтруются только итоги
+            report.Items.Should().HaveCount(5);
         }
         // ─────────────────────────────────────────
         // Точность decimal (этап 2.16)

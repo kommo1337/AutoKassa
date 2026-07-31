@@ -27,6 +27,30 @@ namespace AutoKassa.Tests.Infrastructure
     public static class TestDatabase
     {
         /// <summary>
+        /// SQL создания FTS5-индекса по описанию операций и триггеров синхронизации.
+        /// Должен совпадать с миграцией AddTransactionsFts: EnsureCreated() строит схему
+        /// по модели EF и не применяет миграции, поэтому FTS-объекты создаются отдельно.
+        /// </summary>
+        private const string FtsSetupSql =
+            @"CREATE VIRTUAL TABLE IF NOT EXISTS ""TransactionsFts"" USING fts5(""Description"");
+
+CREATE TRIGGER IF NOT EXISTS ""TransactionsFts_Insert"" AFTER INSERT ON ""Transactions"" BEGIN
+    INSERT INTO ""TransactionsFts""(rowid, ""Description"") VALUES (new.""Id"", new.""Description"");
+END;
+
+CREATE TRIGGER IF NOT EXISTS ""TransactionsFts_Update"" AFTER UPDATE OF ""Description"" ON ""Transactions"" BEGIN
+    UPDATE ""TransactionsFts"" SET ""Description"" = new.""Description"" WHERE rowid = old.""Id"";
+END;
+
+CREATE TRIGGER IF NOT EXISTS ""TransactionsFts_Delete"" AFTER DELETE ON ""Transactions"" BEGIN
+    DELETE FROM ""TransactionsFts"" WHERE rowid = old.""Id"";
+END;
+
+INSERT INTO ""TransactionsFts""(rowid, ""Description"")
+    SELECT t.""Id"", t.""Description"" FROM ""Transactions"" t
+    WHERE NOT EXISTS (SELECT 1 FROM ""TransactionsFts"" f WHERE f.rowid = t.""Id"");";
+
+        /// <summary>
         /// Создаёт открытое соединение, применяет схему и seed-данные.
         /// Вызывающий код обязан вызвать connection.Dispose() после теста.
         /// </summary>
@@ -42,6 +66,7 @@ namespace AutoKassa.Tests.Infrastructure
 
             var context = new AppDbContext(options);
             context.Database.EnsureCreated(); // схема + seed-категории из OnModelCreating
+            context.Database.ExecuteSqlRaw(FtsSetupSql); // FTS5-индекс и триггеры (как в миграции)
 
             return (context, connection);
         }
@@ -62,6 +87,7 @@ namespace AutoKassa.Tests.Infrastructure
             using (var ctx = new AppDbContext(options))
             {
                 ctx.Database.EnsureCreated();
+                ctx.Database.ExecuteSqlRaw(FtsSetupSql); // FTS5-индекс и триггеры (как в миграции)
             }
 
             var factory = new TestDbContextFactory(options);

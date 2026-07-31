@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -174,7 +174,73 @@ namespace AutoKassa.Services
         public async Task<DateTime?> GetNextPaymentDateAsync(int creditCardId, CancellationToken ct = default)
         {
             var card = await GetByIdAsync(creditCardId, ct).ConfigureAwait(false);
-            if (card == null || !card.PaymentDay.HasValue)
+            if (card == null)
+                return null;
+
+            return CalculateNextPaymentDate(card);
+        }
+
+        /// <summary>
+        /// Получить метрики по всем картам одним пакетом.
+        /// Три запроса независимо от количества карт — взамен нескольких контекстов на карту (N+1).
+        /// </summary>
+        public async Task<IReadOnlyList<CreditCardMetrics>> GetCardsMetricsAsync(CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+
+            var cards = await context.CreditCards
+                .AsNoTracking()
+                .OrderBy(c => c.Name)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var cardIds = cards.Select(c => c.Id).ToList();
+
+            // Суммы покупок по каждой карте
+            var purchaseTotals = await context.CreditCardPurchases
+                .AsNoTracking()
+                .Where(p => cardIds.Contains(p.CreditCardId))
+                .GroupBy(p => p.CreditCardId)
+                .Select(g => new { CardId = g.Key, Total = g.Sum(p => p.Amount) })
+                .ToDictionaryAsync(x => x.CardId, x => x.Total, ct)
+                .ConfigureAwait(false);
+
+            // Суммы погашений по каждой карте (та же логика, что и в CreditCardOperationHelper.GetCurrentDebtAsync)
+            var repaymentTotals = await context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreditCardId != null
+                            && cardIds.Contains(t.CreditCardId.Value)
+                            && !t.IsDeleted
+                            && t.Type == OperationType.Expense
+                            && t.Category.Name == RepaymentCategoryName)
+                .GroupBy(t => t.CreditCardId!.Value)
+                .Select(g => new { CardId = g.Key, Total = g.Sum(t => t.Amount) })
+                .ToDictionaryAsync(x => x.CardId, x => x.Total, ct)
+                .ConfigureAwait(false);
+
+            return cards.Select(card =>
+            {
+                var debt = card.InitialDebt
+                           + (purchaseTotals.TryGetValue(card.Id, out var purchases) ? purchases : 0m)
+                           - (repaymentTotals.TryGetValue(card.Id, out var repayments) ? repayments : 0m);
+
+                return new CreditCardMetrics
+                {
+                    Card = card,
+                    CurrentDebt = debt,
+                    AvailableLimit = Math.Max(0m, card.Limit - debt),
+                    MinimumPayment = debt * (card.MinimumPaymentPercent / 100m),
+                    NextPaymentDate = CalculateNextPaymentDate(card)
+                };
+            }).ToList();
+        }
+
+        /// <summary>
+        /// Рассчитать дату ближайшего платежа по карте
+        /// </summary>
+        private static DateTime? CalculateNextPaymentDate(CreditCard card)
+        {
+            if (!card.PaymentDay.HasValue)
                 return null;
 
             var referenceDate = card.LastPaymentDate.HasValue
@@ -233,6 +299,46 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
+        /// Получить общий долг по всем активным картам на конец указанной даты
+        /// </summary>
+        public async Task<decimal> GetTotalDebtAsOfAsync(DateTime asOfDate, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+
+            // Верхняя граница — конец указанной даты (включительно)
+            var asOfEnd = asOfDate.Date.AddDays(1);
+
+            var cards = await context.CreditCards
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var cardIds = cards.Select(c => c.Id).ToList();
+            var totalInitialDebt = cards.Sum(c => c.InitialDebt);
+
+            var purchasesSum = await context.CreditCardPurchases
+                .AsNoTracking()
+                .Where(p => cardIds.Contains(p.CreditCardId) && p.PurchaseDate < asOfEnd)
+                .SumAsync(p => (decimal?)p.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
+
+            // Фильтры погашений повторяют GetTotalDebtAsync и CreditCardOperationHelper.GetCurrentDebtAsync
+            var repaymentsSum = await context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreditCardId != null
+                            && cardIds.Contains(t.CreditCardId.Value)
+                            && !t.IsDeleted
+                            && t.Type == OperationType.Expense
+                            && t.Category.Name == RepaymentCategoryName
+                            && t.Date < asOfEnd)
+                .SumAsync(t => (decimal?)t.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
+
+            return totalInitialDebt + purchasesSum - repaymentsSum;
+        }
+
+        /// <summary>
         /// Зарегистрировать покупку по кредитной карте
         /// </summary>
         public async Task AddPurchaseAsync(int creditCardId, int transactionId, decimal amount, CancellationToken ct = default)
@@ -264,6 +370,10 @@ namespace AutoKassa.Services
 
             if (paymentType != PaymentType.Cash && paymentType != PaymentType.NonCash)
                 throw new ArgumentException("Погашение кредитной карты возможно только наличными или безналичными", nameof(paymentType));
+
+            // Соответствует [MaxLength(500)] в Models/Transaction.cs
+            if (description?.Length > 500)
+                throw new ArgumentException("Описание не должно превышать 500 символов", nameof(description));
 
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
 
@@ -401,6 +511,13 @@ namespace AutoKassa.Services
 
             if (string.IsNullOrWhiteSpace(card.Name))
                 throw new ArgumentException("Название карты не может быть пустым", nameof(card));
+
+            // Лимиты соответствуют [MaxLength(100)] в Models/CreditCard.cs
+            if (card.Name.Length > 100)
+                throw new ArgumentException("Название карты не должно превышать 100 символов", nameof(card));
+
+            if (card.BankName?.Length > 100)
+                throw new ArgumentException("Название банка не должно превышать 100 символов", nameof(card));
 
             if (card.Limit < 0)
                 throw new ArgumentException("Кредитный лимит не может быть отрицательным", nameof(card));

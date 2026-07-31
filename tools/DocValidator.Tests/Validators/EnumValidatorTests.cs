@@ -262,6 +262,7 @@ namespace AutoKassa.Models.Enums
         File.WriteAllText(Path.Combine(docsPath, "traps.json"), "{ \"traps\": [] }");
         File.WriteAllText(Path.Combine(docsPath, "metadata.json"), "{ \"version\": \"1.0.0\" }");
         File.WriteAllText(Path.Combine(docsPath, "index.json"), "{ \"structure\": [], \"skills\": [], \"keywords\": [], \"iNeedTo\": [] }");
+        File.WriteAllText(Path.Combine(docsPath, "constants.json"), "{ \"categories\": [] }");
     }
 
     private string CreateTempDirectory()

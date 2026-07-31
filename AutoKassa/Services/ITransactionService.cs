@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Services
@@ -21,27 +21,27 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить операцию по ID
         /// </summary>
-        Task<Transaction> GetByIdAsync(int id);
+        Task<Transaction> GetByIdAsync(int id, CancellationToken ct = default);
 
         /// <summary>
         /// Добавить новую операцию
         /// </summary>
-        Task<Transaction> AddAsync(Transaction transaction);
+        Task<Transaction> AddAsync(Transaction transaction, CancellationToken ct = default);
 
         /// <summary>
         /// Обновить операцию
         /// </summary>
-        Task UpdateAsync(Transaction transaction);
+        Task UpdateAsync(Transaction transaction, CancellationToken ct = default);
 
         /// <summary>
         /// Удалить операцию (soft delete)
         /// </summary>
-        Task DeleteAsync(int id);
+        Task DeleteAsync(int id, CancellationToken ct = default);
 
         /// <summary>
         /// Восстановить ранее удалённую операцию (отмена soft delete)
         /// </summary>
-        Task RestoreAsync(int id);
+        Task RestoreAsync(int id, CancellationToken ct = default);
 
         /// <summary>
         /// Проверяет, является ли операция погашением долга.
@@ -51,7 +51,7 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить последние N операций
         /// </summary>
-        Task<List<Transaction>> GetRecentAsync(int count = 10);
+        Task<List<Transaction>> GetRecentAsync(int count = 10, CancellationToken ct = default);
 
         /// <summary>
         /// Получить суммарные доходы/расходы за период (SQL-агрегация, без загрузки всех записей)

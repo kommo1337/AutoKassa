@@ -63,9 +63,8 @@ namespace AutoKassa.Services
                 query = query.Where(t => t.PaymentType == paymentType.Value);
 
             // SQL-агрегация итогов вместо загрузки всех транзакций в память.
-            // Долговые операции не влияют на прибыль и фактический баланс.
+            // Долговые операции уже исключены базовым запросом выше.
             var totals = await query
-                .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
@@ -90,9 +89,8 @@ namespace AutoKassa.Services
             report.NextCreditPaymentDate = nextPaymentDate;
             report.NextCreditPaymentAmount = nextPaymentAmount;
 
-            // SQL-агрегация по дням (долги исключаем)
+            // SQL-агрегация по дням (долги уже исключены базовым запросом)
             var dailyRows = await query
-                .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Date.Date)
                 .Select(g => new
                 {
@@ -161,8 +159,20 @@ namespace AutoKassa.Services
         /// <summary>
         /// Сформировать отчет "Структура по категориям"
         /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="paymentType"/> равен <see cref="PaymentType.Debt"/> — долговые операции
+        /// в отчёт не входят; используйте <see cref="GenerateDebtReportAsync"/>.
+        /// </exception>
         public async Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, CancellationToken ct = default)
         {
+            // Явный фильтр по Debt бессмысленен: отчёт исключает долговые операции (см. TRAPS 2.2),
+            // поэтому молча вернул бы пустой результат — лучше упасть с понятной ошибкой.
+            if (paymentType == PaymentType.Debt)
+            {
+                throw new ArgumentOutOfRangeException(nameof(paymentType), paymentType,
+                    "Долговые операции не входят в отчёт по категориям; используйте GenerateDebtReportAsync.");
+            }
+
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var report = new CategoryReport
             {
@@ -171,12 +181,15 @@ namespace AutoKassa.Services
                 OperationType = operationType
             };
 
-            // Фильтр за период с указанным типом (включая весь последний день)
+            // Фильтр за период с указанным типом (включая весь последний день).
+            // Долговые операции исключаются, как и в балансе (см. TRAPS 2.2): Debt фиксирует
+            // обязательство, а не движение денег — иначе отчёт разойдётся с балансом/прибылью.
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = context.Transactions
                 .AsNoTracking()
                 .Include(t => t.Category)
-                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd && t.Type == operationType);
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd
+                    && t.Type == operationType && t.PaymentType != PaymentType.Debt);
             if (paymentType.HasValue)
                 query = query.Where(t => t.PaymentType == paymentType.Value);
 
@@ -243,6 +256,10 @@ namespace AutoKassa.Services
         /// <summary>
         /// Сформировать отчет "Детализация операций"
         /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="paymentType"/> равен <see cref="PaymentType.Debt"/> — долговые операции
+        /// в отчёт не входят; используйте <see cref="GenerateDebtReportAsync"/>.
+        /// </exception>
         public async Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(
             DateTime dateFrom,
             DateTime dateTo,
@@ -251,6 +268,14 @@ namespace AutoKassa.Services
             PaymentType? paymentType = null,
             CancellationToken ct = default)
         {
+            // Явный фильтр по Debt бессмысленен: отчёт исключает долговые операции (см. TRAPS 2.2, 2.14),
+            // поэтому молча вернул бы пустой результат — лучше упасть с понятной ошибкой.
+            if (paymentType == PaymentType.Debt)
+            {
+                throw new ArgumentOutOfRangeException(nameof(paymentType), paymentType,
+                    "Долговые операции не входят в детализацию операций; используйте GenerateDebtReportAsync.");
+            }
+
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
             var report = new TransactionDetailReport
             {
@@ -260,11 +285,14 @@ namespace AutoKassa.Services
                 FilterCategoryId = categoryId
             };
 
-            // Фильтр за период (включая весь последний день)
+            // Фильтр за период (включая весь последний день).
+            // Долговые операции исключаются из списка, как и из итогов ниже (см. TRAPS 2.2, 2.14):
+            // иначе пользователь видит операцию, которая не входит в TotalIncome/TotalExpense.
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = context.Transactions
                 .AsNoTracking()
-                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd);
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd
+                    && t.PaymentType != PaymentType.Debt);
 
             // Фильтр по типу оплаты
             if (paymentType.HasValue)
@@ -311,9 +339,8 @@ namespace AutoKassa.Services
                 report.FilterCategoryName = category?.Name;
             }
 
-            // SQL-агрегация итогов (долги исключаем)
+            // SQL-агрегация итогов (долги уже исключены из query выше)
             var totals = await query
-                .Where(t => t.PaymentType != PaymentType.Debt)
                 .GroupBy(t => t.Type)
                 .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
                 .ToListAsync(ct)
@@ -395,8 +422,10 @@ namespace AutoKassa.Services
                 DateFrom = from,
                 DateTo = to,
                 Items = items,
-                TotalReceivable = items.Where(i => i.Direction == OperationType.Income && i.Status != DebtStatus.WrittenOff).Sum(i => i.Amount),
-                TotalPayable = items.Where(i => i.Direction == OperationType.Expense && i.Status != DebtStatus.WrittenOff).Sum(i => i.Amount),
+                // Только активные долги: погашенные и списанные в итоги не входят
+                // (см. XML-документацию DebtReport.TotalReceivable/TotalPayable)
+                TotalReceivable = items.Where(i => i.Direction == OperationType.Income && i.Status == DebtStatus.Active).Sum(i => i.Amount),
+                TotalPayable = items.Where(i => i.Direction == OperationType.Expense && i.Status == DebtStatus.Active).Sum(i => i.Amount),
                 ActiveReceivable = items.Where(i => i.Direction == OperationType.Income && i.Status == DebtStatus.Active).Sum(i => i.RemainingAmount),
                 ActivePayable = items.Where(i => i.Direction == OperationType.Expense && i.Status == DebtStatus.Active).Sum(i => i.RemainingAmount)
             };
@@ -449,8 +478,8 @@ namespace AutoKassa.Services
             var cashAmount = await GetInitialBalanceAsync(date.AddDays(1), PaymentType.Cash, ct).ConfigureAwait(false);
             var nonCashAmount = await GetInitialBalanceAsync(date.AddDays(1), PaymentType.NonCash, ct).ConfigureAwait(false);
 
-            // Кредитный долг и ближайший платёж
-            var creditDebt = await _creditCardService.GetTotalDebtAsync(ct).ConfigureAwait(false);
+            // Кредитный долг на дату сверки (не текущий) и ближайший платёж
+            var creditDebt = await _creditCardService.GetTotalDebtAsOfAsync(date, ct).ConfigureAwait(false);
             var (nextPaymentDate, nextPaymentAmount) = await GetNextCreditPaymentAsync(ct).ConfigureAwait(false);
 
             return new ReconciliationData
@@ -469,16 +498,15 @@ namespace AutoKassa.Services
         /// </summary>
         private async Task<(DateTime? Date, decimal Amount)> GetNextCreditPaymentAsync(CancellationToken ct)
         {
-            var cards = await _creditCardService.GetAllAsync(ct).ConfigureAwait(false);
-            var activeCards = cards.Where(c => c.IsActive).ToList();
-            if (activeCards.Count == 0)
-                return (null, 0m);
+            // Метрики по всем картам одним пакетом, без N+1
+            var metrics = await _creditCardService.GetCardsMetricsAsync(ct).ConfigureAwait(false);
+            var cardPayments = metrics
+                .Where(m => m.Card.IsActive)
+                .Select(m => new { Date = m.NextPaymentDate, Amount = m.MinimumPayment })
+                .ToList();
 
-            var cardPayments = await Task.WhenAll(activeCards.Select(async card => new
-            {
-                Date = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct).ConfigureAwait(false),
-                Amount = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct).ConfigureAwait(false)
-            })).ConfigureAwait(false);
+            if (cardPayments.Count == 0)
+                return (null, 0m);
 
             var upcoming = cardPayments
                 .Where(x => x.Date.HasValue)

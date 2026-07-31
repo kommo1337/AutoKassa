@@ -174,7 +174,7 @@
                                    Margin="0,0,8,0" Foreground="{StaticResource MutedTextBrush}"/>
                         <DatePicker SelectedDate="{Binding DateTo, Mode=TwoWay}"
                                     Width="130" Margin="0,0,16,0"/>
-                        <Button Content="Сегодня" Click="QuickFilterButton_Click" Tag="Today" Margin="0,0,6,0">
+                        <Button Content="Сегодня" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Today" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -187,7 +187,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Неделя" Click="QuickFilterButton_Click" Tag="Week" Margin="0,0,6,0">
+                        <Button Content="Неделя" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Week" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -200,7 +200,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Месяц" Click="QuickFilterButton_Click" Tag="Month" Margin="0,0,6,0">
+                        <Button Content="Месяц" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Month" Margin="0,0,6,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>
@@ -213,7 +213,7 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="Год" Click="QuickFilterButton_Click" Tag="Year">
+                        <Button Content="Год" Command="{Binding SetPeriodCommand}" CommandParameter="{Binding Tag, RelativeSource={RelativeSource Self}}" Tag="Year">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource PeriodPresetButtonStyle}">
                                     <Style.Triggers>

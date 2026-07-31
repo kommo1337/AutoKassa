@@ -30,4 +30,4 @@ description: Add or fix unit tests in AutoKassa using xUnit and FluentAssertions
 - [ ] New tests cover the requested scenarios.
 
 ## Reference
-- [`docs/kimi/checklists/test-checklist.md`](../../docs/kimi/checklists/test-checklist.md)
+- [`docs/kimi/checklists/test-checklist.md`](../../../docs/kimi/checklists/test-checklist.md)

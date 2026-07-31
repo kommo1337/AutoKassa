@@ -33,4 +33,4 @@ description: Add a new screen (ViewModel + View + navigation) to the AutoKassa W
 - [ ] JSON/Markdown updated.
 
 ## Reference
-- [`docs/kimi/checklists/new-screen-checklist.md`](../../docs/kimi/checklists/new-screen-checklist.md)
+- [`docs/kimi/checklists/new-screen-checklist.md`](../../../docs/kimi/checklists/new-screen-checklist.md)

@@ -19,14 +19,11 @@ namespace AutoKassa.ViewModels.Reports
         private readonly ICategoryService _categoryService;
         private readonly IExportService _exportService;
 
-        private DateTime _dateFrom;
-        private DateTime _dateTo;
         private OperationType? _selectedOperationType;
         private Category _selectedCategory;
         private TransactionDetailReport _report;
         private List<Category> _categories;
         private List<TransactionDetailGroup> _groupedTransactions = new();
-        private PaymentType? _selectedPaymentType;
 
         public TransactionDetailReportViewModel(
             IReportService reportService,
@@ -39,36 +36,16 @@ namespace AutoKassa.ViewModels.Reports
             _categoryService = categoryService;
             _exportService   = exportService;
 
-            _dateFrom   = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            _dateTo     = DateTime.Now.Date;
-            ActivePeriodPreset = "Month";
             _categories = new List<Category>();
 
             ShowAllCommand      = new RelayCommand(_ => SetOperationType(null));
             ShowExpensesCommand = new RelayCommand(_ => SetOperationType(OperationType.Expense));
             ShowIncomeCommand   = new RelayCommand(_ => SetOperationType(OperationType.Income));
 
-            SetPaymentAllCommand        = new RelayCommand(_ => SelectedPaymentType = null);
-            SetPaymentCashCommand       = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
-            SetPaymentNonCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
-            SetPaymentCreditCardCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
-
             // Инициализация отложена до первого отображения через InitializeAsync
         }
 
         public override string ReportName => "Детализация операций";
-
-        public DateTime DateFrom
-        {
-            get => _dateFrom;
-            set { if (SetProperty(ref _dateFrom, value)) { OnDateChangedByUser(); ValidateDateRange(); AutoRefresh(); } }
-        }
-
-        public DateTime DateTo
-        {
-            get => _dateTo;
-            set { if (SetProperty(ref _dateTo, value)) { OnDateChangedByUser(); ValidateDateRange(); AutoRefresh(); } }
-        }
 
         public OperationType? SelectedOperationType
         {
@@ -115,38 +92,6 @@ namespace AutoKassa.ViewModels.Reports
         public ICommand ShowAllCommand      { get; }
         public ICommand ShowExpensesCommand { get; }
         public ICommand ShowIncomeCommand   { get; }
-
-        // Фильтр типа оплаты
-        public PaymentType? SelectedPaymentType
-        {
-            get => _selectedPaymentType;
-            set
-            {
-                if (SetProperty(ref _selectedPaymentType, value))
-                {
-                    OnPropertyChanged(nameof(IsPaymentAll));
-                    OnPropertyChanged(nameof(IsPaymentCash));
-                    OnPropertyChanged(nameof(IsPaymentNonCash));
-                    OnPropertyChanged(nameof(IsPaymentCreditCard));
-                    AutoRefresh();
-                }
-            }
-        }
-
-        public bool IsPaymentAll        => !SelectedPaymentType.HasValue;
-        public bool IsPaymentCash       => SelectedPaymentType == PaymentType.Cash;
-        public bool IsPaymentNonCash    => SelectedPaymentType == PaymentType.NonCash;
-        public bool IsPaymentCreditCard => SelectedPaymentType == PaymentType.CreditCard;
-
-        public ICommand SetPaymentAllCommand        { get; }
-        public ICommand SetPaymentCashCommand       { get; }
-        public ICommand SetPaymentNonCashCommand    { get; }
-        public ICommand SetPaymentCreditCardCommand { get; }
-
-        private void ValidateDateRange()
-        {
-            if (DateFrom > DateTo) DateTo = DateFrom;
-        }
 
         private async Task LoadCategoriesAsync()
         {
@@ -223,37 +168,18 @@ namespace AutoKassa.ViewModels.Reports
             return date.ToString("d MMMM, dddd", new CultureInfo("ru-RU"));
         }
 
-        public void SetPeriod(string period)
-        {
-            BatchUpdate(() =>
-            {
-                var (from, to) = AutoKassa.Helpers.PeriodHelper.GetDateRange(period);
-                DateFrom = from;
-                DateTo = to;
-            });
-            ActivePeriodPreset = period;
-        }
-
         protected override async Task ExportToPdfAsync()
         {
             if (Report == null) { _toastService.ShowInfo("Сначала сформируйте отчет"); return; }
             var path = await _exportService.ExportTransactionDetailReportToPdfAsync(Report);
-            _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(path))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(path, "PDF");
         }
 
         protected override async Task ExportToExcelAsync()
         {
             if (Report == null) { _toastService.ShowInfo("Сначала сформируйте отчет"); return; }
             var path = await _exportService.ExportTransactionDetailReportToExcelAsync(Report);
-            _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(path))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(path, "Excel");
         }
     }
 }

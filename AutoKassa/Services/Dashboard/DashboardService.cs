@@ -216,43 +216,33 @@ namespace AutoKassa.Services.Dashboard
 
         private async Task<DashboardCredit> GetCreditMetricsAsync(CancellationToken ct)
         {
-            var cards = await _creditCardService.GetAllAsync(ct);
-            var activeCards = cards.Where(c => c.IsActive).ToList();
+            // Метрики по всем картам одним пакетом, без N+1
+            var metrics = await _creditCardService.GetCardsMetricsAsync(ct);
+            var activeMetrics = metrics.Where(m => m.Card.IsActive).ToList();
 
-            if (activeCards.Count == 0)
+            if (activeMetrics.Count == 0)
             {
                 return new DashboardCredit(false, 0, 0, 0, 0, null, 0);
             }
 
-            var tasks = activeCards.Select(async card => new
-            {
-                Card = card,
-                Debt = await _creditCardService.GetCurrentDebtAsync(card.Id, ct),
-                Available = await _creditCardService.GetAvailableLimitAsync(card.Id, ct),
-                MinPayment = await _creditCardService.GetMinimumPaymentAsync(card.Id, ct),
-                NextDate = await _creditCardService.GetNextPaymentDateAsync(card.Id, ct)
-            }).ToList();
-
-            var results = await Task.WhenAll(tasks);
-
-            var totalLimit = results.Sum(r => r.Card.Limit);
-            var totalAvailable = results.Sum(r => r.Available);
+            var totalLimit = activeMetrics.Sum(m => m.Card.Limit);
+            var totalAvailable = activeMetrics.Sum(m => m.AvailableLimit);
             var totalUsed = totalLimit - totalAvailable;
-            var totalDebt = results.Sum(r => r.Debt);
+            var totalDebt = activeMetrics.Sum(m => m.CurrentDebt);
 
-            var upcoming = results
-                .Where(r => r.NextDate.HasValue && r.Debt > 0)
-                .OrderBy(r => r.NextDate)
+            var upcoming = activeMetrics
+                .Where(m => m.NextPaymentDate.HasValue && m.CurrentDebt > 0)
+                .OrderBy(m => m.NextPaymentDate)
                 .FirstOrDefault();
 
             DateTime? nextDate = null;
             decimal nextAmount = 0;
             if (upcoming != null)
             {
-                nextDate = upcoming.NextDate!.Value;
-                nextAmount = results
-                    .Where(r => r.NextDate == upcoming.NextDate)
-                    .Sum(r => r.MinPayment);
+                nextDate = upcoming.NextPaymentDate!.Value;
+                nextAmount = activeMetrics
+                    .Where(m => m.NextPaymentDate == upcoming.NextPaymentDate)
+                    .Sum(m => m.MinimumPayment);
             }
 
             return new DashboardCredit(true, totalLimit, totalUsed, totalAvailable, totalDebt, nextDate, nextAmount);

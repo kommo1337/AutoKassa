@@ -106,6 +106,26 @@ namespace AutoKassa.Models
     }
 
     [Fact]
+    public void Scan_WithMetricsDto_MarksAsDto()
+    {
+        (string projectRoot, string appPath) = CreateProjectWithModel("CreditCardMetrics.cs", @"
+namespace AutoKassa.Models
+{
+    public class CreditCardMetrics
+    {
+        public decimal CurrentDebt { get; set; }
+    }
+}
+");
+
+        IReadOnlyList<ScannedModel> result = ModelScanner.Scan(projectRoot, appPath);
+
+        result.Should().ContainSingle();
+        result.Single().Name.Should().Be("CreditCardMetrics");
+        result.Single().IsDto.Should().BeTrue();
+    }
+
+    [Fact]
     public void Scan_WithNestedReportItem_MarksAsDto()
     {
         (string projectRoot, string appPath) = CreateProjectWithModel(

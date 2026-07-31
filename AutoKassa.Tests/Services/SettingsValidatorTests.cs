@@ -118,5 +118,17 @@ namespace AutoKassa.Tests.Services
 
             errors.Should().HaveCount(3);
         }
+
+        [Fact]
+        public void Validate_TooLongBackupPath_ReturnsError()
+        {
+            var validator = new SettingsValidator();
+            var vm = CreateValidViewModel();
+            vm.BackupPath = new string('X', 501);
+
+            var errors = validator.Validate(vm);
+
+            errors.Should().ContainSingle(e => e.Contains("500"));
+        }
     }
 }

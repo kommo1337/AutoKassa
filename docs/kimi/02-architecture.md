@@ -93,8 +93,7 @@ public class TransactionEditViewModel : ViewModelBase
 | Lifetime | Когда использовать | Примеры |
 |----------|-------------------|---------|
 | `Singleton` | Сервисы с состоянием приложения, событийные шины | `NavigationService`, `SettingsService`, `ToastNotificationService`, `LockService`, `DataChangeService` |
-| `Scoped` | Сервис, который должен жить в рамках одной области (например, отчёта) | `CreditCardService` |
-| `Transient` | Сервисы без состояния, доменная логика | `TransactionService`, `CategoryService`, `ReportService`, `DashboardService` |
+| `Transient` | Сервисы без состояния, доменная логика | `TransactionService`, `CategoryService`, `ReportService`, `DashboardService`, `CreditCardService` |
 
 ### Главное окно и фабрики
 
@@ -111,11 +110,10 @@ services.AddSingleton<MainWindow>(provider =>
 ### DbContext
 
 ```csharp
-services.AddDbContext<AppDbContext>(ServiceLifetime.Transient);
 services.AddDbContextFactory<AppDbContext>();
 ```
 
-Singleton-сервисы (`SettingsService`) используют `IDbContextFactory<AppDbContext>` для создания контекста на каждый вызов.
+Явной регистрации `AppDbContext` нет, но `AddDbContextFactory` неявно делает его разрешимым из DI (Scoped, создаётся фабрикой — поведение EF Core). Поэтому запрет прямой инъекции контекста в конструкторы закреплён не только соглашением: его контролирует `DbContextInjectionValidator` из [`tools/DocValidator`](../../tools/DocValidator/README.md). Все сервисы (включая Singleton, например `SettingsService`) создают короткоживущий контекст через `IDbContextFactory<AppDbContext>` на каждый вызов.
 
 ---
 
@@ -287,9 +285,6 @@ flowchart TB
         RS["ReportService"]
         DBS["DebtService"]
         DBSERV["DashboardService"]
-    end
-
-    subgraph Scoped["Scoped"]
         CCS["CreditCardService"]
     end
 

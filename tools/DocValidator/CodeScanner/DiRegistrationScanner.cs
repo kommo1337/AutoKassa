@@ -150,6 +150,16 @@ public static class DiRegistrationScanner
                 ImplementationType = factoryServiceType,
                 Lifetime = "Singleton",
             });
+
+            // EF Core при регистрации фабрики неявно регистрирует и сам контекст:
+            // TContext разрешим из DI как Scoped и создаётся этой фабрикой.
+            // Фиксируем это явно, чтобы DiLifetimeValidator видел реальную картину.
+            result.Add(new ScannedDiRegistration
+            {
+                ServiceType = type,
+                ImplementationType = type,
+                Lifetime = "Scoped",
+            });
         }
 
         return result;

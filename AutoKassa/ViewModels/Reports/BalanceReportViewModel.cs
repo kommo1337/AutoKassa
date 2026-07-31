@@ -1,11 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Input;
-using AutoKassa.Helpers;
-using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 using AutoKassa.Services;
 using OxyPlot;
@@ -23,11 +20,8 @@ namespace AutoKassa.ViewModels.Reports
         private readonly IReportService _reportService;
         private readonly IExportService _exportService;
 
-        private DateTime _dateFrom;
-        private DateTime _dateTo;
         private BalanceReport _report;
         private PlotModel _plotModel;
-        private PaymentType? _selectedPaymentType;
 
         public BalanceReportViewModel(
             IReportService reportService,
@@ -38,19 +32,8 @@ namespace AutoKassa.ViewModels.Reports
             _reportService = reportService;
             _exportService = exportService;
 
-            // По умолчанию - текущий месяц
-            _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            _dateTo = DateTime.Now.Date;
-            ActivePeriodPreset = "Month";
-
             // Инициализация пустой модели графика
             _plotModel = new PlotModel();
-
-            // Команды фильтра типа оплаты
-            SetPaymentAllCommand        = new RelayCommand(_ => SelectedPaymentType = null);
-            SetPaymentCashCommand       = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
-            SetPaymentNonCashCommand    = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
-            SetPaymentCreditCardCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.CreditCard);
 
             // Инициализация отложена до первого отображения через InitializeAsync
         }
@@ -58,40 +41,6 @@ namespace AutoKassa.ViewModels.Reports
         #region Свойства
 
         public override string ReportName => "Баланс за период";
-
-        /// <summary>
-        /// Дата начала периода
-        /// </summary>
-        public DateTime DateFrom
-        {
-            get => _dateFrom;
-            set
-            {
-                if (SetProperty(ref _dateFrom, value))
-                {
-                    OnDateChangedByUser();
-                    ValidateDateRange();
-                    AutoRefresh();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Дата окончания периода
-        /// </summary>
-        public DateTime DateTo
-        {
-            get => _dateTo;
-            set
-            {
-                if (SetProperty(ref _dateTo, value))
-                {
-                    OnDateChangedByUser();
-                    ValidateDateRange();
-                    AutoRefresh();
-                }
-            }
-        }
 
         /// <summary>
         /// Данные отчета
@@ -111,47 +60,9 @@ namespace AutoKassa.ViewModels.Reports
             set => SetProperty(ref _plotModel, value);
         }
 
-        // Фильтр типа оплаты
-        public PaymentType? SelectedPaymentType
-        {
-            get => _selectedPaymentType;
-            set
-            {
-                if (SetProperty(ref _selectedPaymentType, value))
-                {
-                    OnPropertyChanged(nameof(IsPaymentAll));
-                    OnPropertyChanged(nameof(IsPaymentCash));
-                    OnPropertyChanged(nameof(IsPaymentNonCash));
-                    OnPropertyChanged(nameof(IsPaymentCreditCard));
-                    AutoRefresh();
-                }
-            }
-        }
-
-        public bool IsPaymentAll        => !SelectedPaymentType.HasValue;
-        public bool IsPaymentCash       => SelectedPaymentType == PaymentType.Cash;
-        public bool IsPaymentNonCash    => SelectedPaymentType == PaymentType.NonCash;
-        public bool IsPaymentCreditCard => SelectedPaymentType == PaymentType.CreditCard;
-
-        public ICommand SetPaymentAllCommand        { get; }
-        public ICommand SetPaymentCashCommand       { get; }
-        public ICommand SetPaymentNonCashCommand    { get; }
-        public ICommand SetPaymentCreditCardCommand { get; }
-
         #endregion
 
         #region Методы
-
-        /// <summary>
-        /// Валидация диапазона дат
-        /// </summary>
-        private void ValidateDateRange()
-        {
-            if (DateFrom > DateTo)
-            {
-                DateTo = DateFrom;
-            }
-        }
 
         /// <summary>
         /// Загрузка данных отчета
@@ -266,20 +177,6 @@ namespace AutoKassa.ViewModels.Reports
         }
 
         /// <summary>
-        /// Быстрые фильтры периодов
-        /// </summary>
-        public void SetPeriod(string period)
-        {
-            BatchUpdate(() =>
-            {
-                var (from, to) = AutoKassa.Helpers.PeriodHelper.GetDateRange(period);
-                DateFrom = from;
-                DateTo = to;
-            });
-            ActivePeriodPreset = period;
-        }
-
-        /// <summary>
         /// Экспорт в PDF
         /// </summary>
         protected override async Task ExportToPdfAsync()
@@ -291,11 +188,7 @@ namespace AutoKassa.ViewModels.Reports
             }
 
             var filePath = await _exportService.ExportBalanceReportToPdfAsync(Report);
-            _toastService.ShowWithAction("Отчет PDF сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(filePath))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(filePath, "PDF");
         }
 
         /// <summary>
@@ -310,11 +203,7 @@ namespace AutoKassa.ViewModels.Reports
             }
 
             var filePath = await _exportService.ExportBalanceReportToExcelAsync(Report);
-            _toastService.ShowWithAction("Отчет Excel сохранён", "Открыть", () =>
-            {
-                if (!FileLauncher.OpenExportedFile(filePath))
-                    _toastService.ShowError("Не удалось открыть файл. Проверьте, что файл существует и имеет допустимый формат.");
-            });
+            ShowExportedToast(filePath, "Excel");
         }
 
         #endregion

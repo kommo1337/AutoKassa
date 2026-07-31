@@ -97,10 +97,11 @@ public static class ModelScanner
 
     private static bool IsDtoByName(string name)
     {
-        // DTO по соглашению имени: DailyTotalsItem, TransactionFilterParameters и т.п.
+        // DTO по соглашению имени: DailyTotalsItem, TransactionFilterParameters, CreditCardMetrics и т.п.
         // ReportBase — абстрактный базовый класс для DTO отчётов.
         return name.EndsWith("Item", StringComparison.Ordinal)
             || name.EndsWith("Parameters", StringComparison.Ordinal)
+            || name.EndsWith("Metrics", StringComparison.Ordinal)
             || name.Equals("ReportBase", StringComparison.Ordinal);
     }
 }

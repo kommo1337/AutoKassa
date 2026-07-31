@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -13,10 +13,16 @@ namespace AutoKassa.Services
         private static readonly ILogger _log = Log.ForContext<TransactionService>();
 
         /// <summary>
-        /// Максимальное количество записей, загружаемых в память для текстового поиска.
-        /// Защита от RAM-всплеска при большом количестве операций.
+        /// SQL полнотекстового поиска по описанию через FTS5-индекс TransactionsFts
+        /// (создаётся миграцией AddTransactionsFts). Параметр {0} — MATCH-выражение.
         /// </summary>
-        private const int MaxInMemoryFilterLimit = 5000;
+        private const string FtsSearchSql =
+            "SELECT * FROM \"Transactions\" WHERE \"Id\" IN (SELECT rowid FROM \"TransactionsFts\" WHERE \"TransactionsFts\" MATCH {0})";
+
+        /// <summary>
+        /// Максимальная длина описания операции — соответствует [MaxLength(500)] в Models/Transaction.cs.
+        /// </summary>
+        private const int MaxDescriptionLength = 500;
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
@@ -26,12 +32,31 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
-        /// Получить список операций с фильтрацией
+        /// Получить список операций с фильтрацией.
+        /// Поиск по <see cref="TransactionFilterParameters.SearchText"/> выполняется через
+        /// полнотекстовый индекс SQLite FTS5: регистронезависимый (включая кириллицу),
+        /// по префиксам слов (например, «рем» найдёт «ремонт»), слова объединяются по И.
+        /// Поиск подстроки в середине слова («ожо» → «похоже») больше не срабатывает.
         /// </summary>
         public async Task<List<Transaction>> GetTransactionsAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            var query = context.Transactions
+
+            var hasSearch = !string.IsNullOrWhiteSpace(filters.SearchText);
+            var matchQuery = hasSearch ? BuildFtsMatchQuery(filters.SearchText) : null;
+
+            // Поисковый текст задан, но не содержит слов (только знаки препинания) —
+            // совпадений быть не может, к базе не обращаемся.
+            if (hasSearch && matchQuery == null)
+                return new List<Transaction>();
+
+            // FromSqlRaw должен быть начальной точкой запроса (нельзя применить Include до него),
+            // поэтому базовый запрос выбирается в зависимости от наличия поиска.
+            IQueryable<Transaction> query = matchQuery != null
+                ? context.Transactions.FromSqlRaw(FtsSearchSql, matchQuery)
+                : context.Transactions;
+
+            query = query
                 .AsNoTracking()
                 .Include(t => t.Category)
                 .Include(t => t.CreditCard)
@@ -40,43 +65,34 @@ namespace AutoKassa.Services
             query = ApplyFilters(query, filters);
             query = ApplySorting(query, filters.SortBy, filters.SortDescending);
 
-            // SQLite LOWER() не поддерживает Unicode (кириллицу), поэтому
-            // поиск по описанию выполняется в памяти, после SQL-фильтрации.
-            // Для защиты от RAM-всплеска на больших таблицах ограничиваем выборку.
-            if (!string.IsNullOrWhiteSpace(filters.SearchText))
-            {
-                var candidates = await query.Take(MaxInMemoryFilterLimit).ToListAsync(ct).ConfigureAwait(false);
-                var filtered = candidates
-                    .Where(t => t.Description != null &&
-                                t.Description.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-                return filtered.Skip(filters.Skip).Take(filters.Take).ToList();
-            }
-
             query = query.Skip(filters.Skip).Take(filters.Take);
             return await query.ToListAsync(ct).ConfigureAwait(false);
         }
 
         /// <summary>
-        /// Получить общее количество операций с учетом фильтров
+        /// Получить общее количество операций с учетом фильтров.
+        /// При поиске по тексту возвращает точное количество совпадений FTS5,
+        /// поэтому пагинация корректна на любых объёмах данных.
         /// </summary>
         public async Task<int> GetTotalCountAsync(TransactionFilterParameters filters, CancellationToken ct = default)
         {
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            var query = context.Transactions
+
+            var hasSearch = !string.IsNullOrWhiteSpace(filters.SearchText);
+            var matchQuery = hasSearch ? BuildFtsMatchQuery(filters.SearchText) : null;
+
+            if (hasSearch && matchQuery == null)
+                return 0;
+
+            IQueryable<Transaction> query = matchQuery != null
+                ? context.Transactions.FromSqlRaw(FtsSearchSql, matchQuery)
+                : context.Transactions;
+
+            query = query
                 .AsNoTracking()
                 .Where(t => !t.IsDeleted);
 
             query = ApplyFilters(query, filters);
-
-            if (!string.IsNullOrWhiteSpace(filters.SearchText))
-            {
-                var descriptions = await query.Select(t => t.Description).Take(MaxInMemoryFilterLimit).ToListAsync(ct).ConfigureAwait(false);
-                var count = descriptions.Count(d => d != null &&
-                                                    d.Contains(filters.SearchText, StringComparison.OrdinalIgnoreCase));
-                // Если достигли лимита, возвращаем лимит как приближённое значение.
-                return count >= MaxInMemoryFilterLimit ? MaxInMemoryFilterLimit : count;
-            }
 
             return await query.CountAsync(ct).ConfigureAwait(false);
         }
@@ -84,29 +100,32 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить операцию по ID (tracked, для редактирования)
         /// </summary>
-        public async Task<Transaction> GetByIdAsync(int id)
+        public async Task<Transaction> GetByIdAsync(int id, CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
             return await context.Transactions
                 .Include(t => t.Category)
                 .Include(t => t.CreditCard)
-                .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted)
+                .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, ct)
                 .ConfigureAwait(false);
         }
 
         /// <summary>
         /// Добавить новую операцию
         /// </summary>
-        public async Task<Transaction> AddAsync(Transaction transaction)
+        public async Task<Transaction> AddAsync(Transaction transaction, CancellationToken ct = default)
         {
             if (transaction.Amount <= 0)
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
 
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            await using var dbTransaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            if (transaction.Description?.Length > MaxDescriptionLength)
+                throw new ArgumentException($"Описание не должно превышать {MaxDescriptionLength} символов", nameof(transaction));
+
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             var category = await context.Categories
-                .FirstOrDefaultAsync(c => c.Id == transaction.CategoryId)
+                .FirstOrDefaultAsync(c => c.Id == transaction.CategoryId, ct)
                 .ConfigureAwait(false);
             if (category == null || !category.IsActive)
                 throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
@@ -118,9 +137,9 @@ namespace AutoKassa.Services
             // чтобы операция и распределение по покупкам были атомарны.
             if (isCreditCardRepayment)
             {
-                var repayment = await CreateCreditCardRepaymentInContextAsync(context, transaction).ConfigureAwait(false);
-                await context.SaveChangesAsync().ConfigureAwait(false);
-                await dbTransaction.CommitAsync().ConfigureAwait(false);
+                var repayment = await CreateCreditCardRepaymentInContextAsync(context, transaction, ct).ConfigureAwait(false);
+                await context.SaveChangesAsync(ct).ConfigureAwait(false);
+                await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
                 _log.Information("Добавлена операция-погашение кредитной карты ID={Id}, сумма={Amount}", repayment.Id, repayment.Amount);
                 return repayment;
@@ -150,7 +169,7 @@ namespace AutoKassa.Services
 
             context.Transactions.Add(transaction);
             transaction.Category = category;
-            await context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
 
             // Обработка операций по кредитной карте — проверка лимита и создание покупки
             // выполняются в той же транзакции, что и сама операция.
@@ -160,11 +179,12 @@ namespace AutoKassa.Services
                     context,
                     transaction.CreditCardId.Value,
                     transaction.Id,
-                    transaction.Amount).ConfigureAwait(false);
+                    transaction.Amount,
+                    ct).ConfigureAwait(false);
             }
 
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            await dbTransaction.CommitAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             _log.Information("Добавлена операция ID={Id}, тип={Type}, сумма={Amount}", transaction.Id, transaction.Type, transaction.Amount);
             return transaction;
@@ -173,31 +193,34 @@ namespace AutoKassa.Services
         /// <summary>
         /// Обновить операцию
         /// </summary>
-        public async Task UpdateAsync(Transaction transaction)
+        public async Task UpdateAsync(Transaction transaction, CancellationToken ct = default)
         {
             if (transaction.Amount <= 0)
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
 
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            await using var dbTransaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            if (transaction.Description?.Length > MaxDescriptionLength)
+                throw new ArgumentException($"Описание не должно превышать {MaxDescriptionLength} символов", nameof(transaction));
+
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             var categoryExists = await context.Categories
-                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive)
+                .AnyAsync(c => c.Id == transaction.CategoryId && c.IsActive, ct)
                 .ConfigureAwait(false);
             if (!categoryExists)
                 throw new InvalidOperationException($"Категория ID={transaction.CategoryId} не найдена или неактивна");
 
             // Каждый вызов использует свой DbContext (unit of work), поэтому конфликтов
             // отслеживания быть не может. Загружаем сущность явно и обновляем поля.
-            var existing = await context.Transactions.FindAsync(transaction.Id).ConfigureAwait(false);
+            var existing = await context.Transactions.FindAsync(new object[] { transaction.Id }, ct).ConfigureAwait(false);
             if (existing == null)
                 throw new InvalidOperationException($"Операция ID={transaction.Id} не найдена");
 
             var isDebtRepayment = await context.DebtPayments
-                .AnyAsync(dp => dp.RepaymentTransactionId == transaction.Id)
+                .AnyAsync(dp => dp.RepaymentTransactionId == transaction.Id, ct)
                 .ConfigureAwait(false);
             var isCreditCardRepayment = await context.CreditCardPayments
-                .AnyAsync(ccp => ccp.RepaymentTransactionId == transaction.Id)
+                .AnyAsync(ccp => ccp.RepaymentTransactionId == transaction.Id, ct)
                 .ConfigureAwait(false);
             if (isDebtRepayment || isCreditCardRepayment)
                 throw new InvalidOperationException("Редактирование операции-погашения запрещено");
@@ -235,16 +258,16 @@ namespace AutoKassa.Services
                 // При смене типа операции с долга на обычную удаляем связи с погашениями
                 var debtPayments = await context.DebtPayments
                     .Where(dp => dp.DebtTransactionId == existing.Id)
-                    .ToListAsync()
+                    .ToListAsync(ct)
                     .ConfigureAwait(false);
                 if (debtPayments.Count > 0)
                     context.DebtPayments.RemoveRange(debtPayments);
             }
 
-            await context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
 
             // Обновляем навигационное свойство
-            await context.Entry(existing).Reference(t => t.Category).LoadAsync().ConfigureAwait(false);
+            await context.Entry(existing).Reference(t => t.Category).LoadAsync(ct).ConfigureAwait(false);
 
             // Обработка изменений, связанных с кредитной картой
             await HandleCreditCardChangesAsync(
@@ -253,10 +276,11 @@ namespace AutoKassa.Services
                 oldPaymentType,
                 oldCreditCardId,
                 oldCategoryId,
-                oldAmount).ConfigureAwait(false);
+                oldAmount,
+                ct).ConfigureAwait(false);
 
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            await dbTransaction.CommitAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             _log.Information("Обновлена операция ID={Id}, сумма={Amount}", transaction.Id, transaction.Amount);
         }
@@ -264,12 +288,12 @@ namespace AutoKassa.Services
         /// <summary>
         /// Удалить операцию (soft delete)
         /// </summary>
-        public async Task DeleteAsync(int id)
+        public async Task DeleteAsync(int id, CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            await using var dbTransaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
-            var transaction = await context.Transactions.FindAsync(id).ConfigureAwait(false);
+            var transaction = await context.Transactions.FindAsync(new object[] { id }, ct).ConfigureAwait(false);
             if (transaction == null)
                 return;
 
@@ -281,7 +305,7 @@ namespace AutoKassa.Services
             if (transaction.PaymentType == PaymentType.CreditCard)
             {
                 var purchase = await context.CreditCardPurchases
-                    .FirstOrDefaultAsync(p => p.TransactionId == id)
+                    .FirstOrDefaultAsync(p => p.TransactionId == id, ct)
                     .ConfigureAwait(false);
                 if (purchase != null)
                 {
@@ -295,13 +319,13 @@ namespace AutoKassa.Services
             if (transaction.PaymentType != PaymentType.Debt)
             {
                 var creditCardPayment = await context.CreditCardPayments
-                    .FirstOrDefaultAsync(ccp => ccp.RepaymentTransactionId == id)
+                    .FirstOrDefaultAsync(ccp => ccp.RepaymentTransactionId == id, ct)
                     .ConfigureAwait(false);
 
                 if (creditCardPayment != null)
                 {
                     await CreditCardOperationHelper.RecalculateOnRepaymentDeletedAsync(
-                        context, id).ConfigureAwait(false);
+                        context, id, ct).ConfigureAwait(false);
                 }
             }
 
@@ -312,7 +336,7 @@ namespace AutoKassa.Services
                 var debtPayments = await context.DebtPayments
                     .Where(dp => dp.DebtTransactionId == id)
                     .Include(dp => dp.RepaymentTransaction)
-                    .ToListAsync()
+                    .ToListAsync(ct)
                     .ConfigureAwait(false);
 
                 foreach (var debtPayment in debtPayments)
@@ -328,7 +352,7 @@ namespace AutoKassa.Services
             {
                 // Проверяем, является ли удаляемая операция погашением долга
                 var debtPayment = await context.DebtPayments
-                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id)
+                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id, ct)
                     .ConfigureAwait(false);
 
                 if (debtPayment != null)
@@ -337,16 +361,16 @@ namespace AutoKassa.Services
                 }
             }
 
-            await context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
 
             // Если удалили погашение — пересчитываем статус связанного долга в том же контексте
             if (relatedDebtId.HasValue)
             {
-                await RecalculateDebtStatusInContextAsync(context, relatedDebtId.Value).ConfigureAwait(false);
+                await RecalculateDebtStatusInContextAsync(context, relatedDebtId.Value, ct).ConfigureAwait(false);
             }
 
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            await dbTransaction.CommitAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             _log.Information("Удалена операция ID={Id}", id);
         }
@@ -356,14 +380,14 @@ namespace AutoKassa.Services
         /// Атомарно восстанавливает связанные сущности: кредитные покупки,
         /// погашения долгов и погашения кредитных карт.
         /// </summary>
-        public async Task RestoreAsync(int id)
+        public async Task RestoreAsync(int id, CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            await using var dbTransaction = await context.Database.BeginTransactionAsync().ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             var transaction = await context.Transactions
                 .Include(t => t.Category)
-                .FirstOrDefaultAsync(t => t.Id == id && t.IsDeleted)
+                .FirstOrDefaultAsync(t => t.Id == id && t.IsDeleted, ct)
                 .ConfigureAwait(false);
 
             if (transaction == null)
@@ -375,7 +399,7 @@ namespace AutoKassa.Services
             if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
             {
                 var purchaseExists = await context.CreditCardPurchases
-                    .AnyAsync(p => p.TransactionId == id)
+                    .AnyAsync(p => p.TransactionId == id, ct)
                     .ConfigureAwait(false);
 
                 if (!purchaseExists)
@@ -403,7 +427,7 @@ namespace AutoKassa.Services
                 var debtPayments = await context.DebtPayments
                     .Where(dp => dp.DebtTransactionId == id)
                     .Include(dp => dp.RepaymentTransaction)
-                    .ToListAsync()
+                    .ToListAsync(ct)
                     .ConfigureAwait(false);
 
                 foreach (var debtPayment in debtPayments)
@@ -425,33 +449,33 @@ namespace AutoKassa.Services
                 if (isCreditCardRepayment)
                 {
                     var creditCardPaymentExists = await context.CreditCardPayments
-                        .AnyAsync(ccp => ccp.RepaymentTransactionId == id)
+                        .AnyAsync(ccp => ccp.RepaymentTransactionId == id, ct)
                         .ConfigureAwait(false);
 
                     if (!creditCardPaymentExists)
                     {
                         var card = await context.CreditCards
-                            .FindAsync(transaction.CreditCardId.Value)
+                            .FindAsync(new object[] { transaction.CreditCardId.Value }, ct)
                             .ConfigureAwait(false);
 
                         if (card != null)
                         {
                             var currentDebt = await CreditCardOperationHelper.GetCurrentDebtAsync(
-                                context, transaction.CreditCardId.Value).ConfigureAwait(false);
+                                context, transaction.CreditCardId.Value, ct: ct).ConfigureAwait(false);
 
                             if (transaction.Amount > currentDebt)
                                 throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
 
                             card.LastPaymentDate = DateTime.Today;
                             await CreditCardOperationHelper.DistributeRepaymentAsync(
-                                context, id, transaction.CreditCardId.Value, transaction.Amount).ConfigureAwait(false);
+                                context, id, transaction.CreditCardId.Value, transaction.Amount, ct).ConfigureAwait(false);
                         }
                     }
                 }
 
                 // 4. Восстановление операции-погашения долга.
                 var debtPayment = await context.DebtPayments
-                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id)
+                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id, ct)
                     .ConfigureAwait(false);
 
                 if (debtPayment != null && debtPayment.RepaymentTransaction != null)
@@ -463,27 +487,27 @@ namespace AutoKassa.Services
 
             // Сохраняем восстановление операции и связей, чтобы последующий
             // пересчёт статусов долгов работал с актуальным состоянием БД.
-            await context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
 
             // 5. Пересчёт статусов связанных долгов после восстановления погашений.
             if (transaction.PaymentType == PaymentType.Debt)
             {
-                await RecalculateDebtStatusInContextAsync(context, id).ConfigureAwait(false);
+                await RecalculateDebtStatusInContextAsync(context, id, ct).ConfigureAwait(false);
             }
             else
             {
                 var debtPayment = await context.DebtPayments
-                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id)
+                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id, ct)
                     .ConfigureAwait(false);
 
                 if (debtPayment != null)
                 {
-                    await RecalculateDebtStatusInContextAsync(context, debtPayment.DebtTransactionId).ConfigureAwait(false);
+                    await RecalculateDebtStatusInContextAsync(context, debtPayment.DebtTransactionId, ct).ConfigureAwait(false);
                 }
             }
 
-            await context.SaveChangesAsync().ConfigureAwait(false);
-            await dbTransaction.CommitAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             _log.Information("Восстановлена операция ID={Id}", id);
         }
@@ -506,9 +530,9 @@ namespace AutoKassa.Services
         /// <summary>
         /// Получить последние N операций
         /// </summary>
-        public async Task<List<Transaction>> GetRecentAsync(int count = 10)
+        public async Task<List<Transaction>> GetRecentAsync(int count = 10, CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
             return await context.Transactions
                 .AsNoTracking()
                 .Include(t => t.Category)
@@ -517,7 +541,7 @@ namespace AutoKassa.Services
                 .OrderByDescending(t => t.Date)
                 .ThenByDescending(t => t.CreatedAt)
                 .Take(count)
-                .ToListAsync()
+                .ToListAsync(ct)
                 .ConfigureAwait(false);
         }
 
@@ -609,10 +633,13 @@ namespace AutoKassa.Services
         /// <summary>
         /// Создать операцию-погашение кредитной карты в рамках переданного контекста.
         /// </summary>
-        private async Task<Transaction> CreateCreditCardRepaymentInContextAsync(AppDbContext context, Transaction transaction)
+        private async Task<Transaction> CreateCreditCardRepaymentInContextAsync(AppDbContext context, Transaction transaction, CancellationToken ct = default)
         {
             if (transaction.Amount <= 0)
                 throw new ArgumentException("Сумма операции должна быть больше нуля", nameof(transaction));
+
+            if (transaction.Description?.Length > MaxDescriptionLength)
+                throw new ArgumentException($"Описание не должно превышать {MaxDescriptionLength} символов", nameof(transaction));
 
             if (!transaction.CreditCardId.HasValue)
                 throw new InvalidOperationException("Для погашения кредитной карты необходимо выбрать карту");
@@ -621,7 +648,7 @@ namespace AutoKassa.Services
                 throw new ArgumentException("Погашение кредитной карты возможно только наличными или безналичными", nameof(transaction.PaymentType));
 
             var card = await context.CreditCards
-                .FindAsync(transaction.CreditCardId.Value)
+                .FindAsync(new object[] { transaction.CreditCardId.Value }, ct)
                 .ConfigureAwait(false);
 
             if (card == null)
@@ -631,14 +658,14 @@ namespace AutoKassa.Services
                 throw new InvalidOperationException("Нельзя погасить неактивную карту");
 
             var repaymentCategory = await context.Categories
-                .FirstOrDefaultAsync(c => c.Name == CreditCardService.RepaymentCategoryName && c.Type == OperationType.Expense)
+                .FirstOrDefaultAsync(c => c.Name == CreditCardService.RepaymentCategoryName && c.Type == OperationType.Expense, ct)
                 .ConfigureAwait(false);
 
             if (repaymentCategory == null)
                 throw new InvalidOperationException($"Системная категория \"{CreditCardService.RepaymentCategoryName}\" не найдена");
 
             var currentDebt = await CreditCardOperationHelper.GetCurrentDebtAsync(
-                context, card.Id).ConfigureAwait(false);
+                context, card.Id, ct: ct).ConfigureAwait(false);
 
             if (transaction.Amount > currentDebt)
                 throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
@@ -657,11 +684,11 @@ namespace AutoKassa.Services
             transaction.Counterparty = null;
 
             context.Transactions.Add(transaction);
-            await context.SaveChangesAsync().ConfigureAwait(false);
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
 
             card.LastPaymentDate = DateTime.Today;
             await CreditCardOperationHelper.DistributeRepaymentAsync(
-                context, transaction.Id, card.Id, transaction.Amount).ConfigureAwait(false);
+                context, transaction.Id, card.Id, transaction.Amount, ct).ConfigureAwait(false);
 
             // Восстанавливаем навигационное свойство для вызывающего кода.
             transaction.Category = repaymentCategory;
@@ -672,10 +699,10 @@ namespace AutoKassa.Services
         /// <summary>
         /// Пересчитать статус долга в рамках переданного DbContext.
         /// </summary>
-        private async Task RecalculateDebtStatusInContextAsync(AppDbContext context, int debtTransactionId)
+        private async Task RecalculateDebtStatusInContextAsync(AppDbContext context, int debtTransactionId, CancellationToken ct = default)
         {
             var debt = await context.Transactions
-                .FirstOrDefaultAsync(t => t.Id == debtTransactionId && !t.IsDeleted)
+                .FirstOrDefaultAsync(t => t.Id == debtTransactionId && !t.IsDeleted, ct)
                 .ConfigureAwait(false);
 
             if (debt == null || debt.PaymentType != PaymentType.Debt)
@@ -686,7 +713,7 @@ namespace AutoKassa.Services
 
             var repaid = await context.DebtPayments
                 .Where(dp => dp.DebtTransactionId == debtTransactionId && !dp.RepaymentTransaction.IsDeleted)
-                .SumAsync(dp => (decimal?)dp.Amount)
+                .SumAsync(dp => (decimal?)dp.Amount, ct)
                 .ConfigureAwait(false) ?? 0m;
 
             var previousStatus = debt.DebtStatus;
@@ -710,10 +737,11 @@ namespace AutoKassa.Services
             PaymentType oldPaymentType,
             int? oldCreditCardId,
             int oldCategoryId,
-            decimal oldAmount)
+            decimal oldAmount,
+            CancellationToken ct = default)
         {
-            var currentCategory = await context.Categories.FindAsync(transaction.CategoryId).ConfigureAwait(false);
-            var oldCategory = await context.Categories.FindAsync(oldCategoryId).ConfigureAwait(false);
+            var currentCategory = await context.Categories.FindAsync(new object[] { transaction.CategoryId }, ct).ConfigureAwait(false);
+            var oldCategory = await context.Categories.FindAsync(new object[] { oldCategoryId }, ct).ConfigureAwait(false);
             var isRepayment = currentCategory?.Name == CreditCardService.RepaymentCategoryName;
             var wasRepayment = oldCategory?.Name == CreditCardService.RepaymentCategoryName;
 
@@ -728,7 +756,7 @@ namespace AutoKassa.Services
                 !keepPurchaseForRepayment)
             {
                 var purchase = await context.CreditCardPurchases
-                    .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id)
+                    .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id, ct)
                     .ConfigureAwait(false);
                 if (purchase != null)
                 {
@@ -741,7 +769,7 @@ namespace AutoKassa.Services
             {
                 var purchase = await context.CreditCardPurchases
                     .Include(p => p.CreditCardPayments)
-                    .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id)
+                    .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id, ct)
                     .ConfigureAwait(false);
 
                 if (purchase != null)
@@ -763,7 +791,8 @@ namespace AutoKassa.Services
                         context,
                         transaction.CreditCardId.Value,
                         transaction.Id,
-                        transaction.Amount).ConfigureAwait(false);
+                        transaction.Amount,
+                        ct).ConfigureAwait(false);
                 }
             }
 
@@ -771,7 +800,7 @@ namespace AutoKassa.Services
             if (wasRepayment && !isRepayment && oldCreditCardId.HasValue)
             {
                 await CreditCardOperationHelper.RecalculateOnRepaymentDeletedAsync(
-                    context, transaction.Id).ConfigureAwait(false);
+                    context, transaction.Id, ct).ConfigureAwait(false);
             }
 
             // Фиксируем погашение, если категория изменилась на "Погашение кредита"
@@ -780,20 +809,45 @@ namespace AutoKassa.Services
                 // Операция уже сохранена с категорией погашения, поэтому исключаем её
                 // из расчёта текущего долга, чтобы не сравнивать сумму с заниженным остатком.
                 var currentDebt = await CreditCardOperationHelper.GetCurrentDebtAsync(
-                    context, transaction.CreditCardId.Value, transaction.Id).ConfigureAwait(false);
+                    context, transaction.CreditCardId.Value, transaction.Id, ct).ConfigureAwait(false);
 
                 if (transaction.Amount > currentDebt)
                     throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
 
                 var card = await context.CreditCards
-                    .FindAsync(transaction.CreditCardId.Value)
+                    .FindAsync(new object[] { transaction.CreditCardId.Value }, ct)
                     .ConfigureAwait(false);
                 if (card != null)
                     card.LastPaymentDate = DateTime.Today;
 
                 await CreditCardOperationHelper.DistributeRepaymentAsync(
-                    context, transaction.Id, transaction.CreditCardId.Value, transaction.Amount).ConfigureAwait(false);
+                    context, transaction.Id, transaction.CreditCardId.Value, transaction.Amount, ct).ConfigureAwait(false);
             }
+        }
+
+        /// <summary>
+        /// Построить MATCH-выражение FTS5 из пользовательского текста.
+        /// Токенизатор unicode61 считает словами последовательности букв и цифр,
+        /// поэтому запрос приводится к тому же виду: остальные символы — разделители.
+        /// Каждое слово ищется по префиксу («рем» → «ремонт»), слова объединяются по И.
+        /// Возвращает null, если после очистки не осталось ни одного слова.
+        /// </summary>
+        private static string BuildFtsMatchQuery(string searchText)
+        {
+            var chars = searchText
+                .Select(c => char.IsLetterOrDigit(c) ? c : ' ')
+                .ToArray();
+            var tokens = new string(chars)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            if (tokens.Length == 0)
+                return null;
+
+            // Токены состоят только из букв и цифр, поэтому спецсимволы MATCH-синтаксиса
+            // в них отсутствуют и достаточно обернуть каждый в двойные кавычки.
+            // Суффикс * — поиск по префиксу, пробел между фразами — AND.
+            // Само выражение передаётся в SQL параметром, интерполяции строк нет.
+            return string.Join(" ", tokens.Select(t => $"\"{t}\"*"));
         }
 
         /// <summary>

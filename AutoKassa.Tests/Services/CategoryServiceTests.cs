@@ -297,5 +297,29 @@ namespace AutoKassa.Tests.Services
 
             count.Should().Be(2);
         }
+
+        [Fact]
+        public async Task AddAsync_TooLongName_ThrowsArgumentException()
+        {
+            Func<Task> act = async () => await _svc.AddAsync(new Category
+            {
+                Name = new string('X', 101),
+                Type = OperationType.Expense,
+                Color = "#123456"
+            });
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
+
+        [Fact]
+        public async Task UpdateAsync_TooLongName_ThrowsArgumentException()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx, "Норма-апдейт");
+            cat.Name = new string('X', 101);
+
+            Func<Task> act = async () => await _svc.UpdateAsync(cat);
+
+            await act.Should().ThrowAsync<ArgumentException>();
+        }
     }
 }

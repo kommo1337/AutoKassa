@@ -33,4 +33,4 @@ description: Review AutoKassa code for compliance with project conventions (MVVM
 - [ ] Tests pass.
 
 ## Reference
-- [`docs/kimi/checklists/bugfix-checklist.md`](../../docs/kimi/checklists/bugfix-checklist.md) (for trap checks)
+- [`docs/kimi/checklists/bugfix-checklist.md`](../../../docs/kimi/checklists/bugfix-checklist.md) (for trap checks)

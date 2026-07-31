@@ -254,18 +254,17 @@ namespace AutoKassa.ViewModels
             try
             {
                 IsLoading = true;
-                var cards = await _creditCardService.GetAllAsync();
 
-                var items = cards.Select(c => new CreditCardListItemViewModel(c)).ToList();
+                // Метрики по всем картам загружаются одним пакетом, без N+1
+                var metrics = await _creditCardService.GetCardsMetricsAsync();
 
-                // Параллельно загружаем метрики для каждой карты
-                await Task.WhenAll(items.Select(async item =>
+                var items = metrics.Select(m => new CreditCardListItemViewModel(m.Card)
                 {
-                    item.CurrentDebt = await _creditCardService.GetCurrentDebtAsync(item.Card.Id);
-                    item.AvailableLimit = await _creditCardService.GetAvailableLimitAsync(item.Card.Id);
-                    item.MinimumPayment = await _creditCardService.GetMinimumPaymentAsync(item.Card.Id);
-                    item.NextPaymentDate = await _creditCardService.GetNextPaymentDateAsync(item.Card.Id);
-                }));
+                    CurrentDebt = m.CurrentDebt,
+                    AvailableLimit = m.AvailableLimit,
+                    MinimumPayment = m.MinimumPayment,
+                    NextPaymentDate = m.NextPaymentDate
+                }).ToList();
 
                 CreditCardItems = new ObservableCollection<CreditCardListItemViewModel>(items);
                 OnPropertyChanged(nameof(HasCards));

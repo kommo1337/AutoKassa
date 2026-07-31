@@ -1,0 +1,1145 @@
+{
+  "version": "1.2.0",
+  "lastUpdated": "2026-07-31",
+  "sourceRoot": "AutoKassa/",
+  "description": "Единый справочник констант, лимитов, дефолтов, seed-ID и магических строк AutoKassa. Все значения сверены с кодом. Человекочитаемая версия — docs/kimi/CONSTANTS.md.",
+  "categories": [
+    {
+      "name": "AppSettingsDefaults",
+      "constants": [
+        {
+          "name": "AppSettingsId",
+          "value": 1,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/SettingsService.cs", "Services/AppDbContext.cs"],
+          "description": "Id единственной строки настроек (single-row таблица)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Вторую строку создавать запрещено (см. TRAPS.md §3.3)"
+        },
+        {
+          "name": "PasswordHash",
+          "value": "",
+          "type": "string",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Хеш пароля по умолчанию — пустая строка (пароль не установлен)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Пустая строка = первый запуск, показывается InitialSetupView"
+        },
+        {
+          "name": "AutoLockTimeout",
+          "value": 10,
+          "type": "int",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Таймаут автоблокировки в минутах (0 = отключено)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "В UI валидируется диапазоном 1–60 (SettingsValidator)"
+        },
+        {
+          "name": "AutoLockEnabled",
+          "value": true,
+          "type": "bool",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Автоблокировка включена по умолчанию",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "Theme",
+          "value": "Light",
+          "type": "string",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Тема оформления по умолчанию",
+          "relatedEnum": "ThemeMode",
+          "isConfigurable": true,
+          "notes": "Хранится строкой (Light/Dark), хотя есть enum ThemeMode — stringly-typed"
+        },
+        {
+          "name": "DefaultPeriodFilter",
+          "value": "Month",
+          "type": "string",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Фильтр периода по умолчанию на главной странице",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Значения соответствуют пресетам PeriodHelper: Today/Week/Month/Quarter/Year"
+        },
+        {
+          "name": "ShowNotifications",
+          "value": true,
+          "type": "bool",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Показывать toast-уведомления",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "ShowOperationsInSidebar",
+          "value": false,
+          "type": "bool",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Показывать кнопку «Операции» в боковом меню",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "DefaultPageSize",
+          "value": 20,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Количество записей на странице по умолчанию",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: TransactionsViewModel игнорирует настройку и использует _pageSize = 100. Дефолт продублирован в трёх местах: AppSettings.cs, SettingsService (CreateDefaultSettings/ResetToDefaultsAsync), AppDbContext (seed)"
+        },
+        {
+          "name": "ConfirmDelete",
+          "value": true,
+          "type": "bool",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Подтверждать удаление операций",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "AutoGenerateReports",
+          "value": false,
+          "type": "bool",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Автоматически формировать отчёты",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "BackupEnabled",
+          "value": false,
+          "type": "bool",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Автоматическое резервное копирование выключено по умолчанию",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "AutoBackupDays",
+          "value": 7,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Интервал автоматического резервного копирования (дней)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Валидируется диапазоном 1–365 (SettingsValidator)"
+        },
+        {
+          "name": "BackupFrequency",
+          "value": "Weekly",
+          "type": "string",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Частота резервного копирования (Daily/Weekly/Monthly)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Хранится строкой"
+        },
+        {
+          "name": "BackupKeepCount",
+          "value": 10,
+          "type": "int",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Количество хранимых резервных копий",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Валидируется диапазоном 1–100 (SettingsValidator); ротация — CleanupOldBackups"
+        },
+        {
+          "name": "BackupPath",
+          "value": null,
+          "type": "string",
+          "sourceFiles": ["Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Путь для сохранения резервных копий (не задан по умолчанию)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "MaxLength(500); санитизируется SanitizeBackupPath (только %USERPROFILE% или каталог приложения)"
+        },
+        {
+          "name": "RequirePasswordOnStartup",
+          "value": true,
+          "type": "bool",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Требовать пароль при запуске",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": null
+        },
+        {
+          "name": "PasswordExpireDays",
+          "value": 0,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Срок действия пароля в днях (0 = никогда)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Валидируется диапазоном 0–365 (SettingsValidator)"
+        },
+        {
+          "name": "Language",
+          "value": "ru-RU",
+          "type": "string",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Язык интерфейса",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Мультиязычность не реализована; MaxLength(10)"
+        },
+        {
+          "name": "WindowWidth",
+          "value": 1200,
+          "type": "double",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Ширина окна по умолчанию (из настроек)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: меньше MinWidth=1280 из MainWindow.xaml; фактический стартовый размер задаётся в XAML (1366×768)"
+        },
+        {
+          "name": "WindowHeight",
+          "value": 700,
+          "type": "double",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Высота окна по умолчанию (из настроек)",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: меньше MinHeight=720 из MainWindow.xaml; фактический стартовый размер задаётся в XAML (1366×768)"
+        },
+        {
+          "name": "DefaultOperationType",
+          "value": 2,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/SettingsService.cs", "Services/AppDbContext.cs"],
+          "description": "Тип операции по умолчанию (1=Income, 2=Expense)",
+          "relatedEnum": "OperationType",
+          "isConfigurable": true,
+          "notes": "Хранится как int; дефолт продублирован в трёх местах (модель, SettingsService, seed)"
+        },
+        {
+          "name": "DefaultPaymentType",
+          "value": 1,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Тип оплаты по умолчанию (1 = Наличные, 2 = Безналичные)",
+          "relatedEnum": "PaymentType",
+          "isConfigurable": true,
+          "notes": "Хранится как int"
+        },
+        {
+          "name": "DefaultIncomeCategoryId",
+          "value": null,
+          "type": "int?",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "ID категории по умолчанию для доходов",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Категорию, выбранную здесь, нельзя удалить (TRAPS.md §2.5)"
+        },
+        {
+          "name": "DefaultExpenseCategoryId",
+          "value": null,
+          "type": "int?",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "ID категории по умолчанию для расходов",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "Категорию, выбранную здесь, нельзя удалить (TRAPS.md §2.5)"
+        },
+        {
+          "name": "InitialBalance",
+          "value": 0,
+          "type": "decimal",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Начальный баланс кассы до первой транзакции",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "decimal(18,2); применяется только к наличным (TRAPS.md §2.20)"
+        },
+        {
+          "name": "CreditCardLimit",
+          "value": 0,
+          "type": "decimal",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Кредитный лимит основной карты",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "decimal(18,2); валидируется >= 0"
+        },
+        {
+          "name": "CreditCardCurrentDebt",
+          "value": 0,
+          "type": "decimal",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Текущий долг по основной кредитной карте",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "decimal(18,2); валидируется >= 0"
+        },
+        {
+          "name": "CreditCardInterestRate",
+          "value": 0,
+          "type": "decimal",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs"],
+          "description": "Годовая процентная ставка по кредитной карте, %",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "decimal(5,2); валидируется >= 0"
+        },
+        {
+          "name": "CreditCardPaymentDay",
+          "value": 10,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "День платежа по кредитной карте",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: валидируется диапазоном 1–31 (SettingsValidator), тогда как StatementDay карты — 1–28 (CreditCardEditViewModel)"
+        },
+        {
+          "name": "CreditCardMinimumPaymentPercent",
+          "value": 5,
+          "type": "decimal",
+          "sourceFiles": ["Models/AppSettings.cs", "Services/AppDbContext.cs", "Services/SettingsService.cs"],
+          "description": "Процент от долга для минимального платежа",
+          "relatedEnum": null,
+          "isConfigurable": true,
+          "notes": "decimal(5,2); валидируется диапазоном 0–100"
+        }
+      ]
+    },
+    {
+      "name": "Validation",
+      "constants": [
+        {
+          "name": "AutoLockMinutesRange",
+          "value": "1–60",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимое время автоблокировки (минуты)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "DefaultPageSizeRange",
+          "value": "10–100",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимое количество записей на странице",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Дефолт 20 лежит внутри диапазона"
+        },
+        {
+          "name": "AutoBackupDaysRange",
+          "value": "1–365",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимый интервал резервного копирования (дни)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "PasswordExpireDaysRange",
+          "value": "0–365",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимый срок действия пароля (дни, 0 = никогда)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "BackupKeepCountRange",
+          "value": "1–100",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимое количество хранимых копий",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "CreditCardPaymentDayRange",
+          "value": "1–31",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимый день платежа по кредитной карте (настройки)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: StatementDay карты валидируется строже — 1–28"
+        },
+        {
+          "name": "CreditCardMinimumPaymentPercentRange",
+          "value": "0–100",
+          "type": "range",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs"],
+          "description": "Допустимый процент минимального платежа",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "BackupPathMaxLength",
+          "value": 500,
+          "type": "int",
+          "sourceFiles": ["Services/Settings/SettingsValidator.cs", "Models/AppSettings.cs"],
+          "description": "Максимальная длина пути резервного копирования",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Совпадает с MaxLength(500) модели"
+        },
+        {
+          "name": "MinPasswordLengthSetup",
+          "value": 6,
+          "type": "int",
+          "sourceFiles": ["ViewModels/InitialSetupViewModel.cs", "ViewModels/PasswordRecoveryViewModel.cs"],
+          "description": "Минимальная длина пароля при первичной настройке и восстановлении",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: при смене пароля требуется всего 4 символа"
+        },
+        {
+          "name": "MinPasswordLengthChange",
+          "value": 4,
+          "type": "int",
+          "sourceFiles": ["ViewModels/ChangePasswordViewModel.cs"],
+          "description": "Минимальная длина нового пароля при смене",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: слабее, чем при первичной настройке (6)"
+        },
+        {
+          "name": "MinSecurityAnswerLength",
+          "value": 2,
+          "type": "int",
+          "sourceFiles": ["ViewModels/InitialSetupViewModel.cs"],
+          "description": "Минимальная длина ответа на секретный вопрос",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "CustomSecurityQuestionLength",
+          "value": "5–200",
+          "type": "range",
+          "sourceFiles": ["ViewModels/InitialSetupViewModel.cs"],
+          "description": "Длина собственного секретного вопроса",
+          "relatedEnum": "SecurityQuestion",
+          "isConfigurable": false,
+          "notes": "MaxCustomQuestionLength = 200; совпадает с MaxLength(200) модели"
+        },
+        {
+          "name": "MaxCategoryNameLength",
+          "value": 100,
+          "type": "int",
+          "sourceFiles": ["ViewModels/CategoryItemViewModel.cs"],
+          "description": "Максимальная длина названия категории",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxCounterpartyNameLength",
+          "value": 150,
+          "type": "int",
+          "sourceFiles": ["ViewModels/CounterpartyEditViewModel.cs"],
+          "description": "Максимальная длина названия контрагента",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxPhoneLength",
+          "value": 20,
+          "type": "int",
+          "sourceFiles": ["ViewModels/CounterpartyEditViewModel.cs"],
+          "description": "Максимальная длина телефона контрагента",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxNotesLength",
+          "value": 500,
+          "type": "int",
+          "sourceFiles": ["ViewModels/CounterpartyEditViewModel.cs"],
+          "description": "Максимальная длина заметок контрагента",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxDescriptionLength",
+          "value": 500,
+          "type": "int",
+          "sourceFiles": ["ViewModels/TransactionEditViewModel.cs"],
+          "description": "Максимальная длина описания операции",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxCreditCardNameLength",
+          "value": 100,
+          "type": "int",
+          "sourceFiles": ["ViewModels/CreditCardEditViewModel.cs"],
+          "description": "Максимальная длина названия кредитной карты",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxBankNameLength",
+          "value": 100,
+          "type": "int",
+          "sourceFiles": ["ViewModels/CreditCardEditViewModel.cs"],
+          "description": "Максимальная длина названия банка",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "StatementDayRange",
+          "value": "1–28",
+          "type": "range",
+          "sourceFiles": ["ViewModels/CreditCardEditViewModel.cs"],
+          "description": "Допустимый день выписки по карте (MaxDayInShortestMonth = 28)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Ограничение 28 выбрано, чтобы день существовал в любом месяце; настройки AppSettings допускают 1–31 — несогласованность"
+        }
+      ]
+    },
+    {
+      "name": "PaginationAndFiltering",
+      "constants": [
+        {
+          "name": "MaxDetailTransactions",
+          "value": 5000,
+          "type": "int",
+          "sourceFiles": ["Services/ReportService.cs"],
+          "description": "Лимит операций в детальном отчёте",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "MaxCategoryTransactions",
+          "value": 5000,
+          "type": "int",
+          "sourceFiles": ["Services/ReportService.cs"],
+          "description": "Лимит операций в отчёте по категориям",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "OperationsPageSize",
+          "value": 100,
+          "type": "int",
+          "sourceFiles": ["ViewModels/TransactionsViewModel.cs"],
+          "description": "Размер страницы списка операций (_pageSize)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: захардкожено, настройка AppSettings.DefaultPageSize = 20 игнорируется"
+        },
+        {
+          "name": "DashboardRecentCount",
+          "value": 10,
+          "type": "int",
+          "sourceFiles": ["Services/TransactionService.cs"],
+          "description": "Количество последних операций по умолчанию (GetRecentAsync)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Значение по умолчанию параметра count"
+        },
+        {
+          "name": "DashboardTake",
+          "value": 100,
+          "type": "int",
+          "sourceFiles": ["Services/Dashboard/DashboardService.cs"],
+          "description": "Максимум операций, загружаемых для дашборда",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Захардкожено в TransactionFilterParameters.Take"
+        },
+        {
+          "name": "DashboardRecentTake",
+          "value": 100,
+          "type": "int",
+          "sourceFiles": ["Services/Dashboard/DashboardTransactionCoordinator.cs"],
+          "description": "Лимит последних операций в координаторе дашборда",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "recent.Take(100)"
+        }
+      ]
+    },
+    {
+      "name": "SeedData",
+      "constants": [
+        {
+          "name": "SeedDate",
+          "value": "2024-01-01",
+          "type": "DateTime",
+          "sourceFiles": ["Services/AppDbContext.cs"],
+          "description": "Фиксированная дата CreatedAt для seed-данных",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Нужна для детерминированных миграций (HasData)"
+        },
+        {
+          "name": "SeedIncomeCategoryIds",
+          "value": "1–4",
+          "type": "range",
+          "sourceFiles": ["Services/AppDbContext.cs"],
+          "description": "ID seed-категорий доходов: 1 «Ремонт авто», 2 «Ремонт мото», 3 «Диагностика», 4 «Прочие доходы»",
+          "relatedEnum": "OperationType",
+          "isConfigurable": false,
+          "notes": "Все IsSystem = true; менять Id/Name запрещено (TRAPS.md §5.4)"
+        },
+        {
+          "name": "SeedExpenseCategoryIds",
+          "value": "5–11",
+          "type": "range",
+          "sourceFiles": ["Services/AppDbContext.cs"],
+          "description": "ID seed-категорий расходов: 5 «Запчасти», 6 «Зарплата», 7 «Аренда», 8 «Коммунальные услуги», 9 «Маркетинг», 10 «Прочие расходы», 11 «Погашение кредита»",
+          "relatedEnum": "OperationType",
+          "isConfigurable": false,
+          "notes": "Все IsSystem = true"
+        },
+        {
+          "name": "RepaymentCategoryId",
+          "value": 11,
+          "type": "int",
+          "sourceFiles": ["Services/AppDbContext.cs"],
+          "description": "ID системной категории «Погашение кредита»",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Зашит в seed; используется бизнес-логикой погашений"
+        },
+        {
+          "name": "RepaymentCategoryName",
+          "value": "Погашение кредита",
+          "type": "string",
+          "sourceFiles": ["Services/CreditCardOperationHelper.cs", "Services/CreditCardService.cs", "Services/AppDbContext.cs"],
+          "description": "Имя системной категории погашений (const)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "CreditCardService.RepaymentCategoryName = CreditCardOperationHelper.RepaymentCategoryName; не переименовывать без миграции"
+        },
+        {
+          "name": "SeedCategoryColors",
+          "value": ["#6366f1", "#f59e0b", "#14b8a6", "#94a3b8", "#ec4899", "#f97316", "#8b5cf6", "#06b6d4", "#84cc16", "#ef4444", "#64748b"],
+          "type": "string[]",
+          "sourceFiles": ["Services/AppDbContext.cs"],
+          "description": "Цвета seed-категорий (Id 1–11 по порядку)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Первые 10 совпадают с PresetColors в CategoryItemViewModel (там добавлены #10b981, #3b82f6)"
+        }
+      ]
+    },
+    {
+      "name": "UiConstants",
+      "constants": [
+        {
+          "name": "WindowWidth",
+          "value": 1366,
+          "type": "double",
+          "sourceFiles": ["MainWindow.xaml"],
+          "description": "Стартовая ширина главного окна",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: не совпадает с AppSettings.WindowWidth = 1200"
+        },
+        {
+          "name": "WindowHeight",
+          "value": 768,
+          "type": "double",
+          "sourceFiles": ["MainWindow.xaml"],
+          "description": "Стартовая высота главного окна",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "НЕСОГЛАСОВАННОСТЬ: не совпадает с AppSettings.WindowHeight = 700"
+        },
+        {
+          "name": "WindowMinWidth",
+          "value": 1280,
+          "type": "double",
+          "sourceFiles": ["MainWindow.xaml"],
+          "description": "Минимальная ширина главного окна",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Больше, чем дефолт AppSettings.WindowWidth (1200) — см. несогласованности"
+        },
+        {
+          "name": "WindowMinHeight",
+          "value": 720,
+          "type": "double",
+          "sourceFiles": ["MainWindow.xaml"],
+          "description": "Минимальная высота главного окна",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Больше, чем дефолт AppSettings.WindowHeight (700)"
+        },
+        {
+          "name": "TitleBarHeight",
+          "value": 36,
+          "type": "double",
+          "sourceFiles": ["MainWindow.xaml"],
+          "description": "Высота кастомного тайтлбара (WindowChrome.CaptionHeight и RowDefinition)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Задано дважды: shell:WindowChrome CaptionHeight=\"36\" и RowDefinition Height=\"36\""
+        },
+        {
+          "name": "SidebarWidth",
+          "value": 76,
+          "type": "double",
+          "sourceFiles": ["MainWindow.xaml"],
+          "description": "Ширина бокового меню",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Задано дважды в ColumnDefinition (строки 130 и 216)"
+        },
+        {
+          "name": "FontSizeSmall",
+          "value": 12,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Мелкий шрифт (ресурс FontSizeSmall)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "FontSizeNormal",
+          "value": 14,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Основной шрифт (ресурс FontSizeNormal)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "FontSizeLarge",
+          "value": 16,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Крупный шрифт (ресурс FontSizeLarge)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Совпадает с FontSizeH3"
+        },
+        {
+          "name": "FontSizeH1",
+          "value": 24,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Заголовок H1",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "FontSizeH2",
+          "value": 20,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Заголовок H2",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "FontSizeH3",
+          "value": 16,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Заголовок H3",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Совпадает с FontSizeLarge"
+        },
+        {
+          "name": "PrimaryBrush",
+          "value": "#2196F3",
+          "type": "color",
+          "sourceFiles": ["App.xaml"],
+          "description": "Основной акцентный цвет",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Входной в базовую палитру кистей App.xaml"
+        },
+        {
+          "name": "SuccessBrush",
+          "value": "#4CAF50",
+          "type": "color",
+          "sourceFiles": ["App.xaml"],
+          "description": "Цвет успеха",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "ErrorBrush",
+          "value": "#F44336",
+          "type": "color",
+          "sourceFiles": ["App.xaml"],
+          "description": "Цвет ошибки",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "WarningBrush",
+          "value": "#FF9800",
+          "type": "color",
+          "sourceFiles": ["App.xaml"],
+          "description": "Цвет предупреждения",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "AccentGreenBrush",
+          "value": "#22c55e",
+          "type": "color",
+          "sourceFiles": ["App.xaml"],
+          "description": "Зелёный акцент (доходы)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "AccentRedBrush",
+          "value": "#ef4444",
+          "type": "color",
+          "sourceFiles": ["App.xaml"],
+          "description": "Красный акцент (расходы)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "CardCornerRadius",
+          "value": 14,
+          "type": "double",
+          "sourceFiles": ["App.xaml"],
+          "description": "Радиус скругления карточек и крупных контейнеров",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Мелкие контролы используют 6–8, кнопки-«пилюли» — 16–20"
+        },
+        {
+          "name": "CategoryPresetColors",
+          "value": ["#6366f1", "#f59e0b", "#14b8a6", "#94a3b8", "#ec4899", "#f97316", "#8b5cf6", "#06b6d4", "#84cc16", "#ef4444", "#10b981", "#3b82f6"],
+          "type": "string[]",
+          "sourceFiles": ["ViewModels/CategoryItemViewModel.cs"],
+          "description": "Палитра предустановленных цветов категорий (PresetColors, 12 цветов)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Первые 10 совпадают с цветами seed-категорий (у Id=11 «Погашение кредита» в seed — #64748b, в палитре отсутствует)"
+        }
+      ]
+    },
+    {
+      "name": "ReportsDashboardExport",
+      "constants": [
+        {
+          "name": "DashboardEpoch",
+          "value": "2000-01-01",
+          "type": "DateTime",
+          "sourceFiles": ["Services/Dashboard/DashboardService.cs"],
+          "description": "Начало периода «за всё время» для кассового баланса (Epoch)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Используется в GetPeriodTotalsAsync(Epoch, DateTime.Today, ...)"
+        },
+        {
+          "name": "TopCategoriesCount",
+          "value": 5,
+          "type": "int",
+          "sourceFiles": ["Services/Dashboard/DashboardService.cs"],
+          "description": "Топ-N категорий расходов/доходов на дашборде",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "GetTopCategoriesAsync(..., 5, ...)"
+        },
+        {
+          "name": "ReportPalette",
+          "value": ["#2196F3", "#4CAF50", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4", "#FFEB3B", "#795548", "#607D8B", "#F44336", "#3F51B5", "#009688", "#FFC107", "#673AB7", "#8BC34A"],
+          "type": "string[]",
+          "sourceFiles": ["Services/ReportService.cs"],
+          "description": "Палитра диаграмм отчёта по категориям (15 цветов, циклически)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "colorIndex % colors.Length"
+        },
+        {
+          "name": "PercentageDecimals",
+          "value": 1,
+          "type": "int",
+          "sourceFiles": ["Services/ReportService.cs"],
+          "description": "Знаков после запятой у процентов в отчёте по категориям",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Math.Round(percentage, 1)"
+        },
+        {
+          "name": "PdfPageSize",
+          "value": "A4",
+          "type": "string",
+          "sourceFiles": ["Services/ExportService.cs"],
+          "description": "Размер страницы PDF-экспорта",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "PageSizes.A4"
+        },
+        {
+          "name": "PdfMargin",
+          "value": 30,
+          "type": "int",
+          "sourceFiles": ["Services/ExportService.cs"],
+          "description": "Отступы страницы PDF (пункты)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "page.Margin(30)"
+        },
+        {
+          "name": "PdfDefaultFontSize",
+          "value": 10,
+          "type": "int",
+          "sourceFiles": ["Services/ExportService.cs"],
+          "description": "Базовый размер шрифта PDF",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Заголовок отчёта — 18, период — 12, суммы — 14, подписи — 11"
+        },
+        {
+          "name": "ExcelTitleFontSize",
+          "value": 16,
+          "type": "int",
+          "sourceFiles": ["Services/ExportService.cs"],
+          "description": "Размер шрифта заголовка в Excel-экспорте",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "ExcelHeaderRow",
+          "value": 10,
+          "type": "int",
+          "sourceFiles": ["Services/ExportService.cs"],
+          "description": "Строка заголовка таблицы в Excel-экспорте (headerRow)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Строки 1–9 заняты шапкой отчёта"
+        },
+        {
+          "name": "ReportDebounceInterval",
+          "value": 50,
+          "type": "int",
+          "sourceFiles": ["ViewModels/Reports/BaseReportViewModel.cs"],
+          "description": "Debounce обновления отчётов (мс)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "TimeSpan.FromMilliseconds(50)"
+        },
+        {
+          "name": "CancelToastDuration",
+          "value": 5,
+          "type": "int",
+          "sourceFiles": ["ViewModels/TransactionEditViewModel.cs"],
+          "description": "Длительность показа toast отмены (секунды)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "DispatcherTimer с Interval = TimeSpan.FromSeconds(5)"
+        },
+        {
+          "name": "QuestPdfLicense",
+          "value": "Community",
+          "type": "string",
+          "sourceFiles": ["Services/ExportService.cs"],
+          "description": "Лицензия QuestPDF",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "QuestPDF.Settings.License = LicenseType.Community; устанавливается в конструкторе ExportService"
+        }
+      ]
+    },
+    {
+      "name": "SecurityAndLocking",
+      "constants": [
+        {
+          "name": "AutoLockTimerUnit",
+          "value": "minutes",
+          "type": "string",
+          "sourceFiles": ["Services/LockService.cs"],
+          "description": "Таймер автоблокировки срабатывает через AutoLockTimeout минут (DispatcherTimer)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "docOnly": true,
+          "notes": "timeout <= 0 отключает таймер"
+        },
+        {
+          "name": "PasswordHashAlgorithm",
+          "value": "BCrypt",
+          "type": "string",
+          "sourceFiles": ["Services/PasswordService.cs"],
+          "description": "Алгоритм хеширования паролей (BCrypt.Net-Next, GenerateSalt с workFactor по умолчанию)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "WorkFactor не задан явно — используется дефолт библиотеки (10 на момент BCrypt.Net-Next 4.2.0)"
+        },
+        {
+          "name": "PasswordHashMaxLength",
+          "value": 255,
+          "type": "int",
+          "sourceFiles": ["Models/AppSettings.cs"],
+          "description": "MaxLength полей PasswordHash и SecurityAnswerHash",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "BackupFileNamePattern",
+          "value": "AutoKassa_Backup_yyyyMMdd_HHmmss.db",
+          "type": "string",
+          "sourceFiles": ["Services/SettingsService.cs"],
+          "description": "Шаблон имени файла резервной копии",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Дата последнего бэкапа парсится из имени файла"
+        },
+        {
+          "name": "BackupAllowedRoots",
+          "value": "%USERPROFILE%; каталог приложения",
+          "type": "string",
+          "sourceFiles": ["Services/SettingsService.cs"],
+          "description": "Разрешённые корни для пути бэкапа (SanitizeBackupPath)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "docOnly": true,
+          "notes": "Защита от path traversal (TRAPS.md §3.8)"
+        },
+        {
+          "name": "SecurityQuestionsCount",
+          "value": 4,
+          "type": "int",
+          "sourceFiles": ["Models/Enums/SecurityQuestion.cs"],
+          "description": "Количество предустановленных секретных вопросов (MotherMaidenName, FirstPetName, FirstSchoolName, FavoriteDish) + Custom",
+          "relatedEnum": "SecurityQuestion",
+          "isConfigurable": false,
+          "notes": null
+        }
+      ]
+    },
+    {
+      "name": "Logging",
+      "constants": [
+        {
+          "name": "LogPath",
+          "value": "logs/autokassa-.log",
+          "type": "string",
+          "sourceFiles": ["App.xaml.cs"],
+          "description": "Путь к файлу логов (относительно каталога сборки; rolling дописывает дату)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Фактические файлы: logs/autokassa-yyyymmdd.log"
+        },
+        {
+          "name": "LogMinimumLevel",
+          "value": "Information",
+          "type": "string",
+          "sourceFiles": ["App.xaml.cs"],
+          "description": "Минимальный уровень логирования Serilog",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "LogRollingInterval",
+          "value": "Day",
+          "type": "string",
+          "sourceFiles": ["App.xaml.cs"],
+          "description": "Интервал ротации файлов логов",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "LogRetainedFileCount",
+          "value": 30,
+          "type": "int",
+          "sourceFiles": ["App.xaml.cs"],
+          "description": "Количество хранимых файлов логов (≈ дней)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "retainedFileCountLimit: 30"
+        },
+        {
+          "name": "LogOutputTemplate",
+          "value": "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+          "type": "string",
+          "sourceFiles": ["App.xaml.cs"],
+          "description": "Шаблон строки лога",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Уровни: [INF], [WRN], [ERR], [FTL]"
+        }
+      ]
+    },
+    {
+      "name": "Database",
+      "constants": [
+        {
+          "name": "DatabaseFileName",
+          "value": "AutoKassa.db",
+          "type": "string",
+          "sourceFiles": ["Services/AppDbContext.cs"],
+          "description": "Имя файла SQLite-базы (OnConfiguring, каталог приложения)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": null
+        },
+        {
+          "name": "SqliteJournalMode",
+          "value": "WAL",
+          "type": "string",
+          "sourceFiles": ["Services/SettingsService.cs"],
+          "description": "Режим журнала SQLite, включается после миграций (PRAGMA journal_mode=WAL)",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Порядок важен: миграции → WAL → разогрев кеша (см. 14-startup.md)"
+        },
+        {
+          "name": "DecimalPrecision",
+          "value": "decimal(18,2)",
+          "type": "string",
+          "sourceFiles": ["Models/AppSettings.cs"],
+          "description": "Точность денежных полей",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "notes": "Процентные поля — decimal(5,2)"
+        }
+      ]
+    }
+  ]
+}
