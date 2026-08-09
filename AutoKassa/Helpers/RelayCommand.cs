@@ -1,4 +1,4 @@
-﻿using System.Windows.Input;
+using System.Windows.Input;
 
 namespace AutoKassa.Helpers
 {
@@ -6,6 +6,7 @@ namespace AutoKassa.Helpers
     {
         private readonly Action<object> _execute;
         private readonly Predicate<object> _canExecute;
+        private EventHandler _canExecuteChanged;
 
         /// <summary>
         /// Конструктор команды
@@ -23,8 +24,8 @@ namespace AutoKassa.Helpers
         /// </summary>
         public event EventHandler CanExecuteChanged
         {
-            add { CommandManager.RequerySuggested += value; }
-            remove { CommandManager.RequerySuggested -= value; }
+            add { CommandManager.RequerySuggested += value; _canExecuteChanged += value; }
+            remove { CommandManager.RequerySuggested -= value; _canExecuteChanged -= value; }
         }
 
         /// <summary>
@@ -44,11 +45,11 @@ namespace AutoKassa.Helpers
         }
 
         /// <summary>
-        /// Принудительное обновление состояния CanExecute
+        /// Принудительное обновление состояния CanExecute только этой команды
         /// </summary>
         public void RaiseCanExecuteChanged()
         {
-            CommandManager.InvalidateRequerySuggested();
+            _canExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -59,6 +60,7 @@ namespace AutoKassa.Helpers
     {
         private readonly Action<T> _execute;
         private readonly Predicate<T> _canExecute;
+        private EventHandler _canExecuteChanged;
 
         public RelayCommand(Action<T> execute, Predicate<T> canExecute = null)
         {
@@ -68,8 +70,8 @@ namespace AutoKassa.Helpers
 
         public event EventHandler CanExecuteChanged
         {
-            add { CommandManager.RequerySuggested += value; }
-            remove { CommandManager.RequerySuggested -= value; }
+            add { CommandManager.RequerySuggested += value; _canExecuteChanged += value; }
+            remove { CommandManager.RequerySuggested -= value; _canExecuteChanged -= value; }
         }
 
         public bool CanExecute(object parameter)
@@ -89,9 +91,12 @@ namespace AutoKassa.Helpers
                 _execute(default);
         }
 
+        /// <summary>
+        /// Принудительное обновление состояния CanExecute только этой команды
+        /// </summary>
         public void RaiseCanExecuteChanged()
         {
-            CommandManager.InvalidateRequerySuggested();
+            _canExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

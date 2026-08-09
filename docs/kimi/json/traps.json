@@ -464,6 +464,30 @@
       "tags": ["#async", "#wpf"]
     },
     {
+      "category": "Технические ловушки",
+      "title": "ORDER BY по SUM(decimal) в SQLite падает на ru-RU — агрегаты сортируй в памяти",
+      "forbidden": "Не сортируй в SQL результаты агрегатов по decimal (OrderBy/OrderByDescending по Sum() внутри IQueryable).",
+      "why": "EF Core для сортировки decimal-агрегатов в SQLite генерирует культурозависимую коллацию EF_DECIMAL, которая падает на локали ru-RU.",
+      "correct": "Материализуй агрегаты через ToListAsync, а сортировку по сумме и Take выполняй в памяти — см. GetTopCategoriesAsync и GenerateCategoryReportAsync.",
+      "files": [
+        "../../AutoKassa/Services/TransactionService.cs",
+        "../../AutoKassa/Services/ReportService.cs"
+      ],
+      "tags": ["#sqlite", "#ef-core"]
+    },
+    {
+      "category": "Технические ловушки",
+      "title": "При пулинге DbContext нельзя конфигурировать опции в OnConfiguring",
+      "forbidden": "Не вызывай UseSqlite/AddInterceptors и т.п. в AppDbContext.OnConfiguring, когда контекст зарегистрирован через AddPooledDbContextFactory.",
+      "why": "При включённом пулинге EF Core запрещает модификацию DbContextOptions в OnConfiguring и бросает InvalidOperationException при первом обращении к БД (приложение падает на старте в MigrateAsync).",
+      "correct": "Все опции (UseSqlite со строкой от AppDbContext.GetDatabasePath(), AddInterceptors) задавай в optionsAction при регистрации AddPooledDbContextFactory; OnConfiguring остаётся резервом для design-time (dotnet ef) и срабатывает только при IsConfigured == false.",
+      "files": [
+        "../../AutoKassa/App.xaml.cs",
+        "../../AutoKassa/Services/AppDbContext.cs"
+      ],
+      "tags": ["#ef-core", "#sqlite"]
+    },
+    {
       "category": "MVVM и команды",
       "title": "AsyncRelayCommand — async void: исключения уходят только в лог",
       "forbidden": "Не ожидай, что исключение из асинхронной команды всплывёт в UI или глобальный обработчик.",
@@ -478,8 +502,8 @@
       "category": "MVVM и команды",
       "title": "CanExecute не пересчитывается автоматически при смене свойств ViewModel",
       "forbidden": "Не ожидай мгновенного обновления доступности кнопки при программном изменении состояния.",
-      "why": "RelayCommand и AsyncRelayCommand подписывают CanExecuteChanged на CommandManager.RequerySuggested, который срабатывает на ввод пользователя, а не на изменение свойств ViewModel.",
-      "correct": "После изменения свойств, влияющих на CanExecute, вызывай RaiseCanExecuteChanged() (у RelayCommand) или CommandManager.InvalidateRequerySuggested().",
+      "why": "RelayCommand и AsyncRelayCommand подписывают CanExecuteChanged на CommandManager.RequerySuggested, который срабатывает на ввод пользователя, а не на изменение свойств ViewModel. При этом RelayCommand.RaiseCanExecuteChanged() вызывает только собственное событие команды (подписка на RequerySuggested сохранена) — он не пересчитывает другие команды.",
+      "correct": "После изменения свойств, влияющих на CanExecute, вызывай RaiseCanExecuteChanged() конкретной команды (у RelayCommand) или CommandManager.InvalidateRequerySuggested().",
       "files": [
         "../../AutoKassa/Helpers/RelayCommand.cs",
         "../../AutoKassa/Helpers/AsyncRelayCommand.cs"

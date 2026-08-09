@@ -59,7 +59,7 @@ flowchart TB
 - `PeriodPresetButtonStyle` — кнопки быстрого выбора периода.
 - `ReportTabButtonStyle` — вкладки отчётов.
 - `FlatListItem` — элементы плоских списков.
-- Глобальные переопределения: `DataGrid`, `ComboBox`, `TextBox`, `DatePicker`, `Calendar`, `CheckBox`, `ScrollBar`, `ContextMenu`.
+- Глобальные переопределения: `ComboBox`, `TextBox`, `DatePicker`, `Calendar`, `CheckBox`, `ScrollBar`, `ContextMenu`.
 
 ### 2.3. Конвертеры
 
@@ -118,18 +118,22 @@ flowchart TB
 
 ```xml
 <Grid>
-    <!-- Основной контент с BlurEffect при IsModalOpen -->
+    <!-- Основной контент; при IsModalOpen отключается ввод (IsHitTestVisible=False) -->
     <Grid x:Name="MainContent">...</Grid>
 
     <!-- Затемнённый оверлей -->
     <Grid Visibility="{Binding IsModalOpen, Converter={StaticResource BoolToVisibilityConverter}}">
         <Rectangle Fill="#66000000"/>
         <Border Background="White" CornerRadius="20">
-            <views:*EditView DataContext="{Binding *EditViewModel}"/>
+            <!-- View модалки инстанцируется лениво: ContentControl + DataTemplate,
+                 VM создаётся только при открытии и освобождается при закрытии -->
+            <ContentControl Content="{Binding *EditViewModel}"/>
         </Border>
     </Grid>
 </Grid>
 ```
+
+Модальные окна инстанцируются лениво через `ContentControl Content="{Binding ...ViewModel}"` + типизированный `DataTemplate` (эталон — `ReportsView.xaml`): View не строится, пока VM модалки `null`. Blur-эффекты не используются (дорогой софтверный рендер на слабых GPU) — только затемняющий `Rectangle`.
 
 ### 5.2. Период-пикер
 
@@ -225,8 +229,8 @@ flowchart TB
 ### 8.2. `TransactionsView.xaml`
 
 - Горизонтальная панель фильтров с поиском, периодом, чипсами.
-- DataGrid / ItemsControl с группировкой по датам.
-- Inline-форма добавления операции.
+- `ListBox` с группировкой операций по датам (DataGrid в проекте не используется).
+- Inline-форма добавления/редактирования операции внутри группы; визуальное дерево формы строится лениво (ContentControl + DataTemplate) только для группы с открытым редактором.
 - CheckBox для массового выделения.
 - Контекстное меню с редактированием/удалением.
 

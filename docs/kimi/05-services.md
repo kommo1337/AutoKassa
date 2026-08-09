@@ -40,10 +40,13 @@
 | `AddAsync(transaction, ct)` | Добавление операции |
 | `UpdateAsync(transaction, ct)` | Обновление операции |
 | `DeleteAsync(id, ct)` | Soft delete |
+| `DeleteRangeAsync(ids, ct)` | Массовый soft delete одним контекстом и одной транзакцией БД (с той же бизнес-логикой, что у `DeleteAsync`) |
 | `RestoreAsync(id, ct)` | Восстановление удалённой операции |
+| `RestoreRangeAsync(ids, ct)` | Массовое восстановление одним контекстом и одной транзакцией БД (с той же бизнес-логикой, что у `RestoreAsync`; статусы долгов пересчитываются по разу на долг) |
 | `IsRepaymentTransactionAsync(id, ct)` | Является ли операция погашением |
 | `GetRecentAsync(count, ct)` | Последние N операций |
 | `GetPeriodTotalsAsync(from, to, paymentType, ct)` | Итоги за период |
+| `GetPeriodTotalsByPaymentTypeAsync(from, to, ct)` | Итоги за период, сгруппированные по типу оплаты (один запрос) |
 | `GetDailyTotalsAsync(from, to, paymentType, ct)` | Дневные итоги |
 | `GetTopCategoriesAsync(from, to, type, count, paymentType, ct)` | Топ категорий |
 
@@ -115,17 +118,18 @@
 
 **Lifetime:** Transient
 
-**Зависимости:** `IDbContextFactory<AppDbContext>`
+**Зависимости:** `IDbContextFactory<AppDbContext>`, `ReferenceDataCache`
 
-**Ответственность:** Управление справочником категорий.
+**Ответственность:** Управление справочником категорий. Чтения списков (`GetAllAsync`/`GetActiveAsync`/`GetByTypeAsync`) идут через [`ReferenceDataCache`](../../AutoKassa/Services/ReferenceDataCache.cs) (сортировка в памяти повторяет SQL-порядок); мутации инвалидируют кэш после `SaveChanges`.
 
 **Ключевые методы:**
 
 | Метод | Описание |
 |-------|----------|
-| `GetAllAsync()` | Все категории |
-| `GetActiveAsync()` | Активные категории |
-| `GetByTypeAsync(type, activeOnly)` | По типу |
+| `GetAllAsync()` | Все категории (из кэша) |
+| `GetActiveAsync()` | Активные категории (из кэша) |
+| `GetByTypeAsync(type, activeOnly)` | По типу (из кэша) |
+| `GetCountAsync()` | Количество категорий (SQL COUNT) |
 | `AddAsync(category)` | Добавить |
 | `UpdateAsync(category)` | Обновить |
 | `DeleteAsync(id)` | Удалить (с проверками) |
@@ -145,13 +149,13 @@
 
 **Lifetime:** Transient
 
-**Зависимости:** `IDbContextFactory<AppDbContext>`
+**Зависимости:** `IDbContextFactory<AppDbContext>`, `ReferenceDataCache`
 
-**Ответственность:** Справочник контрагентов.
+**Ответственность:** Справочник контрагентов. Чтения списков (`GetAllAsync`/`GetActiveAsync`) идут через `ReferenceDataCache`; мутации инвалидируют кэш после `SaveChanges`.
 
 **Ключевые методы:**
-- `GetAllAsync(ct)`
-- `GetActiveAsync(type, ct)`
+- `GetAllAsync(ct)` (из кэша)
+- `GetActiveAsync(type, ct)` (из кэша)
 - `AddAsync(counterparty, ct)`
 - `UpdateAsync(counterparty, ct)`
 - `DeleteAsync(id, ct)`
@@ -194,9 +198,9 @@
 
 **Lifetime:** Transient
 
-**Зависимости:** `IDbContextFactory<AppDbContext>`
+**Зависимости:** `IDbContextFactory<AppDbContext>`, `ReferenceDataCache`
 
-**Ответственность:** Управление кредитными картами, покупками и погашениями.
+**Ответственность:** Управление кредитными картами, покупками и погашениями. Чтение списка карт (`GetAllAsync`) — через `ReferenceDataCache`; мутации инвалидируют кэш после `SaveChanges`. `GetCardWithPurchasesAsync` загружает покупки filtered Include с лимитом `MaxCardPurchases = 500` (последние по дате).
 
 **Ключевые методы:**
 
@@ -204,6 +208,7 @@
 |-------|----------|
 | `GetAllAsync(ct)` | Все карты |
 | `GetByIdAsync(id, ct)` | Карта по ID |
+| `GetCardPurchasesCountAsync(cardId, ct)` | Общее количество покупок карты (SQL COUNT) — для пометки об усечении истории лимитом `MaxCardPurchases` |
 | `CreateAsync(card, ct)` | Создать |
 | `UpdateAsync(card, ct)` | Обновить |
 | `DeleteAsync(id, ct)` | Деактивировать |
@@ -233,8 +238,9 @@
 | Метод | Описание |
 |-------|----------|
 | `GenerateBalanceReportAsync(from, to, paymentType, ct)` | Баланс за период |
-| `GenerateCategoryReportAsync(from, to, operationType, paymentType, ct)` | Структура по категориям |
-| `GenerateTransactionDetailReportAsync(...)` | Детализация операций |
+| `GenerateCategoryReportAsync(from, to, operationType, paymentType, ct)` | Структура по категориям (SQL `GroupBy(CategoryId)` + join к `Categories`, без материализации операций) |
+| `GetCategoryTransactionsAsync(categoryId, from, to, operationType, paymentType, take, ct)` | Операции категории для ленивой загрузки при раскрытии (лимит `MaxCategoryTransactions`, `OrderBy` до `Take`) |
+| `GenerateTransactionDetailReportAsync(...)` | Детализация операций (лимит `MaxDetailTransactions = 1000`, пометка усечения `TruncationNote`) |
 | `GenerateDebtReportAsync(...)` | Отчёт по долгам |
 | `GetReconciliationDataAsync(date, ct)` | Сверка кассы |
 
@@ -250,7 +256,7 @@
 
 **Зависимости:** `ITransactionService`, `ISettingsService`, `ICreditCardService`
 
-**Ответственность:** Загрузка всех данных главного экрана.
+**Ответственность:** Загрузка всех данных главного экрана. Сводка и счётчики операций считаются одним запросом (`GetSummaryAsync`), остатки наличных/безналичных — одним запросом `GetPeriodTotalsByPaymentTypeAsync` (без полных сканов истории). Построения графиков в сервисе нет (мёртвый `BuildChartModelAsync` удалён).
 
 **Ключевой метод:** `LoadDashboardDataAsync(dateFrom, dateTo, ct)`.
 
@@ -296,7 +302,7 @@
 
 **Зависимости:** `IServiceProvider`
 
-**Ответственность:** Управление текущим ViewModel, вызов `INavigationAware`, Dispose старых VM.
+**Ответственность:** Управление текущим ViewModel, вызов `INavigationAware`, Dispose старых VM (кроме page ViewModel с маркером [`IPageViewModel`](../../AutoKassa/ViewModels/IPageViewModel.cs) — они Singleton и не диспозятся при навигации; повторный `NavigateTo` на уже активную вкладку — no-op).
 
 ### 3.2. DialogService
 
@@ -340,7 +346,7 @@
 
 **Lifetime:** Singleton
 
-**Ответственность:** Экспорт отчётов в PDF (QuestPDF) и Excel (ClosedXML).
+**Ответственность:** Экспорт отчётов в PDF (QuestPDF) и Excel (ClosedXML). Excel-методы пишут данные пакетно (`InsertData`), стили назначаются на диапазоны/колонки, ширины колонок фиксированные (`AdjustToContents` не используется).
 
 ### 3.6. DataChangeService
 
@@ -351,6 +357,28 @@
 **Lifetime:** Singleton
 
 **Ответственность:** Уведомление подписчиков об изменениях данных.
+
+### 3.7. ReferenceDataCache
+
+**Файл:** [`AutoKassa/Services/ReferenceDataCache.cs`](../../AutoKassa/Services/ReferenceDataCache.cs)
+
+**Интерфейс:** нет (конкретный класс)
+
+**Lifetime:** Singleton
+
+**Зависимости:** `IDbContextFactory<AppDbContext>`, `IDataChangeService`
+
+**Ответственность:** Кэш справочников (категории, контрагенты, кредитные карты), чтобы несколько VM и редакторы не грузили их повторно. Ленивая загрузка под `SemaphoreSlim`, наружу отдаёт **клоны** сущностей (мутации в VM не портят кэш). Инвалидация: полный сброс по `IDataChangeService.DataChanged` + точечная в мутациях `CategoryService`/`CounterpartyService`/`CreditCardService` после `SaveChanges`.
+
+### 3.8. SqlitePragmaInterceptor
+
+**Файл:** [`AutoKassa/Services/SqlitePragmaInterceptor.cs`](../../AutoKassa/Services/SqlitePragmaInterceptor.cs)
+
+**Интерфейс:** `IDbConnectionInterceptor` (EF Core)
+
+**Lifetime:** один экземпляр в `DbContextOptions` — регистрация через `options.AddInterceptors(new SqlitePragmaInterceptor())` в `App.ConfigureServices` (`AddPooledDbContextFactory`)
+
+**Ответственность:** Применяет per-connection PRAGMA SQLite (`synchronous=NORMAL`, `temp_store=MEMORY`, `cache_size=-8000`) при каждом открытии соединения (`ConnectionOpened`/`ConnectionOpenedAsync`) — эти настройки живут в рамках соединения и не сохраняются в файле БД. `journal_mode=WAL`, напротив, персистентна и выставляется один раз в `SettingsService.MigrateAsync`.
 
 ---
 
@@ -523,7 +551,7 @@ sequenceDiagram
 
 | Lifetime | Сервисы |
 |----------|---------|
-| Singleton | `NavigationService`, `PasswordService`, `SettingsService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
+| Singleton | `NavigationService`, `PasswordService`, `SettingsService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `ReferenceDataCache`, `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
 | Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator` |
 
 ---

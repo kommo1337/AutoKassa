@@ -376,6 +376,127 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
+        /// Удалить несколько операций одним контекстом и одной транзакцией БД (soft delete).
+        /// Бизнес-правила на каждую операцию — те же, что в <see cref="DeleteAsync"/>:
+        /// жёсткое удаление покупок по кредитным картам, восстановление остатков покупок
+        /// при удалении погашений кредитки, soft delete погашений удаляемых долгов
+        /// и пересчёт статусов связанных долгов.
+        /// </summary>
+        public async Task DeleteRangeAsync(IEnumerable<int> ids, CancellationToken ct = default)
+        {
+            var idList = ids?.Distinct().ToList() ?? new List<int>();
+            if (idList.Count == 0)
+                return;
+
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            var transactions = await context.Transactions
+                .Where(t => idList.Contains(t.Id))
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            if (transactions.Count == 0)
+                return;
+
+            var now = DateTime.Now;
+
+            foreach (var transaction in transactions)
+            {
+                transaction.IsDeleted = true;
+                transaction.UpdatedAt = now;
+            }
+
+            // При удалении операций по кредитной карте удаляем связанные покупки.
+            // Связанные CreditCardPayment удаляются каскадно.
+            var creditCardTransactionIds = transactions
+                .Where(t => t.PaymentType == PaymentType.CreditCard)
+                .Select(t => t.Id)
+                .ToList();
+            if (creditCardTransactionIds.Count > 0)
+            {
+                var purchases = await context.CreditCardPurchases
+                    .Where(p => creditCardTransactionIds.Contains(p.TransactionId))
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
+                context.CreditCardPurchases.RemoveRange(purchases);
+            }
+
+            var nonDebtIds = transactions
+                .Where(t => t.PaymentType != PaymentType.Debt)
+                .Select(t => t.Id)
+                .ToList();
+
+            // При удалении операций-погашений кредитной карты восстанавливаем остатки покупок
+            if (nonDebtIds.Count > 0)
+            {
+                var creditCardPayments = await context.CreditCardPayments
+                    .Where(ccp => nonDebtIds.Contains(ccp.RepaymentTransactionId))
+                    .Select(ccp => ccp.RepaymentTransactionId)
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
+
+                foreach (var repaymentId in creditCardPayments)
+                {
+                    await CreditCardOperationHelper.RecalculateOnRepaymentDeletedAsync(
+                        context, repaymentId, ct).ConfigureAwait(false);
+                }
+            }
+
+            // При удалении долговых операций делаем soft delete связанных операций-погашений.
+            // Сами записи DebtPayment оставляем в БД для корректного восстановления через RestoreAsync.
+            var debtIds = transactions
+                .Where(t => t.PaymentType == PaymentType.Debt)
+                .Select(t => t.Id)
+                .ToList();
+            if (debtIds.Count > 0)
+            {
+                var debtPayments = await context.DebtPayments
+                    .Where(dp => debtIds.Contains(dp.DebtTransactionId))
+                    .Include(dp => dp.RepaymentTransaction)
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
+
+                foreach (var debtPayment in debtPayments)
+                {
+                    if (debtPayment.RepaymentTransaction != null && !debtPayment.RepaymentTransaction.IsDeleted)
+                    {
+                        debtPayment.RepaymentTransaction.IsDeleted = true;
+                        debtPayment.RepaymentTransaction.UpdatedAt = now;
+                    }
+                }
+            }
+
+            // Проверяем, какие из удаляемых операций являются погашениями долгов,
+            // и запоминаем связанные долги для пересчёта их статусов.
+            var relatedDebtIds = new HashSet<int>();
+            if (nonDebtIds.Count > 0)
+            {
+                var repaymentLinks = await context.DebtPayments
+                    .Where(dp => nonDebtIds.Contains(dp.RepaymentTransactionId))
+                    .Select(dp => dp.DebtTransactionId)
+                    .ToListAsync(ct)
+                    .ConfigureAwait(false);
+
+                foreach (var debtId in repaymentLinks)
+                    relatedDebtIds.Add(debtId);
+            }
+
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            // Если удалили погашения — пересчитываем статусы связанных долгов в том же контексте
+            foreach (var debtId in relatedDebtIds)
+            {
+                await RecalculateDebtStatusInContextAsync(context, debtId, ct).ConfigureAwait(false);
+            }
+
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
+
+            _log.Information("Удалено операций: {Count}", transactions.Count);
+        }
+
+        /// <summary>
         /// Восстановить ранее удалённую операцию (отмена soft delete).
         /// Атомарно восстанавливает связанные сущности: кредитные покупки,
         /// погашения долгов и погашения кредитных карт.
@@ -420,6 +541,10 @@ namespace AutoKassa.Services
             // чтобы связанные погашения корректно учитывались в расчётах.
             transaction.IsDeleted = false;
             transaction.UpdatedAt = DateTime.Now;
+
+            // Ссылка на долг, если восстанавливаемая операция — погашение долга
+            // (кэшируем, чтобы не повторять запрос при пересчёте статусов ниже).
+            DebtPayment debtRepaymentLink = null;
 
             // 2. Восстановление долговой операции и связанных с ней погашений.
             if (transaction.PaymentType == PaymentType.Debt)
@@ -473,16 +598,10 @@ namespace AutoKassa.Services
                     }
                 }
 
-                // 4. Восстановление операции-погашения долга.
-                var debtPayment = await context.DebtPayments
+                // 4. Определяем, является ли операция погашением долга.
+                debtRepaymentLink = await context.DebtPayments
                     .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id, ct)
                     .ConfigureAwait(false);
-
-                if (debtPayment != null && debtPayment.RepaymentTransaction != null)
-                {
-                    debtPayment.RepaymentTransaction.IsDeleted = false;
-                    debtPayment.RepaymentTransaction.UpdatedAt = DateTime.Now;
-                }
             }
 
             // Сохраняем восстановление операции и связей, чтобы последующий
@@ -494,22 +613,163 @@ namespace AutoKassa.Services
             {
                 await RecalculateDebtStatusInContextAsync(context, id, ct).ConfigureAwait(false);
             }
-            else
+            else if (debtRepaymentLink != null)
             {
-                var debtPayment = await context.DebtPayments
-                    .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == id, ct)
-                    .ConfigureAwait(false);
-
-                if (debtPayment != null)
-                {
-                    await RecalculateDebtStatusInContextAsync(context, debtPayment.DebtTransactionId, ct).ConfigureAwait(false);
-                }
+                await RecalculateDebtStatusInContextAsync(context, debtRepaymentLink.DebtTransactionId, ct).ConfigureAwait(false);
             }
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
             await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             _log.Information("Восстановлена операция ID={Id}", id);
+        }
+
+        /// <summary>
+        /// Восстановить несколько ранее удалённых операций одним контекстом и одной транзакцией БД.
+        /// Бизнес-правила на каждую операцию — те же, что в <see cref="RestoreAsync"/>:
+        /// пересоздание покупок по кредитным картам, FIFO-распределение погашений кредитки,
+        /// восстановление погашений долгов. Статусы связанных долгов пересчитываются
+        /// по одному разу на долг после восстановления всех операций.
+        /// </summary>
+        public async Task RestoreRangeAsync(IEnumerable<int> ids, CancellationToken ct = default)
+        {
+            var idList = ids?.Distinct().ToList() ?? new List<int>();
+            if (idList.Count == 0)
+                return;
+
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            var transactions = await context.Transactions
+                .Include(t => t.Category)
+                .Where(t => idList.Contains(t.Id) && t.IsDeleted)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            if (transactions.Count == 0)
+                return;
+
+            var now = DateTime.Now;
+            var restoredCount = 0;
+
+            // Статусы долгов пересчитываем один раз на долг после восстановления всех операций
+            var debtIdsToRecalculate = new HashSet<int>();
+
+            foreach (var transaction in transactions)
+            {
+                // Операция могла быть восстановлена неявно на предыдущей итерации
+                // (как погашение восстановленного долга) — пропускаем.
+                if (!transaction.IsDeleted)
+                    continue;
+
+                // 1. Восстановление кредитной покупки.
+                // При удалении покупки CreditCardPurchase удалялась жёстко,
+                // поэтому при восстановлении операции создаём её заново.
+                if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
+                {
+                    var purchaseExists = await context.CreditCardPurchases
+                        .AnyAsync(p => p.TransactionId == transaction.Id, ct)
+                        .ConfigureAwait(false);
+
+                    if (!purchaseExists)
+                    {
+                        context.CreditCardPurchases.Add(new CreditCardPurchase
+                        {
+                            CreditCardId = transaction.CreditCardId.Value,
+                            TransactionId = transaction.Id,
+                            Amount = transaction.Amount,
+                            RemainingDebt = transaction.Amount,
+                            PurchaseDate = transaction.Date,
+                            Notes = transaction.Description
+                        });
+                    }
+                }
+
+                // Восстанавливаем саму операцию до пересчёта статусов,
+                // чтобы связанные погашения корректно учитывались в расчётах.
+                transaction.IsDeleted = false;
+                transaction.UpdatedAt = now;
+
+                // 2. Восстановление долговой операции и связанных с ней погашений.
+                if (transaction.PaymentType == PaymentType.Debt)
+                {
+                    var debtPayments = await context.DebtPayments
+                        .Where(dp => dp.DebtTransactionId == transaction.Id)
+                        .Include(dp => dp.RepaymentTransaction)
+                        .ToListAsync(ct)
+                        .ConfigureAwait(false);
+
+                    foreach (var debtPayment in debtPayments)
+                    {
+                        if (debtPayment.RepaymentTransaction != null && debtPayment.RepaymentTransaction.IsDeleted)
+                        {
+                            debtPayment.RepaymentTransaction.IsDeleted = false;
+                            debtPayment.RepaymentTransaction.UpdatedAt = now;
+                        }
+                    }
+
+                    debtIdsToRecalculate.Add(transaction.Id);
+                }
+                else
+                {
+                    // 3. Восстановление операции-погашения кредитной карты.
+                    var isCreditCardRepayment = transaction.Type == OperationType.Expense
+                                                && transaction.Category?.Name == CreditCardService.RepaymentCategoryName
+                                                && transaction.CreditCardId.HasValue;
+
+                    if (isCreditCardRepayment)
+                    {
+                        var creditCardPaymentExists = await context.CreditCardPayments
+                            .AnyAsync(ccp => ccp.RepaymentTransactionId == transaction.Id, ct)
+                            .ConfigureAwait(false);
+
+                        if (!creditCardPaymentExists)
+                        {
+                            var card = await context.CreditCards
+                                .FindAsync(new object[] { transaction.CreditCardId.Value }, ct)
+                                .ConfigureAwait(false);
+
+                            if (card != null)
+                            {
+                                var currentDebt = await CreditCardOperationHelper.GetCurrentDebtAsync(
+                                    context, transaction.CreditCardId.Value, ct: ct).ConfigureAwait(false);
+
+                                if (transaction.Amount > currentDebt)
+                                    throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
+
+                                card.LastPaymentDate = DateTime.Today;
+                                await CreditCardOperationHelper.DistributeRepaymentAsync(
+                                    context, transaction.Id, transaction.CreditCardId.Value, transaction.Amount, ct).ConfigureAwait(false);
+                            }
+                        }
+                    }
+
+                    // 4. Определяем, является ли операция погашением долга.
+                    var debtRepaymentLink = await context.DebtPayments
+                        .FirstOrDefaultAsync(dp => dp.RepaymentTransactionId == transaction.Id, ct)
+                        .ConfigureAwait(false);
+
+                    if (debtRepaymentLink != null)
+                        debtIdsToRecalculate.Add(debtRepaymentLink.DebtTransactionId);
+                }
+
+                // Сохраняем после каждой операции, чтобы последующие операции пакета
+                // (проверка текущего долга карты, FIFO-распределение) видели
+                // уже восстановленные покупки и погашения.
+                await context.SaveChangesAsync(ct).ConfigureAwait(false);
+                restoredCount++;
+            }
+
+            // 5. Пересчёт статусов связанных долгов после восстановления — по одному разу на долг.
+            foreach (var debtId in debtIdsToRecalculate)
+            {
+                await RecalculateDebtStatusInContextAsync(context, debtId, ct).ConfigureAwait(false);
+            }
+
+            await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
+
+            _log.Information("Восстановлено операций: {Count}", restoredCount);
         }
 
         /// <summary>
@@ -569,6 +829,29 @@ namespace AutoKassa.Services
                 expenseRow?.Total ?? 0m,
                 incomeRow?.Count  ?? 0,
                 expenseRow?.Count ?? 0);
+        }
+
+        /// <summary>
+        /// Суммы доходов/расходов за период по каждому типу оплаты — один SQL GROUP BY
+        /// </summary>
+        public async Task<List<(PaymentType PaymentType, decimal Income, decimal Expense)>> GetPeriodTotalsByPaymentTypeAsync(DateTime from, DateTime to, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var dateTo = to.Date.AddDays(1);
+            var rows = await context.Transactions
+                .Where(t => !t.IsDeleted && t.Date >= from && t.Date < dateTo)
+                .GroupBy(t => new { t.PaymentType, t.Type })
+                .Select(g => new { g.Key.PaymentType, g.Key.Type, Total = g.Sum(t => t.Amount) })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            return rows
+                .GroupBy(r => r.PaymentType)
+                .Select(g => (
+                    PaymentType: g.Key,
+                    Income: g.FirstOrDefault(r => r.Type == OperationType.Income)?.Total ?? 0m,
+                    Expense: g.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m))
+                .ToList();
         }
 
         /// <summary>

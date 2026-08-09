@@ -13,15 +13,24 @@ namespace AutoKassa.Services
         private static readonly ILogger _log = Log.ForContext<CreditCardService>();
 
         /// <summary>
+        /// Максимальное количество покупок, загружаемых в историю карты
+        /// (<see cref="GetCardWithPurchasesAsync"/>). Защита от RAM-всплеска на картах
+        /// с длинной историей; UI показывает самые свежие покупки.
+        /// </summary>
+        public const int MaxCardPurchases = 500;
+
+        /// <summary>
         /// Название системной категории расходов, используемой для погашения кредита
         /// </summary>
         public const string RepaymentCategoryName = CreditCardOperationHelper.RepaymentCategoryName;
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
+        private readonly ReferenceDataCache _cache;
 
-        public CreditCardService(IDbContextFactory<AppDbContext> contextFactory)
+        public CreditCardService(IDbContextFactory<AppDbContext> contextFactory, ReferenceDataCache cache)
         {
             _contextFactory = contextFactory;
+            _cache = cache;
         }
 
         /// <summary>
@@ -29,12 +38,12 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<IReadOnlyList<CreditCard>> GetAllAsync(CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            return await context.CreditCards
-                .AsNoTracking()
-                .OrderBy(c => c.Name)
-                .ToListAsync(ct)
-                .ConfigureAwait(false);
+            // Из справочного кэша; сортировка в памяти повторяет SQL-порядок
+            // (Ordinal соответствует SQLite BINARY collation для UTF-8)
+            var cards = await _cache.GetCreditCardsAsync().ConfigureAwait(false);
+            return cards
+                .OrderBy(c => c.Name, StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>
@@ -55,12 +64,30 @@ namespace AutoKassa.Services
         public async Task<CreditCard?> GetCardWithPurchasesAsync(int id, CancellationToken ct = default)
         {
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            // Filtered Include: только последние MaxCardPurchases покупок вместо всей истории.
+            // Полная DTO-проекция невозможна без смены контракта ICreditCardService,
+            // а UI (CreditCardsView.xaml) биндится к полям CreditCardPurchase.
             return await context.CreditCards
                 .AsNoTracking()
-                .Include(c => c.Purchases)
+                .Include(c => c.Purchases
+                    .OrderByDescending(p => p.PurchaseDate)
+                    .Take(MaxCardPurchases))
                 .ThenInclude(p => p.Transaction)
                 .ThenInclude(t => t!.Category)
                 .FirstOrDefaultAsync(c => c.Id == id, ct)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Получить общее количество покупок карты.
+        /// Покупки удаляются физически вместе с операцией, поэтому все записи — активные.
+        /// </summary>
+        public async Task<int> GetCardPurchasesCountAsync(int cardId, CancellationToken ct = default)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+            return await context.CreditCardPurchases
+                .AsNoTracking()
+                .CountAsync(p => p.CreditCardId == cardId, ct)
                 .ConfigureAwait(false);
         }
 
@@ -78,6 +105,7 @@ namespace AutoKassa.Services
 
             context.CreditCards.Add(card);
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            _cache.InvalidateCreditCards();
 
             _log.Information("Создана кредитная карта ID={Id}, название={Name}, лимит={Limit}",
                 card.Id, card.Name, card.Limit);
@@ -109,6 +137,7 @@ namespace AutoKassa.Services
             existing.IsActive = card.IsActive;
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            _cache.InvalidateCreditCards();
 
             _log.Information("Обновлена кредитная карта ID={Id}, название={Name}", card.Id, card.Name);
         }
@@ -129,6 +158,7 @@ namespace AutoKassa.Services
 
             card.IsActive = false;
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            _cache.InvalidateCreditCards();
 
             _log.Information("Деактивирована кредитная карта ID={Id}", id);
         }

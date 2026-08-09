@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:AutoKassa.ViewModels"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
+             xmlns:views="clr-namespace:AutoKassa.Views"
              Background="{StaticResource ContentBgBrush}">
 
     <UserControl.Resources>
@@ -93,8 +94,12 @@
 
                 <!-- Общий лимит -->
                 <Grid Grid.Column="0" Margin="0,0,10,0">
-                    <Border Style="{StaticResource SummaryCard}"/>
-                    <Border CornerRadius="12" Padding="20,20" MinHeight="108" Background="Transparent">
+                    <Border Style="{StaticResource SummaryCard}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border CornerRadius="12" Padding="20,20" MinHeight="108" Background="Transparent" Effect="{x:Null}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="BorderThickness" Value="0.8"/>
@@ -159,8 +164,12 @@
 
                 <!-- Текущий долг -->
                 <Grid Grid.Column="1" Margin="0,0,10,0">
-                    <Border Style="{StaticResource SummaryCard}"/>
-                    <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                    <Border Style="{StaticResource SummaryCard}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Style="{StaticResource SummaryCard}" Background="Transparent" Effect="{x:Null}">
                         <StackPanel>
                             <TextBlock Text="ТЕКУЩИЙ ДОЛГ" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                        Foreground="{StaticResource MutedTextBrush}"/>
@@ -177,8 +186,12 @@
 
                 <!-- Доступно -->
                 <Grid Grid.Column="2" Margin="0,0,10,0">
-                    <Border Style="{StaticResource SummaryCard}"/>
-                    <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                    <Border Style="{StaticResource SummaryCard}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Style="{StaticResource SummaryCard}" Background="Transparent" Effect="{x:Null}">
                         <StackPanel>
                             <TextBlock Text="ДОСТУПНО" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                        Foreground="{StaticResource MutedTextBrush}"/>
@@ -195,8 +208,12 @@
 
                 <!-- Ближайший платёж -->
                 <Grid Grid.Column="3">
-                    <Border Style="{StaticResource SummaryCard}"/>
-                    <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                    <Border Style="{StaticResource SummaryCard}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                        </Border.Effect>
+                    </Border>
+                    <Border Style="{StaticResource SummaryCard}" Background="Transparent" Effect="{x:Null}">
                         <StackPanel>
                             <TextBlock Text="БЛИЖАЙШИЙ ПЛАТЁЖ" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                        Foreground="{StaticResource MutedTextBrush}"/>
@@ -328,10 +345,21 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:CreditCardListItemViewModel}">
-                                        <Border Style="{StaticResource SummaryCard}"
-                                                BorderBrush="{StaticResource BorderLightBrush}"
-                                                BorderThickness="1"
-                                                Padding="20">
+                                        <Grid>
+                                            <!-- Тень — только на нижнем слое, контент остаётся чётким -->
+                                            <Border Style="{StaticResource SummaryCard}"
+                                                    BorderBrush="{StaticResource BorderLightBrush}"
+                                                    BorderThickness="1">
+                                                <Border.Effect>
+                                                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                                                </Border.Effect>
+                                            </Border>
+                                            <Border Style="{StaticResource SummaryCard}"
+                                                    BorderBrush="{StaticResource BorderLightBrush}"
+                                                    BorderThickness="1"
+                                                    Padding="20"
+                                                    Background="Transparent"
+                                                    Effect="{x:Null}">
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto"/>
@@ -456,7 +484,8 @@
                                                     </StackPanel>
                                                 </Grid>
                                             </Grid>
-                                        </Border>
+                                            </Border>
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
@@ -480,8 +509,14 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="История покупок" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="16,16,16,12"/>
+                        <StackPanel Grid.Row="0" Margin="16,16,16,12">
+                            <TextBlock Text="История покупок" FontSize="15" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding PurchasesTruncationNote}"
+                                       FontSize="11" FontStyle="Italic" Foreground="{StaticResource MutedTextBrush}"
+                                       Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Visibility="{Binding IsPurchasesTruncated, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                        </StackPanel>
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding SelectedCardPurchases}" Margin="16,0,16,16">
                                 <ItemsControl.ItemTemplate>
@@ -558,9 +593,15 @@
                     </Border.Effect>
                 </Border>
                 <!-- Content layer -->
+                <!-- Модалка создаётся лениво: пока EditViewModel == null, представление не строится -->
                 <Border Background="Transparent" CornerRadius="20" ClipToBounds="True">
-                    <views:CreditCardEditView DataContext="{Binding EditViewModel}"
-                                              xmlns:views="clr-namespace:AutoKassa.Views"/>
+                    <ContentControl Content="{Binding EditViewModel}">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type vm:CreditCardEditViewModel}">
+                                <views:CreditCardEditView/>
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
                 </Border>
             </Grid>
         </Grid>
@@ -579,9 +620,15 @@
                     </Border.Effect>
                 </Border>
                 <!-- Content layer -->
+                <!-- Модалка создаётся лениво: пока RepaymentViewModel == null, представление не строится -->
                 <Border Background="Transparent" CornerRadius="20" ClipToBounds="True">
-                    <views:CreditCardRepaymentView DataContext="{Binding RepaymentViewModel}"
-                                                   xmlns:views="clr-namespace:AutoKassa.Views"/>
+                    <ContentControl Content="{Binding RepaymentViewModel}">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type vm:CreditCardRepaymentViewModel}">
+                                <views:CreditCardRepaymentView/>
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
                 </Border>
             </Grid>
         </Grid>

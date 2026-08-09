@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Services
@@ -12,6 +12,11 @@ namespace AutoKassa.Services
         /// Получить все категории
         /// </summary>
         Task<List<Category>> GetAllAsync();
+
+        /// <summary>
+        /// Получить количество категорий (SQL COUNT, без загрузки записей)
+        /// </summary>
+        Task<int> GetCountAsync();
 
         /// <summary>
         /// Получить активные категории

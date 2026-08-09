@@ -9,22 +9,8 @@
              Background="{StaticResource BackgroundBrush}">
 
     <Grid>
-        <!-- Main content (blurs when modal open) -->
+        <!-- Main content (затемняется оверлеем при открытом модальном окне) -->
         <Grid x:Name="MainContent">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding CurrentReport.Modal.IsOpen}" Value="True">
-                            <Setter Property="Effect">
-                                <Setter.Value>
-                                    <BlurEffect Radius="6"/>
-                                </Setter.Value>
-                            </Setter>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>

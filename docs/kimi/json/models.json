@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-31T01:53:41+03:00",
+  "lastUpdated": "2026-08-01T12:00:00+03:00",
   "entities": [
     {
       "name": "Transaction",
@@ -1587,18 +1587,13 @@
           "name": "Color",
           "type": "string",
           "nullable": true
-        },
-        {
-          "name": "Transactions",
-          "type": "List<Transaction>",
-          "nullable": false
         }
       ],
       "navigation": [],
       "indexes": [],
       "seedData": null,
       "notes": [
-        "Вложенный DTO для одной категории внутри CategoryReport."
+        "Вложенный DTO для одной категории внутри CategoryReport. Операции категории в DTO не хранятся — загружаются лениво через IReportService.GetCategoryTransactionsAsync при раскрытии категории в UI."
       ]
     },
     {
@@ -1646,13 +1641,28 @@
           "name": "TotalExpense",
           "type": "decimal",
           "nullable": false
+        },
+        {
+          "name": "TotalTransactionCount",
+          "type": "int",
+          "nullable": false
+        },
+        {
+          "name": "IsTruncated",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "TruncationNote",
+          "type": "string",
+          "nullable": true
         }
       ],
       "navigation": [],
       "indexes": [],
       "seedData": null,
       "notes": [
-        "Отчёт 'Детализация операций'. Наследуется от ReportBase."
+        "Отчёт 'Детализация операций'. Наследуется от ReportBase. Список Transactions ограничен лимитом MaxDetailTransactions = 1000; TotalTransactionCount — общее число операций под фильтром, IsTruncated/TruncationNote — пометка об усечении для UI/PDF/Excel."
       ]
     },
     {

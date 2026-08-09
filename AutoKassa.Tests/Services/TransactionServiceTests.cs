@@ -23,7 +23,7 @@ namespace AutoKassa.Tests.Services
             _factory = factory;
             _conn = conn;
             _ctx = factory.CreateDbContext();
-            _creditCardService = new CreditCardService(factory);
+            _creditCardService = new CreditCardService(factory, new ReferenceDataCache(factory, new DataChangeService()));
             _debtService = new DebtService(factory);
             _svc = new TransactionService(factory);
         }
@@ -1056,12 +1056,12 @@ namespace AutoKassa.Tests.Services
         // Целостность данных по долгам (этап 4)
         // ─────────────────────────────────────────
 
-        private Transaction CreateDebt(OperationType type, decimal amount)
+        private Transaction CreateDebt(OperationType type, decimal amount, string nameSuffix = "")
         {
-            var counterparty = TestDatabase.SeedCounterparty(_ctx);
+            var counterparty = TestDatabase.SeedCounterparty(_ctx, $"Тест-контрагент{nameSuffix}");
             var category = type == OperationType.Income
-                ? TestDatabase.SeedIncomeCategory(_ctx)
-                : TestDatabase.SeedExpenseCategory(_ctx);
+                ? TestDatabase.SeedIncomeCategory(_ctx, $"Тест-доход{nameSuffix}")
+                : TestDatabase.SeedExpenseCategory(_ctx, $"Тест-расход{nameSuffix}");
 
             return TestDatabase.SeedTransaction(
                 _ctx, category.Id, amount, type, PaymentType.Debt,
@@ -1286,6 +1286,404 @@ namespace AutoKassa.Tests.Services
             await act.Should().ThrowAsync<InvalidOperationException>()
                 .WithMessage("*превышает текущий долг*");
         }
+
+        // ─────────────────────────────────────────
+        // DeleteRangeAsync (массовое soft delete одним контекстом)
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task DeleteRangeAsync_SetsIsDeletedTrue_RecordsStayInDb()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t1 = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+            var t2 = TestDatabase.SeedTransaction(_ctx, cat.Id, 200m);
+            var t3 = TestDatabase.SeedTransaction(_ctx, cat.Id, 300m);
+
+            await _svc.DeleteRangeAsync(new[] { t1.Id, t2.Id, t3.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raws = await checkCtx.Transactions
+                .Where(t => new[] { t1.Id, t2.Id, t3.Id }.Contains(t.Id))
+                .ToListAsync();
+            raws.Should().HaveCount(3);
+            raws.Should().OnlyContain(t => t.IsDeleted);
+        }
+
+        [Fact]
+        public async Task DeleteRangeAsync_EmptyList_DoesNothing()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+
+            await _svc.DeleteRangeAsync(Array.Empty<int>());
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raw = await checkCtx.Transactions.FindAsync(t.Id);
+            raw.Should().NotBeNull();
+            raw!.IsDeleted.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task DeleteRangeAsync_SkipsUnknownIds()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+
+            await _svc.DeleteRangeAsync(new[] { t.Id, 999999 });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raw = await checkCtx.Transactions.FindAsync(t.Id);
+            raw.Should().NotBeNull();
+            raw!.IsDeleted.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task DeleteRangeAsync_WithCreditCardPayments_RemovesPurchases()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var t1 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка 1"
+            });
+            var t2 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 3000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка 2"
+            });
+
+            await _svc.DeleteRangeAsync(new[] { t1.Id, t2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchases = await checkCtx.CreditCardPurchases
+                .Where(p => p.TransactionId == t1.Id || p.TransactionId == t2.Id)
+                .ToListAsync();
+            purchases.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task DeleteRangeAsync_WithCreditCardRepayments_RestoresRemainingDebt()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+            var r1 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение 1"
+            });
+            var r2 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 1000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение 2"
+            });
+
+            await _svc.DeleteRangeAsync(new[] { r1.Id, r2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchaseFromDb = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseFromDb.RemainingDebt.Should().Be(5000m);
+
+            var creditCardPayments = await checkCtx.CreditCardPayments
+                .Where(ccp => ccp.RepaymentTransactionId == r1.Id || ccp.RepaymentTransactionId == r2.Id)
+                .ToListAsync();
+            creditCardPayments.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task DeleteRangeAsync_Debt_SoftDeletesRelatedRepayments()
+        {
+            var debt1 = CreateDebt(OperationType.Income, 1000m, "-1");
+            var debt2 = CreateDebt(OperationType.Expense, 2000m, "-2");
+            var repayment1 = await _debtService.RepayAsync(debt1.Id, 400m, PaymentType.Cash, DateTime.Today);
+            var repayment2 = await _debtService.RepayAsync(debt2.Id, 500m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteRangeAsync(new[] { debt1.Id, debt2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raws = await checkCtx.Transactions
+                .Where(t => new[] { debt1.Id, debt2.Id, repayment1.Id, repayment2.Id }.Contains(t.Id))
+                .ToListAsync();
+            raws.Should().HaveCount(4);
+            raws.Should().OnlyContain(t => t.IsDeleted);
+
+            // DebtPayment остаются в БД для корректного восстановления через RestoreAsync
+            var debtPayments = await checkCtx.DebtPayments
+                .Where(dp => dp.DebtTransactionId == debt1.Id || dp.DebtTransactionId == debt2.Id)
+                .ToListAsync();
+            debtPayments.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public async Task DeleteRangeAsync_Repayments_RecalculatesDebtStatuses()
+        {
+            var debt1 = CreateDebt(OperationType.Expense, 1000m, "-1");
+            var debt2 = CreateDebt(OperationType.Expense, 2000m, "-2");
+            var repayment1 = await _debtService.RepayAsync(debt1.Id, 1000m, PaymentType.Cash, DateTime.Today);
+            var repayment2 = await _debtService.RepayAsync(debt2.Id, 2000m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteRangeAsync(new[] { repayment1.Id, repayment2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var rawDebt1 = await checkCtx.Transactions.FindAsync(debt1.Id);
+            var rawDebt2 = await checkCtx.Transactions.FindAsync(debt2.Id);
+            rawDebt1.Should().NotBeNull();
+            rawDebt2.Should().NotBeNull();
+            rawDebt1!.DebtStatus.Should().Be(DebtStatus.Active);
+            rawDebt2!.DebtStatus.Should().Be(DebtStatus.Active);
+        }
+
+        // ─────────────────────────────────────────
+        // RestoreRangeAsync (массовое восстановление одним контекстом)
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task RestoreRangeAsync_SetsIsDeletedFalse()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t1 = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+            var t2 = TestDatabase.SeedTransaction(_ctx, cat.Id, 200m);
+            var t3 = TestDatabase.SeedTransaction(_ctx, cat.Id, 300m);
+
+            await _svc.DeleteRangeAsync(new[] { t1.Id, t2.Id, t3.Id });
+            await _svc.RestoreRangeAsync(new[] { t1.Id, t2.Id, t3.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raws = await checkCtx.Transactions
+                .Where(t => new[] { t1.Id, t2.Id, t3.Id }.Contains(t.Id))
+                .ToListAsync();
+            raws.Should().HaveCount(3);
+            raws.Should().OnlyContain(t => !t.IsDeleted);
+        }
+
+        [Fact]
+        public async Task RestoreRangeAsync_EmptyList_DoesNothing()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+            await _svc.DeleteAsync(t.Id);
+
+            await _svc.RestoreRangeAsync(Array.Empty<int>());
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raw = await checkCtx.Transactions.FindAsync(t.Id);
+            raw.Should().NotBeNull();
+            raw!.IsDeleted.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task RestoreRangeAsync_SkipsUnknownIds()
+        {
+            var cat = TestDatabase.SeedExpenseCategory(_ctx);
+            var t = TestDatabase.SeedTransaction(_ctx, cat.Id, 100m);
+            await _svc.DeleteAsync(t.Id);
+
+            await _svc.RestoreRangeAsync(new[] { t.Id, 999999 });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raw = await checkCtx.Transactions.FindAsync(t.Id);
+            raw.Should().NotBeNull();
+            raw!.IsDeleted.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task RestoreRangeAsync_CreditCardPurchase_RestoresPurchases()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var t1 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка 1"
+            });
+            var t2 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 3000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка 2"
+            });
+
+            await _svc.DeleteRangeAsync(new[] { t1.Id, t2.Id });
+            await _svc.RestoreRangeAsync(new[] { t1.Id, t2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchases = await checkCtx.CreditCardPurchases
+                .Where(p => p.TransactionId == t1.Id || p.TransactionId == t2.Id)
+                .ToListAsync();
+            purchases.Should().HaveCount(2);
+            purchases.Should().OnlyContain(p => p.RemainingDebt == p.Amount);
+        }
+
+        [Fact]
+        public async Task RestoreRangeAsync_CreditCardRepayments_RestoresCreditCardPaymentsFifo()
+        {
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+            var r1 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение 1"
+            });
+            var r2 = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 1000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение 2"
+            });
+
+            await _svc.DeleteRangeAsync(new[] { r1.Id, r2.Id });
+
+            using var afterDeleteCtx = _factory.CreateDbContext();
+            var purchaseAfterDelete = await afterDeleteCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseAfterDelete.RemainingDebt.Should().Be(5000m);
+
+            await _svc.RestoreRangeAsync(new[] { r1.Id, r2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+
+            var restoredRepayments = await checkCtx.Transactions
+                .Where(t => t.Id == r1.Id || t.Id == r2.Id)
+                .ToListAsync();
+            restoredRepayments.Should().OnlyContain(t => !t.IsDeleted);
+
+            // Погашения распределены заново по FIFO: RemainingDebt = 5000 − 2000 − 1000
+            var purchaseAfterRestore = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseAfterRestore.RemainingDebt.Should().Be(2000m);
+
+            var creditCardPayments = await checkCtx.CreditCardPayments
+                .Where(ccp => ccp.RepaymentTransactionId == r1.Id || ccp.RepaymentTransactionId == r2.Id)
+                .ToListAsync();
+            creditCardPayments.Should().HaveCount(2);
+            creditCardPayments.Sum(ccp => ccp.Amount).Should().Be(3000m);
+        }
+
+        [Fact]
+        public async Task RestoreRangeAsync_Debt_RestoresRepaymentsAndRecalculatesStatuses()
+        {
+            var debt1 = CreateDebt(OperationType.Income, 1000m, "-1");
+            var debt2 = CreateDebt(OperationType.Expense, 2000m, "-2");
+            var repayment1 = await _debtService.RepayAsync(debt1.Id, 1000m, PaymentType.Cash, DateTime.Today);
+            var repayment2 = await _debtService.RepayAsync(debt2.Id, 2000m, PaymentType.Cash, DateTime.Today);
+
+            await _svc.DeleteRangeAsync(new[] { debt1.Id, debt2.Id });
+            await _svc.RestoreRangeAsync(new[] { debt1.Id, debt2.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+            var raws = await checkCtx.Transactions
+                .Where(t => new[] { debt1.Id, debt2.Id, repayment1.Id, repayment2.Id }.Contains(t.Id))
+                .ToListAsync();
+            raws.Should().HaveCount(4);
+            raws.Should().OnlyContain(t => !t.IsDeleted);
+
+            var rawDebt1 = await checkCtx.Transactions.FindAsync(debt1.Id);
+            var rawDebt2 = await checkCtx.Transactions.FindAsync(debt2.Id);
+            rawDebt1.Should().NotBeNull();
+            rawDebt2.Should().NotBeNull();
+            rawDebt1!.DebtStatus.Should().Be(DebtStatus.Repaid);
+            rawDebt2!.DebtStatus.Should().Be(DebtStatus.Repaid);
+
+            var debtPayments = await checkCtx.DebtPayments
+                .Where(dp => dp.DebtTransactionId == debt1.Id || dp.DebtTransactionId == debt2.Id)
+                .ToListAsync();
+            debtPayments.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public async Task RestoreRangeAsync_DebtWithRepaymentInSameBatch_RestoresOnce()
+        {
+            var debt = CreateDebt(OperationType.Expense, 1000m);
+            var repayment = await _debtService.RepayAsync(debt.Id, 1000m, PaymentType.Cash, DateTime.Today);
+
+            // В пакете и долг, и его погашение: погашение восстанавливается веткой долга,
+            // повторная обработка не должна задвоить связи
+            await _svc.DeleteRangeAsync(new[] { debt.Id, repayment.Id });
+            await _svc.RestoreRangeAsync(new[] { debt.Id, repayment.Id });
+
+            using var checkCtx = _factory.CreateDbContext();
+
+            var rawDebt = await checkCtx.Transactions.FindAsync(debt.Id);
+            rawDebt.Should().NotBeNull();
+            rawDebt!.IsDeleted.Should().BeFalse();
+            rawDebt.DebtStatus.Should().Be(DebtStatus.Repaid);
+
+            var rawRepayment = await checkCtx.Transactions.FindAsync(repayment.Id);
+            rawRepayment.Should().NotBeNull();
+            rawRepayment!.IsDeleted.Should().BeFalse();
+
+            var debtPayments = await checkCtx.DebtPayments
+                .Where(dp => dp.DebtTransactionId == debt.Id)
+                .ToListAsync();
+            debtPayments.Should().HaveCount(1);
+            debtPayments[0].Amount.Should().Be(1000m);
+        }
+
         // ─────────────────────────────────────────
         // Точность decimal (этап 2.16)
         // ─────────────────────────────────────────

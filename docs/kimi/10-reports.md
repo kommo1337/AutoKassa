@@ -31,8 +31,8 @@
 
 ### 2.1. Защитные константы
 
-- `MaxDetailTransactions = 5000` — ограничение операций в детализации.
-- `MaxCategoryTransactions = 5000` — ограничение для структуры по категориям.
+- `MaxDetailTransactions = 1000` — ограничение операций в детализации (при превышении в отчёте выводится пометка «Показаны первые 1000 из N операций», см. `TransactionDetailReport.IsTruncated`/`TruncationNote`).
+- `MaxCategoryTransactions = 1000` — ограничение операций на категорию при ленивой загрузке списка операций категории (`GetCategoryTransactionsAsync`).
 
 ### 2.2. Особенности формирования
 

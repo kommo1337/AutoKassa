@@ -93,7 +93,7 @@ flowchart LR
 - DI-навигация: `NavigateTo<TViewModel>()` и `NavigateTo<TViewModel>(object parameter)`.
 - Вызывает `OnNavigatedFrom` для старого VM и `OnNavigatedTo` для нового.
 - Через reflection ищет метод `Initialize(object parameter)`.
-- Корректно вызывает `Dispose()` для уходящего VM.
+- Вызывает `Dispose()` для уходящего VM, кроме page ViewModel с маркером `IPageViewModel` (вкладки главного окна — Singleton, живут всё время работы приложения; повторный заход на вкладку без изменений данных не перезагружает данные благодаря `_isInitialized`/`_needsRefresh`).
 
 ### 4.3. Асинхронная инициализация
 

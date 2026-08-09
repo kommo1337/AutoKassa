@@ -100,6 +100,26 @@ public class DiRegistrationScannerTests : IDisposable
     }
 
     [Fact]
+    public void Scan_WithPooledDbContextFactory_RegistersFactoryAndImplicitContext()
+    {
+        // Зеркалит реальный App.xaml.cs: AddPooledDbContextFactory с пустым optionsAction.
+        (string projectRoot, string appPath) = CreateProjectWithAppXamlCs(@"
+            services.AddPooledDbContextFactory<AppDbContext>(options => { });
+        ");
+
+        IReadOnlyList<ScannedDiRegistration> result = DiRegistrationScanner.Scan(appPath);
+
+        result.Should().Contain(r =>
+            r.NormalizedServiceType == "IDbContextFactory<AppDbContext>" &&
+            r.Lifetime == "Singleton");
+
+        // EF Core при регистрации фабрики неявно регистрирует сам контекст (Scoped).
+        result.Should().Contain(r =>
+            r.NormalizedServiceType == "AppDbContext" &&
+            r.Lifetime == "Scoped");
+    }
+
+    [Fact]
     public void Scan_WithComments_IgnoresCommentedRegistrations()
     {
         (string projectRoot, string appPath) = CreateProjectWithAppXamlCs(@"

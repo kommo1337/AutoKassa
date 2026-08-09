@@ -9,6 +9,8 @@ namespace AutoKassa.Views
     /// </summary>
     public partial class TransactionsView : UserControl
     {
+        private static readonly Regex NotDigitRegex = new(@"[^0-9,.]", RegexOptions.Compiled);
+
         public TransactionsView()
         {
             InitializeComponent();
@@ -16,8 +18,7 @@ namespace AutoKassa.Views
 
         private void InlineAmount_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
-            Regex regex = new Regex(@"[^0-9,.]");
-            e.Handled = regex.IsMatch(e.Text);
+            e.Handled = NotDigitRegex.IsMatch(e.Text);
         }
     }
 }

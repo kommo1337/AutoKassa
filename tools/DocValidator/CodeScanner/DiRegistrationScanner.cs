@@ -58,9 +58,10 @@ public static class DiRegistrationScanner
         @"services\.AddDbContext\s*<\s*(?<type>[\w<>,\.\s]+?)\s*>\s*\(\s*(?:ServiceLifetime\s*\.\s*(?<lifetime>Singleton|Transient|Scoped))?\s*\)",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
-    // services.AddDbContextFactory<AppDbContext>() — по умолчанию Singleton
+    // services.AddDbContextFactory<AppDbContext>() / services.AddPooledDbContextFactory<AppDbContext>(options => { })
+    // — фабрика регистрируется как Singleton
     private static readonly Regex AddDbContextFactoryRegex = new(
-        @"services\.AddDbContextFactory\s*<\s*(?<type>[\w<>,\.\s]+?)\s*>\s*\(",
+        @"services\.Add(?:Pooled)?DbContextFactory\s*<\s*(?<type>[\w<>,\.\s]+?)\s*>\s*\(",
         RegexOptions.Compiled | RegexOptions.Singleline);
 
     public static IReadOnlyList<ScannedDiRegistration> Scan(ValidationContext context)
@@ -138,7 +139,8 @@ public static class DiRegistrationScanner
             });
         }
 
-        // AddDbContextFactory<AppDbContext>() — регистрирует IDbContextFactory<T> как Singleton.
+        // AddDbContextFactory<AppDbContext>() / AddPooledDbContextFactory<AppDbContext>(...) —
+        // регистрируют IDbContextFactory<T> как Singleton.
         foreach (Match match in AddDbContextFactoryRegex.Matches(content).Cast<Match>())
         {
             string type = match.Groups["type"].Value.Trim();

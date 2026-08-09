@@ -46,7 +46,7 @@
 - Сервисы, требующие ручного управления контекстом (например, `SettingsService`), используют `IDbContextFactory<AppDbContext>`.
 - Seed-данные добавляются только в [`AppDbContext.OnModelCreating`](../../AutoKassa/Services/AppDbContext.cs).
 - Soft delete: фильтрация по `!t.IsDeleted` на уровне сервиса.
-- SQLite WAL-режим включён через `PRAGMA journal_mode=WAL`.
+- SQLite WAL-режим включён через `PRAGMA journal_mode=WAL` (персистентно, в `SettingsService.MigrateAsync`); per-connection прагмы (`synchronous`, `temp_store`, `cache_size`) применяет [`SqlitePragmaInterceptor`](../../AutoKassa/Services/SqlitePragmaInterceptor.cs) на каждом открытии соединения.
 
 ---
 
@@ -80,11 +80,12 @@
 
 | Lifetime | Сервисы |
 |----------|---------|
-| Singleton | `NavigationService`, `PasswordService`, `SettingsService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
-| Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator`, все ViewModels |
+| Singleton | `NavigationService`, `PasswordService`, `SettingsService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `ReferenceDataCache`, `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
+| Singleton | Page ViewModel вкладок (маркер `IPageViewModel`): `DashboardViewModel`, `TransactionsViewModel`, `CategoriesViewModel`, `CounterpartiesViewModel`, `CreditCardsViewModel`, `ReportsViewModel`, `SettingsViewModel` |
+| Transient | `TransactionService`, `TransactionListService`, `TransactionGroupingService`, `InlineTransactionService`, `TransactionSelectionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `ReportService`, `CreditCardService`, `CreditCardSettingsService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator`, модальные/диалоговые ViewModels |
 
 - `AppDbContext` не инжектируется в конструкторы — доступ к БД только через фабрику (контролирует `DbContextInjectionValidator` из DocValidator).
-- `IDbContextFactory<AppDbContext>` — Singleton (регистрация по умолчанию `AddDbContextFactory`); сам контекст неявно разрешим как Scoped.
+- `IDbContextFactory<AppDbContext>` — Singleton (регистрация `AddPooledDbContextFactory`, контексты переиспользуются из пула); сам контекст неявно разрешим как Scoped.
 
 ---
 
@@ -92,7 +93,7 @@
 
 1. Создать ViewModel, наследующий `ViewModelBase`.
 2. Создать View (UserControl/XAML).
-3. Зарегистрировать VM в DI: `services.AddTransient<NewViewModel>()` в `App.xaml.cs`.
+3. Зарегистрировать VM в DI в `App.xaml.cs`: page ViewModel вкладки — `services.AddSingleton<NewViewModel>()` + маркер `IPageViewModel`; модальную/диалоговую — `services.AddTransient<NewViewModel>()`.
 4. Добавить `DataTemplate` в `MainWindow.xaml`.
 5. Добавить команду навигации в `MainWindowViewModel` и кнопку в сайдбар.
 6. Обновить [`json/viewmodels.json`](json/viewmodels.json) и [`json/relationships.json`](json/relationships.json).

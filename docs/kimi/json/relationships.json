@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-31T17:20:00+03:00",
+  "lastUpdated": "2026-08-08T12:00:00+03:00",
   "viewsToViewModels": [
     {
       "view": "AutoKassa/MainWindow.xaml",
@@ -414,7 +414,8 @@
     { "viewModel": "TransactionsViewModel", "command": "SelectDebtStatusFilterCommand", "method": "LoadDataAsync", "callsService": "ITransactionListService.LoadFirstPageAsync" },
     { "viewModel": "TransactionsViewModel", "command": "SelectPeriodCommand", "method": "SelectPeriodAsync", "callsService": "ITransactionListService.LoadFirstPageAsync" },
     { "viewModel": "TransactionsViewModel", "command": "SelectCategoryCommand", "method": "LoadDataAsync", "callsService": "ITransactionListService.LoadFirstPageAsync" },
-    { "viewModel": "TransactionsViewModel", "command": "DeleteSelectedCommand", "method": "DeleteSelectedAsync", "callsService": "ITransactionService.DeleteAsync" },
+    { "viewModel": "TransactionsViewModel", "command": "DeleteSelectedCommand", "method": "DeleteSelectedAsync", "callsService": "ITransactionService.DeleteRangeAsync" },
+    { "viewModel": "TransactionsViewModel", "command": "DeleteSelectedCommand (undo toast)", "method": "DeleteSelectedAsync (undo callback)", "callsService": "ITransactionService.RestoreRangeAsync" },
     { "viewModel": "TransactionsViewModel", "command": "ClearSelectionCommand", "method": "ClearSelection", "callsService": "ITransactionSelectionService.ClearSelection" },
     { "viewModel": "TransactionsViewModel", "command": "InlineSaveCommand", "method": "InlineSaveAsync", "callsService": "IInlineTransactionService.TrySaveAsync" },
     { "viewModel": "TransactionEditViewModel", "command": "SaveCommand", "method": "SaveAsync", "callsService": "ITransactionService.AddAsync / UpdateAsync" },
@@ -449,6 +450,7 @@
     { "viewModel": "DebtReportViewModel", "command": "ExportToPdfCommand", "method": "ExportToPdfAsync", "callsService": "IExportService.ExportDebtReportToPdfAsync" },
     { "viewModel": "DebtReportViewModel", "command": "ExportToExcelCommand", "method": "ExportToExcelAsync", "callsService": "IExportService.ExportDebtReportToExcelAsync" },
     { "viewModel": "CreditCardsViewModel", "command": "LoadCommand", "method": "LoadCardsAsync", "callsService": "ICreditCardService.GetAllAsync" },
+    { "viewModel": "CreditCardsViewModel", "command": "— (выбор карты)", "method": "LoadSelectedCardPurchasesAsync", "callsService": "ICreditCardService.GetCardPurchasesCountAsync" },
     { "viewModel": "CreditCardsViewModel", "command": "DeleteCommand", "method": "DeleteCardAsync", "callsService": "ICreditCardService.DeleteAsync" },
     { "viewModel": "CreditCardEditViewModel", "command": "SaveCommand", "method": "SaveAsync", "callsService": "ICreditCardService.CreateAsync / UpdateAsync" },
     { "viewModel": "CreditCardRepaymentViewModel", "command": "RepayCommand", "method": "RepayAsync", "callsService": "ICreditCardService.RepayDebtAsync" },
@@ -475,11 +477,12 @@
     { "service": "TransactionGroupingService", "dependsOn": ["IToastNotificationService"] },
     { "service": "InlineTransactionService", "dependsOn": ["ITransactionService"] },
     { "service": "TransactionSelectionService", "dependsOn": [] },
-    { "service": "CategoryService", "dependsOn": [] },
-    { "service": "CounterpartyService", "dependsOn": [] },
+    { "service": "CategoryService", "dependsOn": ["ReferenceDataCache"] },
+    { "service": "CounterpartyService", "dependsOn": ["ReferenceDataCache"] },
     { "service": "DebtService", "dependsOn": [] },
     { "service": "ReportService", "dependsOn": ["ISettingsService", "ICreditCardService"] },
-    { "service": "CreditCardService", "dependsOn": [] },
+    { "service": "CreditCardService", "dependsOn": ["ReferenceDataCache"] },
+    { "service": "ReferenceDataCache", "dependsOn": ["IDataChangeService"] },
     { "service": "CreditCardSettingsService", "dependsOn": ["ICreditCardService"] },
     { "service": "SettingsService", "dependsOn": [] },
     { "service": "AppInfoService", "dependsOn": ["ISettingsService", "ITransactionService", "ICategoryService"] },
@@ -501,7 +504,8 @@
     { "service": "DebtService", "uses": "IDbContextFactory<AppDbContext>" },
     { "service": "ReportService", "uses": "IDbContextFactory<AppDbContext>" },
     { "service": "CreditCardService", "uses": "IDbContextFactory<AppDbContext>" },
-    { "service": "SettingsService", "uses": "IDbContextFactory<AppDbContext>" }
+    { "service": "SettingsService", "uses": "IDbContextFactory<AppDbContext>" },
+    { "service": "ReferenceDataCache", "uses": "IDbContextFactory<AppDbContext>" }
   ],
   "dataTemplates": [
     { "viewModel": "DashboardViewModel", "view": "DashboardView", "dataTemplateIn": "MainWindow.xaml" },

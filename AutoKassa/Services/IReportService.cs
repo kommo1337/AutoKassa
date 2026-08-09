@@ -1,6 +1,8 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 
@@ -25,6 +27,12 @@ namespace AutoKassa.Services
         /// Сформировать отчет "Структура по категориям"
         /// </summary>
         Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, CancellationToken ct = default);
+
+        /// <summary>
+        /// Получить операции одной категории за период — для ленивого раскрытия
+        /// категории в отчёте "Структура по категориям"
+        /// </summary>
+        Task<List<Transaction>> GetCategoryTransactionsAsync(int categoryId, DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, int take = ReportService.MaxCategoryTransactions, CancellationToken ct = default);
 
         /// <summary>
         /// Сформировать отчет "Детализация операций"

@@ -32,6 +32,9 @@ public sealed class ViewModelEntry
     [JsonPropertyName("registeredInDi")]
     public bool? RegisteredInDi { get; set; }
 
+    [JsonPropertyName("lifetime")]
+    public string? Lifetime { get; set; }
+
     [JsonPropertyName("dependencies")]
     public List<string> Dependencies { get; set; } = new();
 

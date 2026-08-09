@@ -21,7 +21,7 @@ namespace AutoKassa.Tests.Services
             (_factory, _conn) = TestDatabase.CreateWithFactory();
             _settingsService = new SettingsService(_factory);
             _transactionService = new TransactionService(_factory);
-            _categoryService = new CategoryService(_factory);
+            _categoryService = new CategoryService(_factory, new ReferenceDataCache(_factory, new DataChangeService()));
             _svc = new AppInfoService(_settingsService, _transactionService, _categoryService);
         }
 

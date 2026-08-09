@@ -1,4 +1,4 @@
-﻿using Serilog;
+using Serilog;
 using System.Windows.Input;
 
 namespace AutoKassa.Helpers
@@ -14,6 +14,7 @@ namespace AutoKassa.Helpers
         private readonly Func<Task> _execute;
         private readonly Func<bool> _canExecute;
         private bool _isExecuting;
+        private EventHandler _canExecuteChanged;
 
         /// <summary>
         /// Создаёт асинхронную команду
@@ -31,8 +32,8 @@ namespace AutoKassa.Helpers
         /// </summary>
         public event EventHandler CanExecuteChanged
         {
-            add { CommandManager.RequerySuggested += value; }
-            remove { CommandManager.RequerySuggested -= value; }
+            add { CommandManager.RequerySuggested += value; _canExecuteChanged += value; }
+            remove { CommandManager.RequerySuggested -= value; _canExecuteChanged -= value; }
         }
 
         /// <summary>
@@ -52,7 +53,7 @@ namespace AutoKassa.Helpers
                 return;
 
             _isExecuting = true;
-            CommandManager.InvalidateRequerySuggested();
+            RaiseCanExecuteChanged();
 
             try
             {
@@ -65,8 +66,16 @@ namespace AutoKassa.Helpers
             finally
             {
                 _isExecuting = false;
-                CommandManager.InvalidateRequerySuggested();
+                RaiseCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// Принудительное обновление состояния CanExecute только этой команды
+        /// </summary>
+        public void RaiseCanExecuteChanged()
+        {
+            _canExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -80,6 +89,7 @@ namespace AutoKassa.Helpers
         private readonly Func<T, Task> _execute;
         private readonly Func<T, bool> _canExecute;
         private bool _isExecuting;
+        private EventHandler _canExecuteChanged;
 
         /// <summary>
         /// Создаёт типизированную асинхронную команду
@@ -95,8 +105,8 @@ namespace AutoKassa.Helpers
         /// </summary>
         public event EventHandler CanExecuteChanged
         {
-            add { CommandManager.RequerySuggested += value; }
-            remove { CommandManager.RequerySuggested -= value; }
+            add { CommandManager.RequerySuggested += value; _canExecuteChanged += value; }
+            remove { CommandManager.RequerySuggested -= value; _canExecuteChanged -= value; }
         }
 
         /// <summary>
@@ -122,7 +132,7 @@ namespace AutoKassa.Helpers
             var value = GetParameterValue(parameter);
 
             _isExecuting = true;
-            CommandManager.InvalidateRequerySuggested();
+            RaiseCanExecuteChanged();
 
             try
             {
@@ -135,8 +145,16 @@ namespace AutoKassa.Helpers
             finally
             {
                 _isExecuting = false;
-                CommandManager.InvalidateRequerySuggested();
+                RaiseCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// Принудительное обновление состояния CanExecute только этой команды
+        /// </summary>
+        public void RaiseCanExecuteChanged()
+        {
+            _canExecuteChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private static T GetParameterValue(object parameter)

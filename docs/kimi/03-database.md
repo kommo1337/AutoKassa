@@ -9,7 +9,7 @@
 - **Провайдер:** SQLite (SourceGear.sqlite3).
 - **Файл БД:** `AutoKassa.db` в папке приложения.
 - **ORM:** Entity Framework Core 10.0.8.
-- **Режим журнала:** WAL (`PRAGMA journal_mode=WAL`).
+- **Режим журнала:** WAL (`PRAGMA journal_mode=WAL` — персистентная настройка файла БД, применяется один раз при миграции). Per-connection прагмы `PRAGMA synchronous=NORMAL`, `PRAGMA temp_store=MEMORY`, `PRAGMA cache_size=-8000` выставляются на каждом открытии соединения интерцептором [`SqlitePragmaInterceptor`](../../AutoKassa/Services/SqlitePragmaInterceptor.cs) (зарегистрирован в `App.ConfigureServices` через `AddInterceptors`).
 - **Контекст:** [`AppDbContext.cs`](../../AutoKassa/Services/AppDbContext.cs).
 - **Полная схема в JSON:** [`json/models.json`](json/models.json).
 - **Мягкое удаление:** реализовано через поле `IsDeleted` на уровне сервисов; глобальный query-фильтр EF не настроен.

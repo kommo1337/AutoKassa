@@ -3,12 +3,11 @@ using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using System.Collections.ObjectModel;
-using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    public class CategoriesViewModel : ViewModelBase, INavigationAware
+    public class CategoriesViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly ICategoryService _categoryService;
         private readonly IDialogService _dialogService;
@@ -16,7 +15,6 @@ namespace AutoKassa.ViewModels
         private readonly IDataChangeService _dataChangeService;
         private bool _isInitialized;
         private bool _needsRefresh;
-        private CancellationTokenSource _navigateCts;
 
         private ObservableCollection<Category> _incomeCategories;
         private ObservableCollection<Category> _expenseCategories;
@@ -54,18 +52,7 @@ namespace AutoKassa.ViewModels
             {
                 _needsRefresh = false;
                 _isInitialized = true;
-
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(50, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    await LoadCategoriesAsync();
-                });
+                RunAsync(LoadCategoriesAsync);
             }
         }
 
@@ -79,10 +66,6 @@ namespace AutoKassa.ViewModels
         protected override void OnDispose()
         {
             _dataChangeService.DataChanged -= OnDataChanged;
-
-            var navCts = Interlocked.Exchange(ref _navigateCts, null);
-            navCts?.Cancel();
-            navCts?.Dispose();
 
             base.OnDispose();
         }
@@ -205,6 +188,7 @@ namespace AutoKassa.ViewModels
             vm.OnClosed = () =>
             {
                 IsModalOpen = false;
+                (ManagerViewModel as IDisposable)?.Dispose();
                 ManagerViewModel = null;
                 RunAsync(LoadCategoriesAsync);
                 _dataChangeService?.NotifyDataChanged();

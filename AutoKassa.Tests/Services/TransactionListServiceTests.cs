@@ -29,10 +29,13 @@ namespace AutoKassa.Tests.Services
             public Task<Transaction> AddAsync(Transaction transaction, CancellationToken ct = default) => throw new NotImplementedException();
             public Task UpdateAsync(Transaction transaction, CancellationToken ct = default) => throw new NotImplementedException();
             public Task DeleteAsync(int id, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task DeleteRangeAsync(IEnumerable<int> ids, CancellationToken ct = default) => throw new NotImplementedException();
             public Task RestoreAsync(int id, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task RestoreRangeAsync(IEnumerable<int> ids, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<bool> IsRepaymentTransactionAsync(int id, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<List<Transaction>> GetRecentAsync(int count = 10, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default) => throw new NotImplementedException();
+            public Task<List<(PaymentType PaymentType, decimal Income, decimal Expense)>> GetPeriodTotalsByPaymentTypeAsync(DateTime from, DateTime to, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default) => throw new NotImplementedException();
             public Task<List<(string Name, decimal Total)>> GetTopCategoriesAsync(DateTime from, DateTime to, OperationType type, int count, PaymentType? paymentType = null, CancellationToken ct = default) => throw new NotImplementedException();
         }

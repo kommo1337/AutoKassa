@@ -159,10 +159,19 @@ namespace AutoKassa.ViewModels.Reports
             {
                 foreach (var ci in Report.CategoryItems)
                 {
-                    items.Add(new ExpandableCategoryItem(ci));
+                    items.Add(new ExpandableCategoryItem(ci, () => LoadCategoryTransactionsAsync(ci.CategoryId)));
                 }
             }
             ExpandableItems = items;
+        }
+
+        /// <summary>
+        /// Ленивая загрузка операций категории при её раскрытии в отчёте.
+        /// </summary>
+        private async Task<List<Transaction>> LoadCategoryTransactionsAsync(int categoryId)
+        {
+            return await _reportService.GetCategoryTransactionsAsync(
+                categoryId, DateFrom, DateTo, SelectedOperationType, SelectedPaymentType);
         }
 
         private void UpdateChart()
@@ -250,15 +259,19 @@ namespace AutoKassa.ViewModels.Reports
     }
 
     /// <summary>
-    /// Обёртка над CategoryReportItem для поддержки раскрытия/свёртывания
+    /// Обёртка над CategoryReportItem для поддержки раскрытия/свёртывания.
+    /// Операции категории загружаются лениво при первом раскрытии.
     /// </summary>
     public class ExpandableCategoryItem : ViewModelBase
     {
+        private readonly Func<Task<List<Transaction>>> _loadTransactions;
         private bool _isExpanded;
+        private List<Transaction> _transactions;
 
-        public ExpandableCategoryItem(CategoryReportItem item)
+        public ExpandableCategoryItem(CategoryReportItem item, Func<Task<List<Transaction>>> loadTransactions)
         {
             Item = item;
+            _loadTransactions = loadTransactions;
         }
 
         public CategoryReportItem Item { get; }
@@ -266,7 +279,11 @@ namespace AutoKassa.ViewModels.Reports
         public bool IsExpanded
         {
             get => _isExpanded;
-            set => SetProperty(ref _isExpanded, value);
+            set
+            {
+                if (SetProperty(ref _isExpanded, value) && value && _transactions == null)
+                    RunAsync(LoadTransactionsAsync);
+            }
         }
 
         public string CategoryName => Item.CategoryName;
@@ -274,7 +291,20 @@ namespace AutoKassa.ViewModels.Reports
         public decimal Amount => Item.Amount;
         public double Percentage => Item.Percentage;
         public int TransactionCount => Item.TransactionCount;
-        public List<Transaction> Transactions => Item.Transactions;
+
+        /// <summary>
+        /// Операции категории — null до первого раскрытия (ленивая загрузка из БД).
+        /// </summary>
+        public List<Transaction> Transactions
+        {
+            get => _transactions;
+            private set => SetProperty(ref _transactions, value);
+        }
+
+        private async Task LoadTransactionsAsync()
+        {
+            Transactions = await _loadTransactions();
+        }
     }
 
     public class OperationTypeItem

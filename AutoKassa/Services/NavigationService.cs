@@ -1,4 +1,5 @@
 using AutoKassa.Helpers;
+using AutoKassa.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AutoKassa.Services
@@ -87,10 +88,15 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
-        /// Освобождает ресурсы уходящего ViewModel
+        /// Освобождает ресурсы уходящего ViewModel.
+        /// ViewModel страниц (<see cref="IPageViewModel"/>) — singleton-ы и не диспозятся
+        /// при навигации: их освобождает DI-контейнер при завершении приложения.
         /// </summary>
         private static void DisposeViewModel(ViewModelBase viewModel)
         {
+            if (viewModel is IPageViewModel)
+                return;
+
             if (viewModel is IDisposable disposable)
             {
                 try

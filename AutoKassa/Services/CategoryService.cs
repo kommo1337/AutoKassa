@@ -13,10 +13,12 @@ namespace AutoKassa.Services
         private static readonly ILogger _log = Log.ForContext<CategoryService>();
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
+        private readonly ReferenceDataCache _cache;
 
-        public CategoryService(IDbContextFactory<AppDbContext> contextFactory)
+        public CategoryService(IDbContextFactory<AppDbContext> contextFactory, ReferenceDataCache cache)
         {
             _contextFactory = contextFactory;
+            _cache = cache;
         }
 
         /// <summary>
@@ -24,13 +26,24 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetAllAsync()
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            return await context.Categories
-                .AsNoTracking()
+            // Из справочного кэша; сортировка в памяти повторяет SQL-порядок
+            // (Ordinal соответствует SQLite BINARY collation для UTF-8)
+            var categories = await _cache.GetCategoriesAsync().ConfigureAwait(false);
+            return categories
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
-                .ThenBy(c => c.Name)
-                .ToListAsync()
+                .ThenBy(c => c.Name, StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Получить количество категорий (SQL COUNT, без загрузки записей)
+        /// </summary>
+        public async Task<int> GetCountAsync()
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            return await context.Categories
+                .CountAsync()
                 .ConfigureAwait(false);
         }
 
@@ -39,15 +52,13 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetActiveAsync()
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            return await context.Categories
-                .AsNoTracking()
+            var categories = await _cache.GetCategoriesAsync().ConfigureAwait(false);
+            return categories
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.Type)
                 .ThenBy(c => c.SortOrder)
-                .ThenBy(c => c.Name)
-                .ToListAsync()
-                .ConfigureAwait(false);
+                .ThenBy(c => c.Name, StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>
@@ -55,19 +66,12 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<List<Category>> GetByTypeAsync(OperationType type, bool activeOnly = true)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            var query = context.Categories.AsNoTracking().Where(c => c.Type == type);
-
-            if (activeOnly)
-            {
-                query = query.Where(c => c.IsActive);
-            }
-
-            return await query
+            var categories = await _cache.GetCategoriesAsync().ConfigureAwait(false);
+            return categories
+                .Where(c => c.Type == type && (!activeOnly || c.IsActive))
                 .OrderBy(c => c.SortOrder)
-                .ThenBy(c => c.Name)
-                .ToListAsync()
-                .ConfigureAwait(false);
+                .ThenBy(c => c.Name, StringComparer.Ordinal)
+                .ToList();
         }
 
         /// <summary>
@@ -101,6 +105,7 @@ namespace AutoKassa.Services
 
             context.Categories.Add(category);
             await context.SaveChangesAsync().ConfigureAwait(false);
+            _cache.InvalidateCategories();
 
             _log.Information("Добавлена категория ID={Id}, название={Name}, тип={Type}", category.Id, category.Name, category.Type);
             return category;
@@ -137,6 +142,7 @@ namespace AutoKassa.Services
             existing.IsSystem = category.IsSystem;
 
             await context.SaveChangesAsync().ConfigureAwait(false);
+            _cache.InvalidateCategories();
 
             _log.Information("Обновлена категория ID={Id}, название={Name}", category.Id, category.Name);
         }
@@ -171,6 +177,7 @@ namespace AutoKassa.Services
 
             context.Categories.Remove(category);
             await context.SaveChangesAsync().ConfigureAwait(false);
+            _cache.InvalidateCategories();
 
             _log.Information("Удалена категория ID={Id}", id);
             return true;
@@ -187,6 +194,7 @@ namespace AutoKassa.Services
             {
                 category.IsActive = false;
                 await context.SaveChangesAsync().ConfigureAwait(false);
+                _cache.InvalidateCategories();
             }
         }
 
@@ -249,6 +257,7 @@ namespace AutoKassa.Services
                 }
             }
             await context.SaveChangesAsync().ConfigureAwait(false);
+            _cache.InvalidateCategories();
         }
     }
 }

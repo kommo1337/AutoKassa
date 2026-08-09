@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Models.Reports;
 using Microsoft.EntityFrameworkCore;
@@ -16,14 +17,17 @@ namespace AutoKassa.Services
     {
         /// <summary>
         /// Максимальное количество операций в отчёте «Детализация операций».
-        /// Защита от RAM-всплеска и зависаний UI на старых ПК.
+        /// Защита от RAM-всплеска и зависаний UI на старых ПК
+        /// (QuestPDF строит весь layout документа в памяти).
+        /// При усечении списка отчёт помечается через <see cref="TransactionDetailReport.TruncationNote"/>.
         /// </summary>
-        private const int MaxDetailTransactions = 5000;
+        private const int MaxDetailTransactions = 1000;
 
         /// <summary>
-        /// Максимальное количество операций, загружаемых в память для отчёта «Структура по категориям».
+        /// Максимальное количество операций, загружаемых при ленивом раскрытии
+        /// категории в отчёте «Структура по категориям».
         /// </summary>
-        private const int MaxCategoryTransactions = 5000;
+        public const int MaxCategoryTransactions = 1000;
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
         private readonly ISettingsService _settingsService;
@@ -187,7 +191,6 @@ namespace AutoKassa.Services
             var dateToEnd = dateTo.Date.AddDays(1);
             var query = context.Transactions
                 .AsNoTracking()
-                .Include(t => t.Category)
                 .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd
                     && t.Type == operationType && t.PaymentType != PaymentType.Debt);
             if (paymentType.HasValue)
@@ -203,20 +206,25 @@ namespace AutoKassa.Services
             report.TotalAmount = totals?.TotalAmount ?? 0m;
             report.TransactionCount = totals?.Count ?? 0;
 
-            // Группировка по категориям — в памяти, т.к. UI требует List<Transaction> в каждой категории.
-            // AsNoTracking + Include выше уже минимизируют накладные расходы EF.
-            // Группируем по CategoryId (а не по ссылке на entity), т.к. при AsNoTracking EF создаёт
-            // отдельные экземпляры Category для каждой строки и GroupBy по ссылке дал бы неверный результат.
-            var transactions = await query.Take(MaxCategoryTransactions).ToListAsync(ct).ConfigureAwait(false);
-            var categoryGroups = transactions
+            // Суммы и количества по категориям — SQL GROUP BY CategoryId с join к Categories
+            // (имя через MAX: внутри группы оно одинаково). Операции в память не материализуются;
+            // список операций категории грузится лениво через GetCategoryTransactionsAsync.
+            // Группировка по CategoryId, а не по ссылке на entity (см. TRAPS 3.10).
+            var rows = await query
                 .GroupBy(t => t.CategoryId)
                 .Select(g => new
                 {
-                    Category = g.First().Category,
+                    CategoryId = g.Key,
+                    CategoryName = g.Max(t => t.Category.Name),
                     Amount = g.Sum(t => t.Amount),
-                    Count = g.Count(),
-                    Transactions = g.OrderByDescending(t => t.Date).ToList()
+                    Count = g.Count()
                 })
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            // Сортировка в памяти: ORDER BY по SUM(decimal) в SQLite идёт через
+            // культурозависимую коллацию EF и падает на ru-RU (см. GetTopCategoriesAsync).
+            var categoryRows = rows
                 .OrderByDescending(x => x.Amount)
                 .ToList();
 
@@ -230,27 +238,70 @@ namespace AutoKassa.Services
 
             // Формируем данные по категориям
             int colorIndex = 0;
-            foreach (var group in categoryGroups)
+            foreach (var row in categoryRows)
             {
                 var percentage = report.TotalAmount > 0
-                    ? (double)group.Amount / (double)report.TotalAmount * 100
+                    ? (double)row.Amount / (double)report.TotalAmount * 100
                     : 0;
 
                 report.CategoryItems.Add(new CategoryReportItem
                 {
-                    CategoryId = group.Category?.Id ?? 0,
-                    CategoryName = group.Category?.Name ?? "Без категории",
-                    Amount = group.Amount,
+                    CategoryId = row.CategoryId,
+                    CategoryName = row.CategoryName ?? "Без категории",
+                    Amount = row.Amount,
                     Percentage = Math.Round(percentage, 1),
-                    TransactionCount = group.Count,
-                    Color = colors[colorIndex % colors.Length],
-                    Transactions = group.Transactions
+                    TransactionCount = row.Count,
+                    Color = colors[colorIndex % colors.Length]
                 });
 
                 colorIndex++;
             }
 
             return report;
+        }
+
+        /// <summary>
+        /// Получить операции одной категории за период — для ленивого раскрытия
+        /// категории в отчёте «Структура по категориям».
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="paymentType"/> равен <see cref="PaymentType.Debt"/> — долговые операции
+        /// в отчёт не входят; используйте <see cref="GenerateDebtReportAsync"/>.
+        /// </exception>
+        public async Task<List<Transaction>> GetCategoryTransactionsAsync(
+            int categoryId,
+            DateTime dateFrom,
+            DateTime dateTo,
+            OperationType operationType,
+            PaymentType? paymentType = null,
+            int take = MaxCategoryTransactions,
+            CancellationToken ct = default)
+        {
+            if (paymentType == PaymentType.Debt)
+            {
+                throw new ArgumentOutOfRangeException(nameof(paymentType), paymentType,
+                    "Долговые операции не входят в отчёт по категориям; используйте GenerateDebtReportAsync.");
+            }
+
+            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var dateToEnd = dateTo.Date.AddDays(1);
+            var query = context.Transactions
+                .AsNoTracking()
+                .Include(t => t.Category)
+                .Include(t => t.CreditCard)
+                .Where(t => !t.IsDeleted && t.Date >= dateFrom.Date && t.Date < dateToEnd
+                    && t.Type == operationType && t.CategoryId == categoryId
+                    && t.PaymentType != PaymentType.Debt);
+            if (paymentType.HasValue)
+                query = query.Where(t => t.PaymentType == paymentType.Value);
+
+            // Сортировка до Take — иначе набор операций недетерминирован
+            return await query
+                .OrderByDescending(t => t.Date)
+                .ThenByDescending(t => t.CreatedAt)
+                .Take(take)
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -339,15 +390,18 @@ namespace AutoKassa.Services
                 report.FilterCategoryName = category?.Name;
             }
 
-            // SQL-агрегация итогов (долги уже исключены из query выше)
+            // SQL-агрегация итогов (долги уже исключены из query выше).
+            // Count по группам даёт общее число операций под фильтром — для пометки
+            // об усечении списка лимитом MaxDetailTransactions (см. TransactionDetailReport.IsTruncated).
             var totals = await query
                 .GroupBy(t => t.Type)
-                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount) })
+                .Select(g => new { Type = g.Key, Total = g.Sum(t => t.Amount), Count = g.Count() })
                 .ToListAsync(ct)
                 .ConfigureAwait(false);
 
             report.TotalIncome  = totals.FirstOrDefault(r => r.Type == OperationType.Income)?.Total  ?? 0m;
             report.TotalExpense = totals.FirstOrDefault(r => r.Type == OperationType.Expense)?.Total ?? 0m;
+            report.TotalTransactionCount = totals.Sum(r => r.Count);
 
             return report;
         }

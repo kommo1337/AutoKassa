@@ -1,16 +1,13 @@
 using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.ViewModels;
-using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Series;
 using System.Collections.ObjectModel;
 
 namespace AutoKassa.Services.Dashboard
 {
     /// <summary>
     /// Реализация фасадного сервиса дашборда.
-    /// Инкапсулирует SQL-агрегации, расчёт метрик и построение графика.
+    /// Инкапсулирует SQL-агрегации и расчёт метрик.
     /// </summary>
     public class DashboardService : IDashboardService
     {
@@ -37,7 +34,8 @@ namespace AutoKassa.Services.Dashboard
             CancellationToken ct = default)
         {
             var summaryTask = GetSummaryAsync(dateFrom, dateTo, ct);
-            var recentTask = GetRecentDataAsync(dateFrom, dateTo, ct);
+            // Лента переиспользует итоги периода из summaryTask, не дублируя запрос
+            var recentTask = GetRecentDataAsync(dateFrom, dateTo, summaryTask, ct);
             var todayTask = GetTodayBalanceAsync(ct);
             var cashTask = GetCashBalanceAsync(ct);
             var creditTask = GetCreditMetricsAsync(ct);
@@ -45,25 +43,18 @@ namespace AutoKassa.Services.Dashboard
             await Task.WhenAll(summaryTask, recentTask, todayTask, cashTask, creditTask);
 
             var summary = await summaryTask;
-            var recent = await recentTask;
-            var today = await todayTask;
-            var cash = await cashTask;
-            var credit = await creditTask;
-
-            var chartModel = await BuildChartModelAsync(dateFrom, dateTo, ct);
 
             return new DashboardData(
                 summary.Summary,
                 summary.PaymentBreakdown,
                 summary.Changes,
-                recent,
-                today,
-                cash,
-                credit,
-                chartModel);
+                await recentTask,
+                await todayTask,
+                await cashTask,
+                await creditTask);
         }
 
-        private async Task<(DashboardSummary Summary, DashboardPaymentBreakdown PaymentBreakdown, DashboardChange Changes)>
+        private async Task<(DashboardSummary Summary, DashboardPaymentBreakdown PaymentBreakdown, DashboardChange Changes, int IncomeCount, int ExpenseCount)>
             GetSummaryAsync(DateTime dateFrom, DateTime dateTo, CancellationToken ct)
         {
             var allTask = _transactionService.GetPeriodTotalsAsync(dateFrom, dateTo, ct: ct);
@@ -71,7 +62,7 @@ namespace AutoKassa.Services.Dashboard
             var cardTask = _transactionService.GetPeriodTotalsAsync(dateFrom, dateTo, PaymentType.NonCash, ct);
             await Task.WhenAll(allTask, cashTask, cardTask);
 
-            var (income, expense, _, _) = await allTask;
+            var (income, expense, incCount, expCount) = await allTask;
             var profit = income - expense;
             var profitability = income > 0 ? ((income - expense) / income) * 100 : 0;
 
@@ -85,7 +76,9 @@ namespace AutoKassa.Services.Dashboard
             return (
                 new DashboardSummary(income, expense, profit, profitability),
                 new DashboardPaymentBreakdown(ci, ce, cashProfit, ni, ne, nonCashProfit),
-                changes);
+                changes,
+                incCount,
+                expCount);
         }
 
         private async Task<DashboardChange> CalculateChangesAsync(
@@ -122,6 +115,7 @@ namespace AutoKassa.Services.Dashboard
         private async Task<DashboardRecent> GetRecentDataAsync(
             DateTime dateFrom,
             DateTime dateTo,
+            Task<(DashboardSummary Summary, DashboardPaymentBreakdown PaymentBreakdown, DashboardChange Changes, int IncomeCount, int ExpenseCount)> summaryTask,
             CancellationToken ct)
         {
             var filters = new TransactionFilterParameters
@@ -130,7 +124,7 @@ namespace AutoKassa.Services.Dashboard
                 DateTo = dateTo,
                 Take = 100
             };
-            var list = (await _transactionService.GetTransactionsAsync(filters, ct)).ToList();
+            var list = await _transactionService.GetTransactionsAsync(filters, ct);
 
             var grouped = await Task.Run(() =>
             {
@@ -146,14 +140,14 @@ namespace AutoKassa.Services.Dashboard
                     .ToList();
             }, ct);
 
-            var totalsTask = _transactionService.GetPeriodTotalsAsync(dateFrom, dateTo, ct: ct);
             var dailyTask = _transactionService.GetDailyTotalsAsync(dateFrom, dateTo, ct: ct);
             var topExpTask = _transactionService.GetTopCategoriesAsync(dateFrom, dateTo, OperationType.Expense, 5, ct: ct);
             var topIncTask = _transactionService.GetTopCategoriesAsync(dateFrom, dateTo, OperationType.Income, 5, ct: ct);
 
-            await Task.WhenAll(totalsTask, dailyTask, topExpTask, topIncTask);
+            await Task.WhenAll(dailyTask, topExpTask, topIncTask);
 
-            var (_, _, incCount, expCount) = await totalsTask;
+            // Количества операций за период берём из уже посчитанной сводки
+            var (_, _, _, incCount, expCount) = await summaryTask;
             var dailyGroups = await dailyTask;
 
             var statsCount = await _transactionService.GetTotalCountAsync(
@@ -201,15 +195,14 @@ namespace AutoKassa.Services.Dashboard
         {
             var settings = await _settingsService.GetSettingsAsync();
 
-            var cashTask = _transactionService.GetPeriodTotalsAsync(Epoch, DateTime.Today, PaymentType.Cash, ct);
-            var cardTask = _transactionService.GetPeriodTotalsAsync(Epoch, DateTime.Today, PaymentType.NonCash, ct);
-            await Task.WhenAll(cashTask, cardTask);
+            // Один запрос с группировкой по типу оплаты вместо двух полных сканов истории
+            var totals = await _transactionService.GetPeriodTotalsByPaymentTypeAsync(Epoch, DateTime.Today, ct);
 
-            var (cashInc, cashExp, _, _) = await cashTask;
-            var cashBalance = settings.InitialBalance + cashInc - cashExp;
+            var cash = totals.FirstOrDefault(t => t.PaymentType == PaymentType.Cash);
+            var cashBalance = settings.InitialBalance + cash.Income - cash.Expense;
 
-            var (cardInc, cardExp, _, _) = await cardTask;
-            var nonCashBalance = cardInc - cardExp;
+            var nonCash = totals.FirstOrDefault(t => t.PaymentType == PaymentType.NonCash);
+            var nonCashBalance = nonCash.Income - nonCash.Expense;
 
             return new DashboardCash(cashBalance, nonCashBalance, cashBalance + nonCashBalance);
         }
@@ -246,88 +239,6 @@ namespace AutoKassa.Services.Dashboard
             }
 
             return new DashboardCredit(true, totalLimit, totalUsed, totalAvailable, totalDebt, nextDate, nextAmount);
-        }
-
-        private async Task<PlotModel> BuildChartModelAsync(
-            DateTime dateFrom,
-            DateTime dateTo,
-            CancellationToken ct)
-        {
-            var groupedData = await _transactionService.GetDailyTotalsAsync(dateFrom, dateTo, ct: ct);
-            var settings = await _settingsService.GetSettingsAsync();
-
-            return await Task.Run(() => BuildChartModel(groupedData, settings.InitialBalance), ct);
-        }
-
-        private static PlotModel BuildChartModel(List<DailyTotalsItem> groupedData, decimal initialBalance)
-        {
-            var model = new PlotModel
-            {
-                PlotAreaBorderThickness = new OxyThickness(0),
-                Padding = new OxyThickness(0),
-                PlotMargins = new OxyThickness(0)
-            };
-
-            model.Axes.Add(new DateTimeAxis
-            {
-                Position = AxisPosition.Bottom,
-                IsAxisVisible = false,
-                MajorGridlineStyle = LineStyle.None,
-                MinorGridlineStyle = LineStyle.None
-            });
-
-            model.Axes.Add(new LinearAxis
-            {
-                Position = AxisPosition.Left,
-                IsAxisVisible = false,
-                MajorGridlineStyle = LineStyle.None,
-                MinorGridlineStyle = LineStyle.None
-            });
-
-            var incomeSeries = new LineSeries
-            {
-                Title = "Доходы",
-                Color = OxyColor.Parse("#4CAF50"),
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None
-            };
-
-            var expenseSeries = new LineSeries
-            {
-                Title = "Расходы",
-                Color = OxyColor.Parse("#F44336"),
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None
-            };
-
-            var profitSeries = new LineSeries
-            {
-                Title = "Прибыль",
-                Color = OxyColor.Parse("#2196F3"),
-                StrokeThickness = 2,
-                MarkerType = MarkerType.None
-            };
-
-            decimal runningIncome = 0;
-            decimal runningExpense = 0;
-
-            foreach (var data in groupedData)
-            {
-                runningIncome += data.Income;
-                runningExpense += data.Expense;
-                var runningProfit = initialBalance + runningIncome - runningExpense;
-
-                var dateValue = DateTimeAxis.ToDouble(data.Date);
-                incomeSeries.Points.Add(new DataPoint(dateValue, (double)runningIncome));
-                expenseSeries.Points.Add(new DataPoint(dateValue, (double)runningExpense));
-                profitSeries.Points.Add(new DataPoint(dateValue, (double)runningProfit));
-            }
-
-            model.Series.Add(incomeSeries);
-            model.Series.Add(expenseSeries);
-            model.Series.Add(profitSeries);
-
-            return model;
         }
     }
 }

@@ -50,8 +50,7 @@ namespace AutoKassa.Services.Settings
                 .GetTotalCountAsync(new TransactionFilterParameters(), ct)
                 .ConfigureAwait(false);
 
-            var allCategories = await _categoryService.GetAllAsync().ConfigureAwait(false);
-            var totalCategories = allCategories.Count;
+            var totalCategories = await _categoryService.GetCountAsync().ConfigureAwait(false);
 
             var lastBackup = await _settingsService.GetLastBackupDateAsync().ConfigureAwait(false);
             var lastBackupDate = lastBackup?.ToString("dd.MM.yyyy HH:mm") ?? "Нет данных";

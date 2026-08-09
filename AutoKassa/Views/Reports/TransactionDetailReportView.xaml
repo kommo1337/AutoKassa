@@ -399,6 +399,10 @@
                     <TextBlock Text="Операций" FontSize="12" Foreground="{StaticResource MutedTextBrush}"/>
                     <TextBlock Text="{Binding Report.TransactionCount, StringFormat='N0'}"
                                FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding Report.TruncationNote}"
+                               FontSize="11" FontStyle="Italic" Foreground="{StaticResource MutedTextBrush}"
+                               Margin="0,4,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding Report.IsTruncated, Converter={StaticResource BoolToVisibilityConverter}}"/>
                 </StackPanel>
                 <Rectangle Grid.Column="1" Fill="{StaticResource BorderLightBrush}"/>
                 <StackPanel Grid.Column="2" Margin="20,0">

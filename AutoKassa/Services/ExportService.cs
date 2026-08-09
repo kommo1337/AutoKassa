@@ -235,33 +235,29 @@ namespace AutoKassa.Services
                     headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
                     headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
-                    // Данные
-                    var row = headerRow + 1;
-                    foreach (var daily in report.DailyBalances)
-                    {
-                        worksheet.Cell(row, 1).Value = daily.Date;
-                        worksheet.Cell(row, 1).Style.DateFormat.Format = "dd.MM.yyyy";
+                    // Данные — пакетная вставка вместо поячеечной записи
+                    var data = report.DailyBalances
+                        .Select(d => new object[] { d.Date, d.Income, d.Expense, d.Balance })
+                        .ToList();
+                    var firstDataRow = headerRow + 1;
+                    worksheet.Cell(firstDataRow, 1).InsertData(data);
+                    var lastRow = firstDataRow + data.Count - 1;
 
-                        worksheet.Cell(row, 2).Value = daily.Income;
-                        worksheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
-
-                        worksheet.Cell(row, 3).Value = daily.Expense;
-                        worksheet.Cell(row, 3).Style.NumberFormat.Format = "#,##0.00";
-
-                        worksheet.Cell(row, 4).Value = daily.Balance;
-                        worksheet.Cell(row, 4).Style.NumberFormat.Format = "#,##0.00";
-
-                        row++;
-                    }
+                    // Форматы назначаются один раз на диапазон колонки, а не поячеечно
+                    worksheet.Range(firstDataRow, 1, lastRow, 1).Style.DateFormat.Format = "dd.MM.yyyy";
+                    worksheet.Range(firstDataRow, 2, lastRow, 4).Style.NumberFormat.Format = "#,##0.00";
 
                     // Границы таблицы
-                    var dataRange = worksheet.Range(headerRow, 1, row - 1, 4);
+                    var dataRange = worksheet.Range(headerRow, 1, lastRow, 4);
                     dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                     dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
                 }
 
-                // Автоширина колонок
-                worksheet.Columns().AdjustToContents();
+                // Фиксированная ширина вместо AdjustToContents (сканирует все ячейки)
+                worksheet.Column(1).Width = 18;
+                worksheet.Column(2).Width = 16;
+                worksheet.Column(3).Width = 16;
+                worksheet.Column(4).Width = 16;
 
                 workbook.SaveAs(filePath);
                 _log.Information("Экспорт Excel (баланс): {FilePath}", filePath);
@@ -471,22 +467,17 @@ namespace AutoKassa.Services
                     headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
                     headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
 
-                    // Данные
-                    var row = headerRow + 1;
-                    foreach (var item in report.CategoryItems)
-                    {
-                        worksheet.Cell(row, 1).Value = item.CategoryName;
+                    // Данные — пакетная вставка вместо поячеечной записи
+                    var data = report.CategoryItems
+                        .Select(i => new object[] { i.CategoryName, i.Amount, i.Percentage / 100, i.TransactionCount })
+                        .ToList();
+                    var firstDataRow = headerRow + 1;
+                    worksheet.Cell(firstDataRow, 1).InsertData(data);
+                    var row = firstDataRow + data.Count;
 
-                        worksheet.Cell(row, 2).Value = item.Amount;
-                        worksheet.Cell(row, 2).Style.NumberFormat.Format = "#,##0.00";
-
-                        worksheet.Cell(row, 3).Value = item.Percentage / 100;
-                        worksheet.Cell(row, 3).Style.NumberFormat.Format = "0.0%";
-
-                        worksheet.Cell(row, 4).Value = item.TransactionCount;
-
-                        row++;
-                    }
+                    // Форматы назначаются один раз на диапазон колонки, а не поячеечно
+                    worksheet.Range(firstDataRow, 2, row - 1, 2).Style.NumberFormat.Format = "#,##0.00";
+                    worksheet.Range(firstDataRow, 3, row - 1, 3).Style.NumberFormat.Format = "0.0%";
 
                     // Итого
                     worksheet.Cell(row, 1).Value = "ИТОГО";
@@ -512,8 +503,11 @@ namespace AutoKassa.Services
                     dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
                 }
 
-                // Автоширина колонок
-                worksheet.Columns().AdjustToContents();
+                // Фиксированная ширина вместо AdjustToContents (сканирует все ячейки)
+                worksheet.Column(1).Width = 30;
+                worksheet.Column(2).Width = 18;
+                worksheet.Column(3).Width = 12;
+                worksheet.Column(4).Width = 12;
 
                 workbook.SaveAs(filePath);
                 _log.Information("Экспорт Excel (категории): {FilePath}", filePath);
@@ -675,6 +669,14 @@ namespace AutoKassa.Services
                                 .Text(transaction.Description ?? "");
                         }
                     });
+
+                    // Пометка об усечении списка (см. ReportService.MaxDetailTransactions)
+                    if (report.IsTruncated)
+                    {
+                        column.Item().PaddingTop(5)
+                            .Text(report.TruncationNote)
+                            .FontSize(9).Italic().FontColor(Colors.Grey.Medium);
+                    }
                 }
             });
         }
@@ -752,27 +754,44 @@ namespace AutoKassa.Services
 
                     currentRow++;
 
-                    // Данные
-                    foreach (var transaction in report.Transactions)
+                    // Данные — пакетная вставка вместо поячеечной записи
+                    var data = report.Transactions
+                        .Select(t => new object[]
+                        {
+                            t.Date.ToString("dd.MM.yyyy"),
+                            t.TypeName,
+                            t.Amount,
+                            t.CategoryName,
+                            t.Description ?? ""
+                        })
+                        .ToList();
+                    worksheet.Cell(currentRow, 1).InsertData(data);
+                    var lastRow = currentRow + data.Count - 1;
+
+                    // Формат суммы — один раз на диапазон колонки
+                    worksheet.Range(currentRow, 3, lastRow, 3).Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
+
+                    // Цвет типа — единственный стиль, зависящий от данных строки
+                    for (var i = 0; i < data.Count; i++)
                     {
-                        worksheet.Cell(currentRow, 1).Value = transaction.Date.ToString("dd.MM.yyyy");
+                        worksheet.Cell(currentRow + i, 2).Style.Font.FontColor =
+                            report.Transactions[i].Type == OperationType.Income ? XLColor.Green : XLColor.Red;
+                    }
 
-                        worksheet.Cell(currentRow, 2).Value = transaction.TypeName;
-                        worksheet.Cell(currentRow, 2).Style.Font.FontColor =
-                            transaction.Type == OperationType.Income ? XLColor.Green : XLColor.Red;
-
-                        worksheet.Cell(currentRow, 3).Value = transaction.Amount;
-                        worksheet.Cell(currentRow, 3).Style.NumberFormat.Format = "#,##0.00 \" руб.\"";
-
-                        worksheet.Cell(currentRow, 4).Value = transaction.CategoryName;
-                        worksheet.Cell(currentRow, 5).Value = transaction.Description ?? "";
-
-                        currentRow++;
+                    // Пометка об усечении списка (см. ReportService.MaxDetailTransactions)
+                    if (report.IsTruncated)
+                    {
+                        worksheet.Cell(lastRow + 2, 1).Value = report.TruncationNote;
+                        worksheet.Cell(lastRow + 2, 1).Style.Font.Italic = true;
                     }
                 }
 
-                // Автоширина колонок
-                worksheet.Columns().AdjustToContents();
+                // Фиксированная ширина вместо AdjustToContents (сканирует все ячейки)
+                worksheet.Column(1).Width = 12;
+                worksheet.Column(2).Width = 10;
+                worksheet.Column(3).Width = 18;
+                worksheet.Column(4).Width = 25;
+                worksheet.Column(5).Width = 50;
 
                 workbook.SaveAs(filePath);
                 _log.Information("Экспорт Excel (детализация): {FilePath}", filePath);
@@ -1007,30 +1026,42 @@ namespace AutoKassa.Services
 
                         currentRow++;
 
-                        foreach (var item in report.Items)
-                        {
-                            worksheet.Cell(currentRow, 1).Value = item.Date.ToString("dd.MM.yyyy");
-                            worksheet.Cell(currentRow, 2).Value = item.CounterpartyName;
-                            worksheet.Cell(currentRow, 3).Value = item.CounterpartyType.ToString();
-                            worksheet.Cell(currentRow, 4).Value = item.CategoryName;
-                            worksheet.Cell(currentRow, 5).Value = item.Amount;
-                            worksheet.Cell(currentRow, 5).Style.NumberFormat.Format = "#,##0.00";
-                            worksheet.Cell(currentRow, 6).Value = item.RepaidAmount;
-                            worksheet.Cell(currentRow, 6).Style.NumberFormat.Format = "#,##0.00";
-                            worksheet.Cell(currentRow, 7).Value = item.RemainingAmount;
-                            worksheet.Cell(currentRow, 7).Style.NumberFormat.Format = "#,##0.00";
-                            worksheet.Cell(currentRow, 8).Value = item.Status.ToString();
-                            worksheet.Cell(currentRow, 9).Value = item.Description ?? "";
+                        // Данные — пакетная вставка вместо поячеечной записи
+                        var data = report.Items
+                            .Select(i => new object[]
+                            {
+                                i.Date.ToString("dd.MM.yyyy"),
+                                i.CounterpartyName,
+                                i.CounterpartyType.ToString(),
+                                i.CategoryName,
+                                i.Amount,
+                                i.RepaidAmount,
+                                i.RemainingAmount,
+                                i.Status.ToString(),
+                                i.Description ?? ""
+                            })
+                            .ToList();
+                        worksheet.Cell(currentRow, 1).InsertData(data);
+                        var lastRow = currentRow + data.Count - 1;
 
-                            currentRow++;
-                        }
+                        // Формат сумм — один раз на диапазон колонок
+                        worksheet.Range(currentRow, 5, lastRow, 7).Style.NumberFormat.Format = "#,##0.00";
 
-                        var dataRange = worksheet.Range(9, 1, currentRow - 1, 9);
+                        var dataRange = worksheet.Range(9, 1, lastRow, 9);
                         dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                         dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
                     }
 
-                    worksheet.Columns().AdjustToContents();
+                    // Фиксированная ширина вместо AdjustToContents (сканирует все ячейки)
+                    worksheet.Column(1).Width = 21;
+                    worksheet.Column(2).Width = 25;
+                    worksheet.Column(3).Width = 16;
+                    worksheet.Column(4).Width = 20;
+                    worksheet.Column(5).Width = 14;
+                    worksheet.Column(6).Width = 14;
+                    worksheet.Column(7).Width = 14;
+                    worksheet.Column(8).Width = 12;
+                    worksheet.Column(9).Width = 40;
 
                     workbook.SaveAs(filePath);
                     _log.Information("Экспорт Excel (долги): {FilePath}", filePath);

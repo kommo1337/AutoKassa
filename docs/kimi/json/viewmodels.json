@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-07-31",
-  "totalCount": 34,
+  "lastUpdated": "2026-08-01",
+  "totalCount": 35,
   "viewModels": [
     {
       "name": "CalculatorViewModel",
@@ -21,8 +21,9 @@
       "view": "AutoKassa/Views/CategoriesView.xaml",
       "screen": "Справочник категорий",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["ICategoryService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["LoadCommand", "OpenManagerCommand", "DeleteCommand", "FilterCommand"],
       "purpose": "ViewModel экрана справочника категорий: загружает доходы/расходы, открывает менеджер и удаляет категории."
     },
@@ -81,8 +82,9 @@
       "view": "AutoKassa/Views/CounterpartiesView.xaml",
       "screen": "Справочник контрагентов",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["ICounterpartyService", "IDebtService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["AddCommand", "RefreshCommand", "FilterByTypeCommand", "DeleteCommand", "EditCommand"],
       "purpose": "ViewModel экрана справочника контрагентов с фильтрами, поиском и долгами."
     },
@@ -142,8 +144,9 @@
       "view": "AutoKassa/Views/CreditCardsView.xaml",
       "screen": "Кредитные карты",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["ICreditCardService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["LoadCommand", "AddCommand", "EditCommand", "DeleteCommand", "RepayCommand"],
       "purpose": "ViewModel экрана кредитных карт: список, итоги, покупки и погашение.",
       "nestedClasses": [
@@ -161,10 +164,11 @@
       "view": "AutoKassa/Views/DashboardView.xaml",
       "screen": "Главная (дашборд)",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["ITransactionService", "ICategoryService", "IDialogService", "IToastNotificationService", "IDataChangeService", "INavigationService", "IDashboardService", "ITransactionEditViewModelFactory", "IDashboardPeriodCoordinator", "IDashboardTransactionCoordinator"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["SelectPeriodCommand", "ApplyCustomPeriodCommand", "TogglePeriodPickerCommand", "OpenAddTransactionCommand", "RefreshCommand", "CloseModalCommand", "SelectTransactionCommand", "OpenTransactionCommand", "EditTransactionCommand", "DeleteTransactionCommand", "NavigateToAllTransactionsCommand", "OpenFullReportCommand"],
-      "purpose": "ViewModel главного экрана (дашборда) со сводкой, графиком, последними операциями и быстрым добавлением."
+      "purpose": "ViewModel главного экрана (дашборда) со сводкой, последними операциями и быстрым добавлением."
     },
     {
       "name": "DateGroup",
@@ -214,6 +218,18 @@
       "interfaces": [],
       "keyCommands": ["ContinueCommand"],
       "purpose": "ViewModel экрана первоначальной настройки пароля и секретного вопроса."
+    },
+    {
+      "name": "IPageViewModel",
+      "file": "AutoKassa/ViewModels/IPageViewModel.cs",
+      "category": "interface",
+      "view": null,
+      "screen": null,
+      "registeredInDi": false,
+      "dependencies": [],
+      "interfaces": [],
+      "keyCommands": [],
+      "purpose": "Маркер для ViewModel страниц верхнего уровня (вкладок главного окна). Такие ViewModel регистрируются в DI как Singleton и живут всё время работы приложения: NavigationService не вызывает у них Dispose при переключении вкладок, а логика _isInitialized/_needsRefresh в OnNavigatedTo решает, нужно ли перезагружать данные."
     },
     {
       "name": "LockScreenViewModel",
@@ -303,7 +319,7 @@
         {
           "name": "ExpandableCategoryItem",
           "category": "item",
-          "purpose": "Обёртка над CategoryReportItem с поддержкой раскрытия/свёртывания."
+          "purpose": "Обёртка над CategoryReportItem с поддержкой раскрытия/свёртывания; операции категории загружаются лениво при первом раскрытии через loader-делегат (IReportService.GetCategoryTransactionsAsync)."
         },
         {
           "name": "OperationTypeItem",
@@ -379,8 +395,9 @@
       "view": "AutoKassa/Views/ReportsView.xaml",
       "screen": "Отчёты",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["IDataChangeService", "IReportViewModelFactory"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["ShowBalanceReportCommand", "ShowCategoryReportCommand", "ShowTransactionDetailReportCommand", "ShowDebtReportCommand"],
       "purpose": "ViewModel хаба «Отчёты», переключающего отчётные под-ViewModel."
     },
@@ -399,7 +416,7 @@
         {
           "name": "SelectableDateGroup",
           "category": "helper",
-          "purpose": "Группа операций за один день с поддержкой выделения и инлайн-добавления."
+          "purpose": "Группа операций за один день с поддержкой выделения и инлайн-добавления. Свойство InlineEditorTarget (группа при открытом редакторе, иначе null) позволяет строить визуальное дерево инлайн-редактора лениво (ContentControl + DataTemplate в TransactionsView)."
         }
       ]
     },
@@ -410,8 +427,9 @@
       "view": "AutoKassa/Views/SettingsView.xaml",
       "screen": "Настройки",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["ISettingsService", "IDialogService", "IToastNotificationService", "ICategoryService", "IDataChangeService", "ISettingsMapper", "ISettingsValidator", "IBackupCoordinator", "IAppInfoService", "ICreditCardSettingsService"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["SaveCommand", "CancelCommand", "ResetCommand", "ExportCommand", "ImportCommand", "ChangePasswordCommand", "SelectBackupPathCommand", "CreateBackupCommand", "RestoreBackupCommand"],
       "purpose": "ViewModel экрана настроек: параметры, резервное копирование, экспорт/импорт и «О программе»."
     },
@@ -434,8 +452,9 @@
       "view": "AutoKassa/Views/TransactionsView.xaml",
       "screen": "Операции",
       "registeredInDi": true,
+      "lifetime": "Singleton",
       "dependencies": ["ITransactionService", "ITransactionListService", "ITransactionGroupingService", "IInlineTransactionService", "ITransactionSelectionService", "ICategoryService", "ICreditCardService", "ICounterpartyService", "IDialogService", "IToastNotificationService", "IDataChangeService", "ITransactionEditViewModelFactory"],
-      "interfaces": ["INavigationAware"],
+      "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["LoadCommand", "AddCommand", "EditCommand", "DeleteCommand", "SelectTransactionCommand", "ApplyFiltersCommand", "ResetFiltersCommand", "LoadMoreCommand", "SelectAllPaymentCommand", "SelectCashFilterCommand", "SelectNonCashFilterCommand", "SelectCreditCardFilterCommand", "SelectDebtFilterCommand", "SelectDebtStatusFilterCommand", "FilterByIncomeCommand", "FilterByExpenseCommand", "ResetTypeFilterCommand", "TogglePeriodPickerCommand", "SelectPeriodCommand", "ToggleCategoryPickerCommand", "SelectCategoryCommand", "DeleteSelectedCommand", "ClearSelectionCommand", "OpenInlineCommand", "InlineSaveCommand", "InlineCancelCommand", "InlineToggleTypeCommand", "InlineSelectExpenseCommand", "InlineSelectIncomeCommand", "InlineSelectCashCommand", "InlineSelectNonCashCommand", "InlineSelectCreditCardCommand", "InlineTogglePaymentTypeCommand"],
       "purpose": "ViewModel экрана операций: фильтры, постраничная загрузка, группировка, массовое выделение и инлайн-добавление."
     }

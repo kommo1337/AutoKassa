@@ -66,7 +66,7 @@ namespace AutoKassa.ViewModels
     /// <summary>
     /// ViewModel экрана кредитных карт
     /// </summary>
-    public class CreditCardsViewModel : ViewModelBase, INavigationAware
+    public class CreditCardsViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly ICreditCardService _creditCardService;
         private readonly IDialogService _dialogService;
@@ -90,6 +90,7 @@ namespace AutoKassa.ViewModels
         private DateTime? _nearestPaymentDate;
         private decimal _nearestPaymentAmount;
         private ObservableCollection<CreditCardPurchase> _selectedCardPurchases;
+        private string _purchasesTruncationNote;
 
         private static readonly CultureInfo RuCulture = new("ru-RU");
 
@@ -161,6 +162,24 @@ namespace AutoKassa.ViewModels
             get => _selectedCardPurchases;
             set => SetProperty(ref _selectedCardPurchases, value);
         }
+
+        /// <summary>
+        /// Текст пометки об усечении истории покупок лимитом (null — история полная)
+        /// </summary>
+        public string PurchasesTruncationNote
+        {
+            get => _purchasesTruncationNote;
+            set
+            {
+                if (SetProperty(ref _purchasesTruncationNote, value))
+                    OnPropertyChanged(nameof(IsPurchasesTruncated));
+            }
+        }
+
+        /// <summary>
+        /// История покупок усечена лимитом: показаны не все покупки
+        /// </summary>
+        public bool IsPurchasesTruncated => !string.IsNullOrEmpty(_purchasesTruncationNote);
 
         public bool IsLoading
         {
@@ -323,16 +342,22 @@ namespace AutoKassa.ViewModels
         private async Task LoadSelectedCardPurchasesAsync()
         {
             SelectedCardPurchases.Clear();
+            PurchasesTruncationNote = null;
 
             if (_selectedCardItem == null) return;
 
             try
             {
-                var card = await _creditCardService.GetCardWithPurchasesAsync(_selectedCardItem.Card.Id);
+                var cardId = _selectedCardItem.Card.Id;
+                var totalCount = await _creditCardService.GetCardPurchasesCountAsync(cardId);
+                var card = await _creditCardService.GetCardWithPurchasesAsync(cardId);
                 if (card?.Purchases == null) return;
 
                 foreach (var purchase in card.Purchases.OrderByDescending(p => p.PurchaseDate))
                     SelectedCardPurchases.Add(purchase);
+
+                if (totalCount > SelectedCardPurchases.Count)
+                    PurchasesTruncationNote = $"Показаны последние {SelectedCardPurchases.Count} из {totalCount} покупок";
             }
             catch (Exception ex)
             {
@@ -346,16 +371,11 @@ namespace AutoKassa.ViewModels
             vm.InitializeForAdd();
             vm.OnSaved = async () =>
             {
-                IsModalOpen = false;
-                EditViewModel = null;
+                CloseEditModal();
                 await LoadCardsAsync();
                 _dataChangeService?.NotifyDataChanged();
             };
-            vm.OnCancelled = () =>
-            {
-                IsModalOpen = false;
-                EditViewModel = null;
-            };
+            vm.OnCancelled = () => CloseEditModal();
             EditViewModel = vm;
             IsModalOpen = true;
         }
@@ -368,16 +388,11 @@ namespace AutoKassa.ViewModels
             vm.InitializeForEdit(_selectedCardItem.Card);
             vm.OnSaved = async () =>
             {
-                IsModalOpen = false;
-                EditViewModel = null;
+                CloseEditModal();
                 await LoadCardsAsync();
                 _dataChangeService?.NotifyDataChanged();
             };
-            vm.OnCancelled = () =>
-            {
-                IsModalOpen = false;
-                EditViewModel = null;
-            };
+            vm.OnCancelled = () => CloseEditModal();
             EditViewModel = vm;
             IsModalOpen = true;
         }
@@ -389,20 +404,36 @@ namespace AutoKassa.ViewModels
             var vm = new CreditCardRepaymentViewModel(_creditCardService, _dialogService, _toastService, _dataChangeService);
             vm.OnSaved = async () =>
             {
-                IsRepaymentModalOpen = false;
-                RepaymentViewModel = null;
+                CloseRepaymentModal();
                 await LoadCardsAsync();
                 await LoadSelectedCardPurchasesAsync();
                 _dataChangeService?.NotifyDataChanged();
             };
-            vm.OnCancelled = () =>
-            {
-                IsRepaymentModalOpen = false;
-                RepaymentViewModel = null;
-            };
+            vm.OnCancelled = () => CloseRepaymentModal();
             RepaymentViewModel = vm;
             IsRepaymentModalOpen = true;
             RunAsync(async () => await vm.InitializeAsync(_selectedCardItem.Card));
+        }
+
+        /// <summary>
+        /// Закрыть модальное окно карты: ViewModel освобождается и обнуляется,
+        /// чтобы её представление пересоздавалось при следующем открытии.
+        /// </summary>
+        private void CloseEditModal()
+        {
+            IsModalOpen = false;
+            (_editViewModel as IDisposable)?.Dispose();
+            EditViewModel = null;
+        }
+
+        /// <summary>
+        /// Закрыть модальное окно погашения: ViewModel освобождается и обнуляется.
+        /// </summary>
+        private void CloseRepaymentModal()
+        {
+            IsRepaymentModalOpen = false;
+            (_repaymentViewModel as IDisposable)?.Dispose();
+            RepaymentViewModel = null;
         }
 
         private async Task DeleteCardAsync()

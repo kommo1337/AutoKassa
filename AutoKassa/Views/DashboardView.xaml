@@ -1,7 +1,6 @@
 <UserControl x:Class="AutoKassa.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:oxy="http://oxyplot.org/wpf"
              xmlns:vm="clr-namespace:AutoKassa.ViewModels"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
              xmlns:enums="clr-namespace:AutoKassa.Models.Enums"
@@ -24,6 +23,33 @@
         <converters:IsNegativeConverter x:Key="IsNegativeConverter"/>
         <converters:PaymentTypeToIconConverter x:Key="PaymentTypeToIconConverter"/>
         <converters:CategoryColorConverter x:Key="CategoryColorConverter"/>
+
+        <!-- Карточка «Баланс» — общий стиль нижнего (с тенью) и контентного слоёв -->
+        <Style x:Key="BalanceCardStyle" TargetType="Border">
+            <Setter Property="BorderThickness" Value="0.8"/>
+            <Setter Property="BorderBrush" Value="#86efac"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#F0FFF4" Offset="0"/>
+                        <GradientStop Color="#DCFCE7" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
+                    <Setter Property="BorderBrush" Value="#fca5a5"/>
+                    <Setter Property="Background">
+                        <Setter.Value>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#FFF5F5" Offset="0"/>
+                                <GradientStop Color="#FFE4E6" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
 
         <!-- Иконки типа оплаты — Наличные (купюра с кругом) -->
         <DataTemplate x:Key="CashPaymentIconTemplate">
@@ -389,67 +415,15 @@
             <!-- Баланс — с градиентным фоном -->
             <Grid Grid.Column="0" Margin="0,0,10,0">
                 <!-- Shadow layer -->
-                <Border CornerRadius="12" Padding="20,20" MinHeight="108">
+                <Border CornerRadius="12" Padding="20,20" MinHeight="108"
+                        Style="{StaticResource BalanceCardStyle}">
                     <Border.Effect>
                         <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
                     </Border.Effect>
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="BorderThickness" Value="0.8"/>
-                            <Setter Property="BorderBrush" Value="#86efac"/>
-                            <Setter Property="Background">
-                                <Setter.Value>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#F0FFF4" Offset="0"/>
-                                        <GradientStop Color="#DCFCE7" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                    <Setter Property="BorderBrush" Value="#fca5a5"/>
-                                    <Setter Property="Background">
-                                        <Setter.Value>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                <GradientStop Color="#FFF5F5" Offset="0"/>
-                                                <GradientStop Color="#FFE4E6" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
                 </Border>
                 <!-- Content layer -->
-                <Border CornerRadius="12" Padding="20,20" MinHeight="108" Background="Transparent">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="BorderThickness" Value="0.8"/>
-                            <Setter Property="BorderBrush" Value="#86efac"/>
-                            <Setter Property="Background">
-                                <Setter.Value>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                        <GradientStop Color="#F0FFF4" Offset="0"/>
-                                        <GradientStop Color="#DCFCE7" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding CurrentCashBalance, Converter={StaticResource IsNegativeConverter}}" Value="True">
-                                    <Setter Property="BorderBrush" Value="#fca5a5"/>
-                                    <Setter Property="Background">
-                                        <Setter.Value>
-                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                <GradientStop Color="#FFF5F5" Offset="0"/>
-                                                <GradientStop Color="#FFE4E6" Offset="1"/>
-                                            </LinearGradientBrush>
-                                        </Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
+                <Border CornerRadius="12" Padding="20,20" MinHeight="108" Background="Transparent"
+                        Style="{StaticResource BalanceCardStyle}">
                     <StackPanel>
                         <!-- Label БАЛАНС -->
                         <TextBlock Text="БАЛАНС" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
@@ -506,8 +480,12 @@
 
             <!-- Доходы -->
             <Grid Grid.Column="1" Margin="0,0,10,0">
-                <Border Style="{StaticResource SummaryCard}"/>
-                <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                <Border Style="{StaticResource SummaryCard}">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Style="{StaticResource SummaryCard}" Background="Transparent" Effect="{x:Null}">
                 <StackPanel>
                     <TextBlock Text="ДОХОДЫ" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                Foreground="{StaticResource MutedTextBrush}"/>
@@ -539,8 +517,12 @@
 
             <!-- Расходы -->
             <Grid Grid.Column="2" Margin="0,0,10,0">
-                <Border Style="{StaticResource SummaryCard}"/>
-                <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                <Border Style="{StaticResource SummaryCard}">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Style="{StaticResource SummaryCard}" Background="Transparent" Effect="{x:Null}">
                 <StackPanel>
                     <TextBlock Text="РАСХОДЫ" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                Foreground="{StaticResource MutedTextBrush}"/>
@@ -572,8 +554,12 @@
 
             <!-- За период -->
             <Grid Grid.Column="3">
-                <Border Style="{StaticResource SummaryCard}"/>
-                <Border Style="{StaticResource SummaryCard}" Background="Transparent">
+                <Border Style="{StaticResource SummaryCard}">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
+                    </Border.Effect>
+                </Border>
+                <Border Style="{StaticResource SummaryCard}" Background="Transparent" Effect="{x:Null}">
                     <StackPanel>
                         <TextBlock Text="{Binding PeriodLabel}" FontSize="11" FontWeight="Bold" Margin="0,0,0,8"
                                    Foreground="{StaticResource MutedTextBrush}"/>
@@ -667,26 +653,16 @@
                         </TextBlock>
                     </Grid>
 
-                    <!-- Список групп по датам -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <Grid>
-                            <!-- Пустое состояние -->
-                            <StackPanel HorizontalAlignment="Center" Margin="0,48,0,0"
-                                        Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}">
-                                <TextBlock Text="Операций пока нет" FontSize="15"
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           HorizontalAlignment="Center"/>
-                                <TextBlock Text="Нажмите + чтобы добавить первую операцию"
-                                           FontSize="12" Foreground="#CBD5E1"
-                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
-                            </StackPanel>
-
+                    <!-- Список групп по датам: ListBox сам скроллится и виртуализируется,
+                         внешний ScrollViewer отключал виртуализацию -->
+                    <Grid Grid.Row="1">
                             <!-- Группы по датам — ListBox с виртуализацией для производительности -->
                             <ListBox ItemsSource="{Binding GroupedTransactions}"
                                      Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}}"
                                      VirtualizingPanel.IsVirtualizing="True"
                                      VirtualizingPanel.VirtualizationMode="Recycling"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      Focusable="False"
                                      BorderThickness="0" Background="Transparent">
                                 <ListBox.ItemTemplate>
@@ -839,8 +815,18 @@
                                     </Style>
                                 </ListBox.ItemContainerStyle>
                             </ListBox>
+
+                            <!-- Пустое состояние поверх списка -->
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,48,0,0"
+                                        Visibility="{Binding HasTransactions, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Inverse}">
+                                <TextBlock Text="Операций пока нет" FontSize="15"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="Нажмите + чтобы добавить первую операцию"
+                                           FontSize="12" Foreground="#CBD5E1"
+                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                            </StackPanel>
                         </Grid>
-                    </ScrollViewer>
                 </Grid>
                 </Border>
             </Grid>
@@ -1114,8 +1100,15 @@
                     </Border.Effect>
                 </Border>
                 <!-- Content layer (no Effect — text stays crisp) -->
+                <!-- Модалка создаётся лениво: пока EditViewModel == null, представление не строится -->
                 <Border Background="White" CornerRadius="20" ClipToBounds="True">
-                    <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
+                    <ContentControl Content="{Binding EditViewModel}">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type vm:TransactionEditViewModel}">
+                                <views:TransactionEditView/>
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
                 </Border>
             </Grid>
 

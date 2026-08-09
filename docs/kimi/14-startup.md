@@ -36,7 +36,7 @@
 Метод `InitializeAsync(IServiceProvider)` ([`App.xaml.cs`](../../AutoKassa/App.xaml.cs)) выполняет два действия на потоке пула:
 
 1. **Миграции и WAL** — статический метод [`SettingsService.MigrateAsync(IDbContextFactory<AppDbContext>)`](../../AutoKassa/Services/SettingsService.cs):
-   - `context.Database.MigrateAsync()` — применяет все pending-миграции. На первом запуске создаёт `AutoKassa.db` в каталоге приложения (путь задан в [`AppDbContext.OnConfiguring`](../../AutoKassa/Services/AppDbContext.cs): `AppDomain.CurrentDomain.BaseDirectory + "AutoKassa.db"`) и заливает seed-данные: системные категории `Id = 1–11` и строку `AppSettings` с `Id = 1`.
+   - `context.Database.MigrateAsync()` — применяет все pending-миграции. На первом запуске создаёт `AutoKassa.db` в каталоге приложения (путь задаёт [`AppDbContext.GetDatabasePath()`](../../AutoKassa/Services/AppDbContext.cs): `AppDomain.CurrentDomain.BaseDirectory + "AutoKassa.db"`; используется при регистрации пула контекстов в `ConfigureServices`) и заливает seed-данные: системные категории `Id = 1–11` и строку `AppSettings` с `Id = 1`.
    - `ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;")` — включает WAL-режим SQLite для конкурентности читателей и писателей.
 2. **Разогрев кеша настроек** — `await settingsService.GetSettingsAsync()`:
    - Загружает `AppSettings` в поле `_cachedSettings` синглтона `SettingsService`.
@@ -88,10 +88,11 @@
 ### DbContext
 
 ```csharp
-services.AddDbContextFactory<AppDbContext>();
+services.AddPooledDbContextFactory<AppDbContext>(options =>
+    options.AddInterceptors(new SqlitePragmaInterceptor()));
 ```
 
-`IDbContextFactory<AppDbContext>` (синглтон) — единственный способ доступа к БД для сервисов: каждый вызов создаёт короткоживущий контекст. Явной регистрации `AppDbContext` нет, но фабрика неявно делает его разрешимым как Scoped — прямая инъекция в конструкторы при этом запрещена и контролируется `DbContextInjectionValidator` (см. [`02-architecture.md`](02-architecture.md) §3). Подробнее — [`03-database.md`](03-database.md).
+`IDbContextFactory<AppDbContext>` (синглтон) — единственный способ доступа к БД для сервисов: каждый вызов создаёт короткоживущий контекст, который переиспользуется из пула EF Core. Явной регистрации `AppDbContext` нет, но фабрика неявно делает его разрешимым как Scoped — прямая инъекция в конструкторы при этом запрещена и контролируется `DbContextInjectionValidator` (см. [`02-architecture.md`](02-architecture.md) §3). `SqlitePragmaInterceptor` применяет per-connection PRAGMA на каждом открытии соединения. Подробнее — [`03-database.md`](03-database.md).
 
 ---
 

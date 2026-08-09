@@ -82,8 +82,9 @@
 
 | Имя | Значение | Где задано | Комментарий |
 |-----|----------|------------|-------------|
-| MaxDetailTransactions | 5000 | ReportService.cs | Лимит детального отчёта |
-| MaxCategoryTransactions | 5000 | ReportService.cs | Лимит отчёта по категориям |
+| MaxDetailTransactions | 1000 | ReportService.cs | Лимит детального отчёта; при усечении отчёт помечается `TruncationNote` («Показаны первые 1000 из N») |
+| MaxCategoryTransactions | 1000 | ReportService.cs | Лимит отчёта по категориям |
+| MaxCardPurchases | 500 | CreditCardService.cs | Лимит истории покупок карты в `GetCardWithPurchasesAsync` (последние по дате) |
 | OperationsPageSize | 100 | TransactionsViewModel.cs (`_pageSize`) | ⚠ Захардкожено; `AppSettings.DefaultPageSize` (20) игнорируется — см. §9 |
 | DashboardRecentCount | 10 | TransactionService.cs (`GetRecentAsync`) | Значение по умолчанию параметра `count` |
 | DashboardTake | 100 | Dashboard/DashboardService.cs | `Take = 100` в фильтре операций дашборда |

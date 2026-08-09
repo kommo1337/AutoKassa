@@ -18,10 +18,12 @@ namespace AutoKassa.Services
         private static readonly ILogger _log = Log.ForContext<CounterpartyService>();
 
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
+        private readonly ReferenceDataCache _cache;
 
-        public CounterpartyService(IDbContextFactory<AppDbContext> contextFactory)
+        public CounterpartyService(IDbContextFactory<AppDbContext> contextFactory, ReferenceDataCache cache)
         {
             _contextFactory = contextFactory;
+            _cache = cache;
         }
 
         /// <summary>
@@ -29,13 +31,13 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<IReadOnlyList<Counterparty>> GetAllAsync(CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            return await context.Counterparties
-                .AsNoTracking()
+            // Из справочного кэша; сортировка в памяти повторяет SQL-порядок
+            // (COLLATE NOCASE у Counterparty.Name — см. AppDbContext)
+            var counterparties = await _cache.GetCounterpartiesAsync().ConfigureAwait(false);
+            return counterparties
                 .OrderBy(c => c.Type)
-                .ThenBy(c => c.Name)
-                .ToListAsync(ct)
-                .ConfigureAwait(false);
+                .ThenBy(c => c.Name, SqliteNoCaseComparer.Instance)
+                .ToList();
         }
 
         /// <summary>
@@ -43,18 +45,40 @@ namespace AutoKassa.Services
         /// </summary>
         public async Task<IReadOnlyList<Counterparty>> GetActiveAsync(CounterpartyType? type = null, CancellationToken ct = default)
         {
-            await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
-            var query = context.Counterparties
-                .AsNoTracking()
-                .Where(c => c.IsActive);
+            var counterparties = await _cache.GetCounterpartiesAsync().ConfigureAwait(false);
+            return counterparties
+                .Where(c => c.IsActive && (!type.HasValue || c.Type == type.Value))
+                .OrderBy(c => c.Name, SqliteNoCaseComparer.Instance)
+                .ToList();
+        }
 
-            if (type.HasValue)
-                query = query.Where(c => c.Type == type.Value);
+        /// <summary>
+        /// Компаратер, повторяющий SQLite COLLATE NOCASE: регистр сворачивается только
+        /// для ASCII A-Z, остальные символы (в т.ч. кириллица) сравниваются ordinal.
+        /// </summary>
+        private sealed class SqliteNoCaseComparer : IComparer<string>
+        {
+            public static readonly SqliteNoCaseComparer Instance = new();
 
-            return await query
-                .OrderBy(c => c.Name)
-                .ToListAsync(ct)
-                .ConfigureAwait(false);
+            public int Compare(string x, string y)
+            {
+                if (ReferenceEquals(x, y)) return 0;
+                if (x is null) return -1;
+                if (y is null) return 1;
+
+                var length = Math.Min(x.Length, y.Length);
+                for (var i = 0; i < length; i++)
+                {
+                    var cx = FoldAscii(x[i]);
+                    var cy = FoldAscii(y[i]);
+                    if (cx != cy)
+                        return cx < cy ? -1 : 1;
+                }
+
+                return x.Length.CompareTo(y.Length);
+            }
+
+            private static char FoldAscii(char c) => c is >= 'A' and <= 'Z' ? (char)(c + 32) : c;
         }
 
         /// <summary>
@@ -100,6 +124,7 @@ namespace AutoKassa.Services
 
             context.Counterparties.Add(counterparty);
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            _cache.InvalidateCounterparties();
 
             _log.Information("Добавлен контрагент ID={Id}, название={Name}, тип={Type}", counterparty.Id, counterparty.Name, counterparty.Type);
             return counterparty;
@@ -150,6 +175,7 @@ namespace AutoKassa.Services
             existing.IsActive = counterparty.IsActive;
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            _cache.InvalidateCounterparties();
 
             _log.Information("Обновлён контрагент ID={Id}, название={Name}", counterparty.Id, counterparty.Name);
         }
@@ -177,6 +203,7 @@ namespace AutoKassa.Services
 
             context.Counterparties.Remove(counterparty);
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            _cache.InvalidateCounterparties();
 
             _log.Information("Удалён контрагент ID={Id}", id);
         }

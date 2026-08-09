@@ -1,4 +1,4 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using AutoKassa.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
@@ -84,29 +84,14 @@ namespace AutoKassa.Services
             if (mainWindow == null)
                 return null;
 
-            BlurHelper.ApplyBlur(mainWindow, radius: 15);
+            var viewType = ResolveViewType(typeof(LockScreenViewModel));
+            var window = CreateWindow(viewType, viewModel);
 
-            try
-            {
-                var viewType = ResolveViewType(typeof(LockScreenViewModel));
-                var window = CreateWindow(viewType, viewModel);
+            // Растягиваем окно блокировки на весь главное окно
+            window.Width = mainWindow.ActualWidth;
+            window.Height = mainWindow.ActualHeight;
 
-                // Растягиваем окно блокировки на весь главное окно
-                window.Width = mainWindow.ActualWidth;
-                window.Height = mainWindow.ActualHeight;
-
-                window.Closed += (s, e) =>
-                {
-                    BlurHelper.RemoveBlur(mainWindow);
-                };
-
-                return window.ShowDialog();
-            }
-            catch
-            {
-                BlurHelper.RemoveBlur(mainWindow);
-                throw;
-            }
+            return window.ShowDialog();
         }
 
         /// <summary>

@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-07-31T21:25:00+03:00",
-  "totalCount": 30,
+  "lastUpdated": "2026-08-09T14:30:00+03:00",
+  "totalCount": 31,
   "services": [
     {
       "name": "NavigationService",
@@ -396,8 +396,16 @@
           "description": "Soft delete."
         },
         {
+          "signature": "Task DeleteRangeAsync(IEnumerable<int> ids, CancellationToken ct = default)",
+          "description": "Массовый soft delete одним контекстом и одной транзакцией БД; каскадная логика — как у DeleteAsync."
+        },
+        {
           "signature": "Task RestoreAsync(int id, CancellationToken ct = default)",
           "description": "Восстановление удалённой операции."
+        },
+        {
+          "signature": "Task RestoreRangeAsync(IEnumerable<int> ids, CancellationToken ct = default)",
+          "description": "Массовое восстановление одним контекстом и одной транзакцией БД; каскадная логика — как у RestoreAsync, статусы долгов пересчитываются по разу на долг."
         },
         {
           "signature": "Task<bool> IsRepaymentTransactionAsync(int id, CancellationToken ct = default)",
@@ -410,6 +418,10 @@
         {
           "signature": "Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default)",
           "description": "Итоги за период."
+        },
+        {
+          "signature": "Task<List<(PaymentType PaymentType, decimal Income, decimal Expense)>> GetPeriodTotalsByPaymentTypeAsync(DateTime from, DateTime to, CancellationToken ct = default)",
+          "description": "Итоги за период в разрезе типа оплаты (один SQL GROUP BY вместо запроса на каждый тип)."
         },
         {
           "signature": "Task<List<DailyTotalsItem>> GetDailyTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default)",
@@ -548,14 +560,19 @@
       "interfaceFile": "AutoKassa/Services/ICategoryService.cs",
       "lifetime": "Transient",
       "category": "domain",
-      "purpose": "Управление справочником категорий доходов/расходов с учётом активности, системности, уникальности в рамках типа и сортировки.",
+      "purpose": "Управление справочником категорий доходов/расходов с учётом активности, системности, уникальности в рамках типа и сортировки. Чтения списков идут через ReferenceDataCache (сортировка в памяти), мутации инвалидируют кэш.",
       "dependencies": [
-        "IDbContextFactory<AppDbContext>"
+        "IDbContextFactory<AppDbContext>",
+        "ReferenceDataCache"
       ],
       "keyMethods": [
         {
           "signature": "Task<List<Category>> GetAllAsync()",
-          "description": "Все категории."
+          "description": "Все категории (из ReferenceDataCache)."
+        },
+        {
+          "signature": "Task<int> GetCountAsync()",
+          "description": "Количество категорий (SQL COUNT, без загрузки записей)."
         },
         {
           "signature": "Task<List<Category>> GetActiveAsync()",
@@ -620,9 +637,10 @@
       "interfaceFile": "AutoKassa/Services/ICounterpartyService.cs",
       "lifetime": "Transient",
       "category": "domain",
-      "purpose": "Справочник контрагентов (клиенты, поставщики, филиалы). Контролирует удаление при наличии связанных операций.",
+      "purpose": "Справочник контрагентов (клиенты, поставщики, филиалы). Контролирует удаление при наличии связанных операций. Чтения списков идут через ReferenceDataCache, мутации инвалидируют кэш.",
       "dependencies": [
-        "IDbContextFactory<AppDbContext>"
+        "IDbContextFactory<AppDbContext>",
+        "ReferenceDataCache"
       ],
       "keyMethods": [
         {
@@ -729,7 +747,11 @@
         },
         {
           "signature": "Task<CategoryReport> GenerateCategoryReportAsync(DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, CancellationToken ct = default)",
-          "description": "Отчёт по категориям."
+          "description": "Отчёт по категориям (суммы/количества — SQL GROUP BY CategoryId с join к Categories; операции не материализуются)."
+        },
+        {
+          "signature": "Task<List<Transaction>> GetCategoryTransactionsAsync(int categoryId, DateTime dateFrom, DateTime dateTo, OperationType operationType, PaymentType? paymentType = null, int take = ReportService.MaxCategoryTransactions, CancellationToken ct = default)",
+          "description": "Операции одной категории за период — для ленивого раскрытия категории в отчёте «Структура по категориям» (OrderBy перед Take)."
         },
         {
           "signature": "Task<TransactionDetailReport> GenerateTransactionDetailReportAsync(DateTime dateFrom, DateTime dateTo, OperationType? operationType = null, int? categoryId = null, PaymentType? paymentType = null, CancellationToken ct = default)",
@@ -761,14 +783,15 @@
       "interfaceFile": "AutoKassa/Services/ICreditCardService.cs",
       "lifetime": "Transient",
       "category": "domain",
-      "purpose": "Управление кредитными картами: карты, покупки, текущий долг, доступный лимит, минимальный платёж, дата платежа, погашение долга с FIFO-распределением по покупкам.",
+      "purpose": "Управление кредитными картами: карты, покупки, текущий долг, доступный лимит, минимальный платёж, дата платежа, погашение долга с FIFO-распределением по покупкам. Чтение списка карт — через ReferenceDataCache, мутации инвалидируют кэш.",
       "dependencies": [
-        "IDbContextFactory<AppDbContext>"
+        "IDbContextFactory<AppDbContext>",
+        "ReferenceDataCache"
       ],
       "keyMethods": [
         {
           "signature": "Task<IReadOnlyList<CreditCard>> GetAllAsync(CancellationToken ct = default)",
-          "description": "Все карты."
+          "description": "Все карты (из ReferenceDataCache)."
         },
         {
           "signature": "Task<CreditCard?> GetByIdAsync(int id, CancellationToken ct = default)",
@@ -776,7 +799,11 @@
         },
         {
           "signature": "Task<CreditCard?> GetCardWithPurchasesAsync(int id, CancellationToken ct = default)",
-          "description": "Карта с покупками."
+          "description": "Карта с покупками (filtered Include: последние MaxCardPurchases = 500 покупок)."
+        },
+        {
+          "signature": "Task<int> GetCardPurchasesCountAsync(int cardId, CancellationToken ct = default)",
+          "description": "Общее количество покупок карты (SQL COUNT) — для пометки об усечении истории лимитом MaxCardPurchases."
         },
         {
           "signature": "Task<CreditCard> CreateAsync(CreditCard card, CancellationToken ct = default)",
@@ -972,7 +999,50 @@
         "DebtReportViewModel",
         "ReportsViewModel",
         "SettingsViewModel",
-        "TransactionsViewModel"
+        "TransactionsViewModel",
+        "ReferenceDataCache"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "ReferenceDataCache",
+      "interface": null,
+      "implementation": "ReferenceDataCache",
+      "file": "AutoKassa/Services/ReferenceDataCache.cs",
+      "interfaceFile": null,
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Singleton-кэш справочников (категории, контрагенты, кредитные карты). Исключает повторные запросы к БД при каждом открытии редактора операции и при одновременной загрузке нескольких ViewModel. Наружу отдаёт клоны, чтобы мутации в ViewModel не портили кэш. Инвалидация: сервисы справочников сбрасывают свою секцию после мутаций (Add/Update/Delete/Reorder), полный сброс — по IDataChangeService.DataChanged.",
+      "dependencies": [
+        "IDbContextFactory<AppDbContext>",
+        "IDataChangeService"
+      ],
+      "keyMethods": [
+        {
+          "signature": "Task<List<Category>> GetCategoriesAsync()",
+          "description": "Все категории без сортировки (клоны); порядок задаёт вызывающий сервис."
+        },
+        {
+          "signature": "Task<List<Counterparty>> GetCounterpartiesAsync()",
+          "description": "Все контрагенты без сортировки (клоны)."
+        },
+        {
+          "signature": "Task<List<CreditCard>> GetCreditCardsAsync()",
+          "description": "Все кредитные карты без сортировки (клоны)."
+        },
+        {
+          "signature": "void InvalidateCategories() / InvalidateCounterparties() / InvalidateCreditCards()",
+          "description": "Сброс секции кэша (вызывают сервисы справочников после мутаций)."
+        },
+        {
+          "signature": "void InvalidateAll()",
+          "description": "Полный сброс кэша (подписан на IDataChangeService.DataChanged)."
+        }
+      ],
+      "usedBy": [
+        "CategoryService",
+        "CounterpartyService",
+        "CreditCardService"
       ],
       "docFile": "docs/kimi/05-services.md"
     },
@@ -1185,7 +1255,7 @@
       "interfaceFile": "AutoKassa/Services/Dashboard/IDashboardService.cs",
       "lifetime": "Transient",
       "category": "domain",
-      "purpose": "Фасадный сервис дашборда: загружает сводку, разбивку по типам оплаты, динамику изменений, последние операции, остатки наличных/безналичных, кредитные метрики и строит OxyPlot-график.",
+      "purpose": "Фасадный сервис дашборда: загружает сводку, разбивку по типам оплаты, динамику изменений, последние операции, остатки наличных/безналичных и кредитные метрики. Остатки наличных/безналичных считаются одним запросом через ITransactionService.GetPeriodTotalsByPaymentTypeAsync.",
       "dependencies": [
         "ITransactionService",
         "ISettingsService",
@@ -1270,9 +1340,9 @@
       "implementation": "AppDbContext",
       "file": "AutoKassa/Services/AppDbContext.cs",
       "interfaceFile": null,
-      "lifetime": "Scoped (via AddDbContextFactory) / Singleton (IDbContextFactory<AppDbContext>)",
+      "lifetime": "Scoped (via AddPooledDbContextFactory) / Singleton (IDbContextFactory<AppDbContext>)",
       "category": "database",
-      "purpose": "EF Core DbContext для SQLite. Определяет все DbSet, конфигурации связей, индексы и seed-данные (системные категории и настройки по умолчанию). Явной DI-регистрации нет: контекст неявно разрешим как Scoped через AddDbContextFactory, но прямая инъекция в конструкторы запрещена (контролирует DbContextInjectionValidator).",
+      "purpose": "EF Core DbContext для SQLite. Определяет все DbSet, конфигурации связей, индексы и seed-данные (системные категории и настройки по умолчанию). Явной DI-регистрации нет: контекст неявно разрешим как Scoped через AddPooledDbContextFactory (пулинг переиспользует экземпляры и снижает аллокации), но прямая инъекция в конструкторы запрещена (контролирует DbContextInjectionValidator). Per-connection PRAGMA (synchronous=NORMAL, temp_store=MEMORY, cache_size=-8000) применяет SqlitePragmaInterceptor (AutoKassa/Services/SqlitePragmaInterceptor.cs, IDbConnectionInterceptor) при каждом открытии соединения — регистрируется через options.AddInterceptors в AddPooledDbContextFactory; journal_mode=WAL — персистентная настройка файла БД, выставляется один раз в SettingsService.MigrateAsync.",
       "dependencies": [
         "DbContextOptions<AppDbContext>"
       ],
@@ -1314,8 +1384,12 @@
           "description": "Таблица погашений по кредитным картам."
         },
         {
+          "signature": "static string GetDatabasePath()",
+          "description": "Путь к файлу БД в папке приложения (BaseDirectory + AutoKassa.db); используется при регистрации пула контекстов в App.ConfigureServices и в OnConfiguring."
+        },
+        {
           "signature": "void OnConfiguring(DbContextOptionsBuilder optionsBuilder)",
-          "description": "Настройка подключения к SQLite."
+          "description": "Резервная конфигурация подключения к SQLite (design-time dotnet ef, прямое создание контекста). В приложении опции задаются при регистрации AddPooledDbContextFactory — при пулинге модифицировать опции здесь запрещено."
         },
         {
           "signature": "void OnModelCreating(ModelBuilder modelBuilder)",

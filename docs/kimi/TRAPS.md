@@ -318,6 +318,20 @@
 - **См. также:** [`14-startup.md`](14-startup.md).
 - **Теги:** #async #wpf
 
+### 3.13. `ORDER BY` по `SUM(decimal)` в SQLite падает на ru-RU — агрегаты сортируй в памяти
+- **Запрет:** не сортируй в SQL результаты агрегатов по decimal (`OrderBy`/`OrderByDescending` по `Sum()` внутри `IQueryable`).
+- **Почему:** EF Core для сортировки decimal-агрегатов в SQLite генерирует культурозависимую коллацию `EF_DECIMAL`, которая падает на локали ru-RU.
+- **Правильно:** материализуй агрегаты через `ToListAsync`, а сортировку по сумме и `Take` выполняй в памяти — см. `GetTopCategoriesAsync` и `GenerateCategoryReportAsync`.
+- **Файлы:** [`../../AutoKassa/Services/TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs) (`GetTopCategoriesAsync`), [`../../AutoKassa/Services/ReportService.cs`](../../AutoKassa/Services/ReportService.cs) (`GenerateCategoryReportAsync`).
+- **Теги:** #sqlite #ef-core
+
+### 3.14. При пулинге DbContext нельзя конфигурировать опции в OnConfiguring
+- **Запрет:** не вызывай `UseSqlite`/`AddInterceptors` и т.п. в `AppDbContext.OnConfiguring`, когда контекст зарегистрирован через `AddPooledDbContextFactory`.
+- **Почему:** при включённом пулинге EF Core запрещает модификацию `DbContextOptions` в `OnConfiguring` и бросает `InvalidOperationException` при первом обращении к БД (приложение падает на старте в `MigrateAsync`).
+- **Правильно:** все опции (`UseSqlite` со строкой от `AppDbContext.GetDatabasePath()`, `AddInterceptors`) задавай в `optionsAction` при регистрации `AddPooledDbContextFactory`; `OnConfiguring` остаётся резервом для design-time (`dotnet ef`) и срабатывает только при `IsConfigured == false`.
+- **Файлы:** [`../../AutoKassa/App.xaml.cs`](../../AutoKassa/App.xaml.cs), [`../../AutoKassa/Services/AppDbContext.cs`](../../AutoKassa/Services/AppDbContext.cs).
+- **Теги:** #ef-core #sqlite
+
 ---
 
 ## 4. MVVM и команды
@@ -332,8 +346,8 @@
 
 ### 4.2. `CanExecute` не пересчитывается автоматически при смене свойств ViewModel
 - **Запрет:** не ожидай мгновенного обновления доступности кнопки при программном изменении состояния.
-- **Почему:** `RelayCommand` и `AsyncRelayCommand` подписывают `CanExecuteChanged` на `CommandManager.RequerySuggested`, который срабатывает на ввод пользователя, а не на изменение свойств ViewModel; кнопка может остаться в устаревшем состоянии.
-- **Правильно:** после изменения свойств, влияющих на `CanExecute`, вызывай `RaiseCanExecuteChanged()` (у `RelayCommand`) или `CommandManager.InvalidateRequerySuggested()`.
+- **Почему:** `RelayCommand` и `AsyncRelayCommand` подписывают `CanExecuteChanged` на `CommandManager.RequerySuggested`, который срабатывает на ввод пользователя, а не на изменение свойств ViewModel; кнопка может остаться в устаревшем состоянии. При этом `RaiseCanExecuteChanged()` обеих команд вызывает только собственное событие команды (подписка на `RequerySuggested` сохранена) — он не пересчитывает другие команды приложения.
+- **Правильно:** после изменения свойств, влияющих на `CanExecute`, вызывай `RaiseCanExecuteChanged()` конкретной команды (у `RelayCommand` и `AsyncRelayCommand`) или `CommandManager.InvalidateRequerySuggested()`.
 - **Файлы:** [`../../AutoKassa/Helpers/RelayCommand.cs`](../../AutoKassa/Helpers/RelayCommand.cs), [`../../AutoKassa/Helpers/AsyncRelayCommand.cs`](../../AutoKassa/Helpers/AsyncRelayCommand.cs).
 - **Теги:** #mvvm #wpf
 

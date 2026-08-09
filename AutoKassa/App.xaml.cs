@@ -7,6 +7,7 @@ using AutoKassa.Services.Transactions;
 using AutoKassa.ViewModels;
 using AutoKassa.ViewModels.Reports;
 using AutoKassa.Views;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using System.Threading.Tasks;
@@ -179,7 +180,16 @@ namespace AutoKassa
             // Фабрика DbContext — единственный способ доступа к БД для сервисов.
             // AppDbContext намеренно не регистрируется для прямого инжектирования:
             // контекст создаётся короткоживущим через IDbContextFactory на каждую операцию.
-            services.AddDbContextFactory<AppDbContext>();
+            // Пулинг переиспользует экземпляры контекста и снижает аллокации на слабом железе.
+            // Строка подключения задаётся здесь, а не в OnConfiguring: при пулинге контекстов
+            // модифицировать DbContextOptions в OnConfiguring запрещено (EF Core бросает
+            // InvalidOperationException). Per-connection PRAGMA (synchronous/temp_store/cache_size)
+            // выставляет SqlitePragmaInterceptor при каждом открытии соединения.
+            services.AddPooledDbContextFactory<AppDbContext>(options =>
+            {
+                options.UseSqlite($"Data Source={AppDbContext.GetDatabasePath()}");
+                options.AddInterceptors(new SqlitePragmaInterceptor());
+            });
 
             // Регистрация базовых сервисов
             services.AddSingleton<INavigationService, AutoKassa.Services.NavigationService>();
@@ -200,6 +210,11 @@ namespace AutoKassa
             services.AddTransient<ICreditCardService, CreditCardService>();
             services.AddSingleton<IExportService, ExportService>();
             services.AddSingleton<IDataChangeService, DataChangeService>();
+
+            // Кэш справочников: singleton, используется transient-сервисами
+            // категорий/контрагентов/карт; инвалидируется ими при мутациях
+            // и полностью — по IDataChangeService.DataChanged.
+            services.AddSingleton<ReferenceDataCache>();
 
             // Сервисы настроек (декомпозиция SettingsViewModel)
             services.AddSingleton<ISettingsMapper, SettingsMapper>();
@@ -224,23 +239,26 @@ namespace AutoKassa
             // Регистрация ViewModels
             services.AddTransient<MainWindowViewModel>();
             services.AddTransient<InitialSetupViewModel>();
-            services.AddTransient<DashboardViewModel>();
-            services.AddTransient<TransactionsViewModel>();
+            // Страницы верхнего уровня (вкладки) — singleton-ы: живут всё время работы
+            // приложения, не пересоздаются при навигации (см. IPageViewModel),
+            // обновление данных — через _needsRefresh по IDataChangeService.DataChanged.
+            services.AddSingleton<DashboardViewModel>();
+            services.AddSingleton<TransactionsViewModel>();
             services.AddTransient<TransactionEditViewModel>();
-            services.AddTransient<CategoriesViewModel>();
+            services.AddSingleton<CategoriesViewModel>();
             services.AddTransient<CategoryManagerViewModel>();
-            services.AddTransient<ReportsViewModel>();
+            services.AddSingleton<ReportsViewModel>();
             services.AddTransient<BalanceReportViewModel>();
             services.AddTransient<CategoryReportViewModel>();
             services.AddTransient<TransactionDetailReportViewModel>();
             services.AddTransient<DebtReportViewModel>();
-            services.AddTransient<CounterpartiesViewModel>();
+            services.AddSingleton<CounterpartiesViewModel>();
             services.AddTransient<CounterpartyEditViewModel>();
-            services.AddTransient<CreditCardsViewModel>();
+            services.AddSingleton<CreditCardsViewModel>();
             services.AddTransient<CreditCardEditViewModel>();
             services.AddTransient<CreditCardRepaymentViewModel>();
             services.AddTransient<ReconciliationViewModel>();
-            services.AddTransient<SettingsViewModel>();
+            services.AddSingleton<SettingsViewModel>();
             services.AddTransient<ChangePasswordViewModel>();
             services.AddTransient<LockScreenViewModel>();
 

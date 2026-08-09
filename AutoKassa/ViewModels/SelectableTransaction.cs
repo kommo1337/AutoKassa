@@ -77,8 +77,19 @@ namespace AutoKassa.ViewModels
         public bool IsInlineOpen
         {
             get => _isInlineOpen;
-            set => SetProperty(ref _isInlineOpen, value);
+            set
+            {
+                if (SetProperty(ref _isInlineOpen, value))
+                    OnPropertyChanged(nameof(InlineEditorTarget));
+            }
         }
+
+        /// <summary>
+        /// Возвращает саму группу, когда открыт инлайн-редактор, иначе null.
+        /// Нужен для ленивого построения редактора в XAML (ContentControl + DataTemplate):
+        /// при null визуальное дерево редактора (~150–200 элементов) не создаётся.
+        /// </summary>
+        public SelectableDateGroup? InlineEditorTarget => IsInlineOpen ? this : null;
 
         public OperationType InlineType
         {

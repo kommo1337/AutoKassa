@@ -364,7 +364,8 @@
 | Percentage | double | Процент |
 | TransactionCount | int | Количество операций |
 | Color | string | HEX-цвет |
-| Transactions | List<Transaction> | Операции категории |
+
+> Операции категории в `CategoryReportItem` не хранятся — загружаются лениво через `IReportService.GetCategoryTransactionsAsync` при раскрытии категории в UI.
 
 ### 3.4. TransactionDetailReport
 
@@ -380,6 +381,9 @@
 | FilterCategoryName | string | Название категории |
 | Transactions | List<TransactionDetailItem> | Операции |
 | TotalIncome / TotalExpense | decimal | Итоги |
+| TotalTransactionCount | int | Общее число операций под фильтром (без учёта лимита) |
+| IsTruncated | bool | Признак усечения по лимиту `MaxDetailTransactions = 1000` |
+| TruncationNote | string | Текст пометки «Показаны первые 1000 из N операций» |
 
 **TransactionDetailItem:**
 

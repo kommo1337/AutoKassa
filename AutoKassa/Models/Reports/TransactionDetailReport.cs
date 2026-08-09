@@ -61,9 +61,26 @@ namespace AutoKassa.Models.Reports
         public decimal NetAmount => TotalIncome - TotalExpense;
 
         /// <summary>
-        /// Количество операций
+        /// Количество операций в списке (с учётом лимита детализации)
         /// </summary>
         public int TransactionCount => Transactions.Count;
+
+        /// <summary>
+        /// Общее количество операций, подходящих под фильтры (без учёта лимита детализации)
+        /// </summary>
+        public int TotalTransactionCount { get; set; }
+
+        /// <summary>
+        /// Список усечён лимитом детализации: показаны не все операции
+        /// </summary>
+        public bool IsTruncated => Transactions.Count < TotalTransactionCount;
+
+        /// <summary>
+        /// Текст пометки об усечении списка для UI/PDF/Excel (null — список полный)
+        /// </summary>
+        public string TruncationNote => IsTruncated
+            ? $"Показаны первые {Transactions.Count} из {TotalTransactionCount} операций"
+            : null;
     }
 
     /// <summary>

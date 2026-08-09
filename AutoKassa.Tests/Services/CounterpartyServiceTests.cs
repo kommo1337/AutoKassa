@@ -21,7 +21,7 @@ namespace AutoKassa.Tests.Services
             var (factory, conn) = TestDatabase.CreateWithFactory();
             _conn = conn;
             _ctx = factory.CreateDbContext();
-            _svc = new CounterpartyService(factory);
+            _svc = new CounterpartyService(factory, new ReferenceDataCache(factory, new DataChangeService()));
         }
 
         public void Dispose()

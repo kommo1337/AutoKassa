@@ -134,17 +134,12 @@
                 <Setter Property="FontWeight" Value="SemiBold"/>
             </Style>
 
-            <!-- SummaryCard — карточка сводки -->
+            <!-- SummaryCard — карточка сводки (без тени: тень задаётся только на нижнем слое карточки) -->
             <Style x:Key="SummaryCard" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
                 <Setter Property="CornerRadius" Value="12"/>
                 <Setter Property="Padding" Value="20,20"/>
                 <Setter Property="MinHeight" Value="108"/>
-                <Setter Property="Effect">
-                    <Setter.Value>
-                        <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="12" ShadowDepth="2" Direction="270"/>
-                    </Setter.Value>
-                </Setter>
             </Style>
 
             <!-- FloatingActionButton — кнопка с закруглёнными углами и градиентом -->
@@ -239,60 +234,6 @@
             </Style>
 
             <!-- ========== ГЛОБАЛЬНЫЕ СТИЛИ ========== -->
-
-            <Style TargetType="DataGrid">
-                <Setter Property="AutoGenerateColumns" Value="False"/>
-                <Setter Property="IsReadOnly" Value="True"/>
-                <Setter Property="SelectionMode" Value="Single"/>
-                <Setter Property="GridLinesVisibility" Value="None"/>
-                <Setter Property="HeadersVisibility" Value="Column"/>
-                <Setter Property="RowHeight" Value="52"/>
-                <Setter Property="CanUserResizeRows" Value="False"/>
-                <Setter Property="CanUserSortColumns" Value="True"/>
-                <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="RowBackground" Value="White"/>
-                <Setter Property="AlternatingRowBackground" Value="#FAFAFA"/>
-            </Style>
-
-            <Style TargetType="DataGridColumnHeader">
-                <Setter Property="Background" Value="#F8F9FA"/>
-                <Setter Property="Foreground" Value="#495057"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Padding" Value="16,14"/>
-                <Setter Property="BorderThickness" Value="0,0,0,2"/>
-                <Setter Property="BorderBrush" Value="#E9ECEF"/>
-                <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            </Style>
-
-            <Style TargetType="DataGridRow">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                <Setter Property="BorderBrush" Value="#F1F3F4"/>
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="Background" Value="#F8F9FA"/>
-                    </Trigger>
-                    <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="#EEF2FF"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
-
-            <Style TargetType="DataGridCell">
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Padding" Value="16,0"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Style.Triggers>
-                    <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="Transparent"/>
-                        <Setter Property="Foreground" Value="{StaticResource ForegroundBrush}"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
 
             <Style TargetType="ComboBox">
                 <Setter Property="Background" Value="White"/>

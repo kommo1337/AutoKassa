@@ -89,7 +89,7 @@ grep -A 20 "\[FTL\]" logs/autokassa-*.log
 - **Симптом:** `SqliteException: SQLite Error 5: 'database is locked'` при записи или на старте.
 - **Причина:** файл БД открыт другим процессом (второй экземпляр приложения, DB Browser, sqlite3 CLI) или висят хендлы после копирования файла поверх открытой БД.
 - **Решение:** закрой второй экземпляр и просмотрщики БД; восстановление из бэкапа выполняй только через `RestoreBackupAsync` — он вызывает `SqliteConnection.ClearAllPools()`; убедись, что при старте применился `PRAGMA journal_mode=WAL` (делает `SettingsService.MigrateAsync`).
-- **Файлы:** [`SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs) (`MigrateAsync`, `RestoreBackupAsync`), [`AppDbContext.cs`](../../AutoKassa/Services/AppDbContext.cs) (`OnConfiguring`, путь `AutoKassa.db` в папке приложения).
+- **Файлы:** [`SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs) (`MigrateAsync`, `RestoreBackupAsync`), [`AppDbContext.cs`](../../AutoKassa/Services/AppDbContext.cs) (`GetDatabasePath`, путь `AutoKassa.db` в папке приложения).
 
 ### 4.3. Данные «пропали» после удаления
 - **Симптом:** операция/категория исчезла из списков и отчётов.
@@ -122,7 +122,7 @@ grep -A 20 "\[FTL\]" logs/autokassa-*.log
 ### 5.2. Навигация падает с `InvalidOperationException` («No service for type...»)
 - **Симптом:** при `NavigateTo<TViewModel>()` исключение из `GetRequiredService`.
 - **Причина:** ViewModel не зарегистрирована в DI-контейнере ([`TRAPS.md`](TRAPS.md) §4.2).
-- **Решение:** добавь `services.AddTransient<NewViewModel>()` в `ConfigureServices`; собери заново.
+- **Решение:** зарегистрируй VM в `ConfigureServices` (page ViewModel вкладки — `AddSingleton` + `IPageViewModel`, модальную — `AddTransient`); собери заново.
 - **Файлы:** [`App.xaml.cs`](../../AutoKassa/App.xaml.cs), [`NavigationService.cs`](../../AutoKassa/Services/NavigationService.cs).
 
 ### 5.3. Параметр навигации не доходит до ViewModel
@@ -212,7 +212,7 @@ grep -A 20 "\[FTL\]" logs/autokassa-*.log
 ### 8.1. Пустой отчёт
 - **Симптом:** отчёт сформировался без строк/с нулевыми суммами.
 - **Причина:** в периоде нет неудалённых операций, подходящих под фильтры (тип, категория, тип оплаты); напоминание: долговые операции в итоги баланса/детализации не входят; отчёт по долгам берёт только `PaymentType.Debt` со статусом ≠ `NotDebt`.
-- **Решение:** расширь период, сбрось фильтры; проверь, не удалены ли операции (§4.3); для детализации/категорий учитывай лимит 5000 записей (§11.2).
+- **Решение:** расширь период, сбрось фильтры; проверь, не удалены ли операции (§4.3); для детализации/категорий учитывай лимит 1000 записей (§11.2).
 - **Файлы:** [`ReportService.cs`](../../AutoKassa/Services/ReportService.cs), [`10-reports.md`](10-reports.md).
 
 ### 8.2. Неверные итоги в отчёте
@@ -307,7 +307,7 @@ grep -A 20 "\[FTL\]" logs/autokassa-*.log
 
 ### 11.2. Высокое потребление RAM при отчётах
 - **Симптом:** рост памяти и подвисания при формировании отчётов за большой период.
-- **Причина:** отчёт «Структура по категориям» группирует операции в памяти (лимит `MaxCategoryTransactions = 5000`), «Детализация» ограничена `MaxDetailTransactions = 5000`; самостоятельные выборки без лимита и `AsNoTracking()` усугубляют проблему.
+- **Причина:** отчёт «Структура по категориям» лениво подгружает операции категории (лимит `MaxCategoryTransactions = 1000` на категорию), «Детализация» ограничена `MaxDetailTransactions = 1000`; самостоятельные выборки без лимита и `AsNoTracking()` усугубляют проблему.
 - **Решение:** используй SQL-агрегации (`GetPeriodTotalsAsync`, `GetDailyTotalsAsync`) вместо материализации; уважай лимиты; для списков — `AsNoTracking()` и пагинация.
 - **Файлы:** [`ReportService.cs`](../../AutoKassa/Services/ReportService.cs), [`TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs).
 

@@ -92,8 +92,12 @@ public class TransactionEditViewModel : ViewModelBase
 
 | Lifetime | Когда использовать | Примеры |
 |----------|-------------------|---------|
-| `Singleton` | Сервисы с состоянием приложения, событийные шины | `NavigationService`, `SettingsService`, `ToastNotificationService`, `LockService`, `DataChangeService` |
+| `Singleton` | Сервисы с состоянием приложения, событийные шины | `NavigationService`, `SettingsService`, `ToastNotificationService`, `LockService`, `DataChangeService`, `ReferenceDataCache` |
+| `Singleton` | Page ViewModel вкладок главного окна (маркер [`IPageViewModel`](../../AutoKassa/ViewModels/IPageViewModel.cs)) | `DashboardViewModel`, `TransactionsViewModel`, `CategoriesViewModel`, `CounterpartiesViewModel`, `CreditCardsViewModel`, `ReportsViewModel`, `SettingsViewModel` |
 | `Transient` | Сервисы без состояния, доменная логика | `TransactionService`, `CategoryService`, `ReportService`, `DashboardService`, `CreditCardService` |
+| `Transient` | Модальные/диалоговые ViewModel | `TransactionEditViewModel`, `CounterpartyEditViewModel`, `ReconciliationViewModel` и др. |
+
+Page ViewModel живут всё время работы приложения: `NavigationService` не вызывает у них `Dispose` при переключении вкладок, а логика `_isInitialized`/`_needsRefresh` в `OnNavigatedTo` решает, нужно ли перезагружать данные. Состояние вкладок (поиск, фильтры, страница) сохраняется между визитами — это осознанная фича.
 
 ### Главное окно и фабрики
 
@@ -110,10 +114,11 @@ services.AddSingleton<MainWindow>(provider =>
 ### DbContext
 
 ```csharp
-services.AddDbContextFactory<AppDbContext>();
+services.AddPooledDbContextFactory<AppDbContext>(options =>
+    options.AddInterceptors(new SqlitePragmaInterceptor()));
 ```
 
-Явной регистрации `AppDbContext` нет, но `AddDbContextFactory` неявно делает его разрешимым из DI (Scoped, создаётся фабрикой — поведение EF Core). Поэтому запрет прямой инъекции контекста в конструкторы закреплён не только соглашением: его контролирует `DbContextInjectionValidator` из [`tools/DocValidator`](../../tools/DocValidator/README.md). Все сервисы (включая Singleton, например `SettingsService`) создают короткоживущий контекст через `IDbContextFactory<AppDbContext>` на каждый вызов.
+Явной регистрации `AppDbContext` нет, но `AddPooledDbContextFactory` неявно делает его разрешимым из DI (Scoped, создаётся фабрикой — поведение EF Core) и дополнительно переиспользует экземпляры контекста из пула (сброс состояния при возврате — поведение EF Core). Поэтому запрет прямой инъекции контекста в конструкторы закреплён не только соглашением: его контролирует `DbContextInjectionValidator` из [`tools/DocValidator`](../../tools/DocValidator/README.md). Все сервисы (включая Singleton, например `SettingsService`) создают короткоживущий контекст через `IDbContextFactory<AppDbContext>` на каждый вызов. Per-connection PRAGMA выставляет [`SqlitePragmaInterceptor`](../../AutoKassa/Services/SqlitePragmaInterceptor.cs) при каждом открытии соединения (см. [`03-database.md`](03-database.md) §1).
 
 ---
 
@@ -224,7 +229,7 @@ public interface IAsyncInitializable
 
 ### Dispose
 
-ViewModelBase реализует `IDisposable`. При уходе с экрана `NavigationService` вызывает `DisposeViewModel(oldView)`, который отписывается от событий и освобождает ресурсы.
+ViewModelBase реализует `IDisposable`. При уходе с экрана `NavigationService` вызывает `DisposeViewModel(oldView)`, который отписывается от событий и освобождает ресурсы. Исключение — page ViewModel с маркером [`IPageViewModel`](../../AutoKassa/ViewModels/IPageViewModel.cs): они зарегистрированы как Singleton и не диспозятся при навигации (их `Dispose` вызывает DI-контейнер при завершении приложения).
 
 ### Схема жизненного цикла
 
@@ -239,7 +244,7 @@ sequenceDiagram
     User->>MainVM: Нажатие кнопки навигации
     MainVM->>NS: NavigateTo<NewViewModel>()
     NS->>OldVM: OnNavigatedFrom()
-    NS->>OldVM: Dispose()
+    NS->>OldVM: Dispose() (только если не IPageViewModel)
     NS->>NewVM: OnNavigatedTo()
     alt INavigationAware
         NewVM->>NewVM: LoadDataAsync()

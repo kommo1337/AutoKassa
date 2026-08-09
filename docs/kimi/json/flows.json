@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-07T02:14:25+03:00",
+  "lastUpdated": "2026-08-08T23:30:00+03:00",
   "flows": [
     {
       "name": "Запуск приложения",
@@ -285,18 +285,10 @@
         {
           "order": 8,
           "actor": "ViewModel",
-          "action": "Оптимистичное добавление в список",
+          "action": "Перезагрузка списка и итогов",
           "file": "ViewModels/TransactionsViewModel.cs",
-          "method": "OptimisticAddTransaction",
-          "notes": "Вставляет операцию в начало Transactions и увеличивает TotalCount."
-        },
-        {
-          "order": 9,
-          "actor": "ViewModel",
-          "action": "Перегруппировка и перезагрузка",
-          "file": "ViewModels/TransactionsViewModel.cs",
-          "method": "RefreshGroupsAsync / LoadDataAsync",
-          "notes": "Обновляет сгруппированный список и итоги, вызывает DataChangeService.NotifyDataChanged."
+          "method": "LoadDataAsync",
+          "notes": "Полная перезагрузка списка, групп и итогов (без оптимистичного добавления), вызывает DataChangeService.NotifyDataChanged."
         }
       ]
     },

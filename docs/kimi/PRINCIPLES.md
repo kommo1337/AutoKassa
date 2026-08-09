@@ -51,10 +51,13 @@ public class TransactionEditViewModel : ViewModelBase
 // ../AutoKassa/App.xaml.cs
 private void ConfigureServices(IServiceCollection services)
 {
-    services.AddDbContextFactory<AppDbContext>();
+    services.AddPooledDbContextFactory<AppDbContext>(options =>
+        options.AddInterceptors(new SqlitePragmaInterceptor()));
     services.AddSingleton<ISettingsService, SettingsService>();
     services.AddTransient<ITransactionService, TransactionService>();
-    services.AddTransient<DashboardViewModel>();
+    // Page ViewModel вкладок — Singleton + маркер IPageViewModel,
+    // модальные/диалоговые — Transient.
+    services.AddSingleton<DashboardViewModel>();
 }
 ```
 
@@ -137,6 +140,7 @@ private void ValidateName()
 ## 6. Навигация и жизненный цикл
 
 - Реализуй [`INavigationAware`](../../AutoKassa/Services/INavigationAware.cs), если ViewModel должна реагировать на смену вкладки.
+- Page ViewModel вкладок главного окна помечай маркером [`IPageViewModel`](../../AutoKassa/ViewModels/IPageViewModel.cs) и регистрируй как Singleton: `NavigationService` не диспозит их при переключении, а `_isInitialized`/`_needsRefresh` в `OnNavigatedTo` решают, нужна ли перезагрузка (повторный заход без изменений данных — без запросов к БД; состояние вкладки сохраняется между визитами).
 - Для асинхронной загрузки используй [`IAsyncInitializable`](../../AutoKassa/ViewModels/IAsyncInitializable.cs) или `RunAsync` из `ViewModelBase`.
 - Отписывайся от событий и освобождай ресурсы в `Dispose()` / `OnDispose()`.
 - После изменений данных вызывай [`IDataChangeService.NotifyDataChanged()`](../../AutoKassa/Services/IDataChangeService.cs), чтобы обновить зависимые экраны.
@@ -224,7 +228,8 @@ public static (AppDbContext context, SqliteConnection connection) Create()
 
 - Для асинхронных действий используй [`AsyncRelayCommand`](../../AutoKassa/Helpers/AsyncRelayCommand.cs) (без параметра) или `AsyncRelayCommand<T>` (с параметром). Оба класса реализуют `ICommand` напрямую — отдельного интерфейса `IAsyncRelayCommand` в проекте **нет**, свойство объявляй как `ICommand`.
 - Конструктор: `new AsyncRelayCommand(Func<Task> execute, Func<bool> canExecute = null)`. Передавай методы группой: `new AsyncRelayCommand(SaveAsync, CanSave)`.
-- Повторный запуск блокируется флагом `_isExecuting`: пока команда выполняется, `CanExecute` возвращает `false`. `CanExecuteChanged` привязан к `CommandManager.RequerySuggested`, поэтому вручную вызывать `RaiseCanExecuteChanged` не нужно.
+- Повторный запуск блокируется флагом `_isExecuting`: пока команда выполняется, `CanExecute` возвращает `false`. `CanExecuteChanged` привязан к `CommandManager.RequerySuggested`, а при входе в `Execute` и при завершении команда сама вызывает свой `RaiseCanExecuteChanged()` (точечно, только своё событие — без `CommandManager.InvalidateRequerySuggested()`), поэтому вручную вызывать его не нужно.
+- У синхронного `RelayCommand` метод `RaiseCanExecuteChanged()` вызывает только собственное событие `CanExecuteChanged` этой команды (подписка на `CommandManager.RequerySuggested` тоже сохранена) — используй его для точечного обновления одной команды, не дёргая все команды приложения через `CommandManager.InvalidateRequerySuggested()`. Такой же метод есть и у `AsyncRelayCommand`.
 - **Исключения глотаются.** `Execute` — это `async void`, весь вызов обёрнут в `try/catch`, и любое исключение уходит только в лог (`_log.Error(ex, "Ошибка выполнения асинхронной команды")`). UI о сбое **не узнаёт автоматически**: ни toast, ни диалог не появятся. Ошибки, о которых должен знать пользователь, обрабатывай внутри самого метода: `try/catch` + `_dialogService.ShowError(...)` / `_toastService.ShowError(...)`.
 - `OperationCanceledException` тоже попадёт в лог — если отмена штатная, лови её внутри метода до общего `catch` (см. §11).
 

@@ -45,6 +45,9 @@ namespace AutoKassa.Services
 
             // Включаем WAL-режим SQLite для лучшей конкурентности читателей и писателей.
             // WAL позволяет читать из БД во время записи, что критично для стабильности на слабом железе.
+            // journal_mode — персистентная настройка файла БД, достаточно выставить один раз.
+            // Остальные PRAGMA (synchronous/temp_store/cache_size) живут в рамках соединения
+            // и применяются SqlitePragmaInterceptor при каждом открытии соединения.
             await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
         }
 

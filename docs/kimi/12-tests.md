@@ -58,7 +58,7 @@ dotnet test --filter "FullyQualifiedName~Services"
 
 | Тестовый класс | Что покрывается | Примерное количество тестов |
 |----------------|-----------------|------------------------------|
-| `TransactionServiceTests` | CRUD, soft delete, restore, фильтры, пагинация, агрегации, CancellationToken, кредитки, долги | ~50+ |
+| `TransactionServiceTests` | CRUD, soft delete (включая массовый `DeleteRangeAsync`), restore (включая массовый `RestoreRangeAsync`), фильтры, пагинация, агрегации, CancellationToken, кредитки, долги | ~60+ |
 | `CategoryServiceTests` | CRUD, ExistsAsync, Delete/Deactivate, ReorderAsync | ~20 |
 | `SettingsServiceTests` | Кеш, сохранение, сброс к дефолтам, пароль, категории по умолчанию | ~10 |
 | `PasswordServiceTests` | Хеширование, верификация, edge cases | ~8 |
@@ -71,6 +71,7 @@ dotnet test --filter "FullyQualifiedName~Services"
 | `SettingsMapperTests` | Маппинг в обе стороны, Clone | ~4 |
 | `SettingsValidatorTests` | Валидация границ настроек | ~7 |
 | `TransactionListServiceTests` | Пагинация, immutable filters | ~3 |
+| `PooledDbContextFactoryTests` | Регрессия: пулинг контекстов + `MigrateAsync` (опции задаются при регистрации, не в `OnConfiguring`) | 1 |
 
 ---
 

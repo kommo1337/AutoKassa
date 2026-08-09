@@ -19,7 +19,7 @@ namespace AutoKassa.Tests.Services
             (_factory, _conn) = TestDatabase.CreateWithFactory();
             _settingsSvc = new SettingsService(_factory);
             _ctx = _factory.CreateDbContext();
-            var creditCardService = new CreditCardService(_factory);
+            var creditCardService = new CreditCardService(_factory, new ReferenceDataCache(_factory, new DataChangeService()));
             _svc = new ReportService(_factory, _settingsSvc, creditCardService);
         }
 

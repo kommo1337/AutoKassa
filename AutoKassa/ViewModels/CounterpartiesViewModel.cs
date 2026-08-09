@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -14,7 +14,7 @@ namespace AutoKassa.ViewModels
     /// <summary>
     /// ViewModel экрана справочника контрагентов
     /// </summary>
-    public class CounterpartiesViewModel : ViewModelBase, INavigationAware
+    public class CounterpartiesViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly ICounterpartyService _counterpartyService;
         private readonly IDebtService _debtService;
@@ -23,7 +23,7 @@ namespace AutoKassa.ViewModels
         private readonly IDataChangeService _dataChangeService;
         private bool _isInitialized;
         private bool _needsRefresh;
-        private CancellationTokenSource _navigateCts;
+        private CancellationTokenSource _searchDebounceCts;
         private int? _pendingCounterpartyId;
 
         private ObservableCollection<CounterpartyViewModel> _items;
@@ -64,18 +64,7 @@ namespace AutoKassa.ViewModels
             {
                 _needsRefresh = false;
                 _isInitialized = true;
-
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(50, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    await LoadAsync();
-                });
+                RunAsync(LoadAsync);
             }
             else if (_pendingCounterpartyId.HasValue)
             {
@@ -166,8 +155,31 @@ namespace AutoKassa.ViewModels
             set
             {
                 if (SetProperty(ref _searchText, value))
-                    _ = LoadAsync();
+                    DebounceSearch();
             }
+        }
+
+        private void DebounceSearch()
+        {
+            var newCts = new CancellationTokenSource();
+            var oldCts = Interlocked.Exchange(ref _searchDebounceCts, newCts);
+            oldCts?.Cancel();
+            oldCts?.Dispose();
+            var ct = newCts.Token;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(350, ct);
+                    if (ct.IsCancellationRequested) return;
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+                    {
+                        if (!ct.IsCancellationRequested) await LoadAsync();
+                    });
+                }
+                catch (TaskCanceledException) { }
+            });
         }
 
         public bool IsLoading
@@ -228,16 +240,16 @@ namespace AutoKassa.ViewModels
                     .ThenBy(c => c.Name)
                     .ToList();
 
-                Items.Clear();
-                foreach (var c in filtered)
-                {
-                    debtByCounterparty.TryGetValue(c.Id, out var debtAmount);
-                    var vm = new CounterpartyViewModel(c, EditCommand, DeleteCommand)
+                // Одно присваивание вместо Clear+Add: одно уведомление коллекции, меньше перестроек списка
+                Items = new ObservableCollection<CounterpartyViewModel>(filtered
+                    .Select(c =>
                     {
-                        ActiveDebtAmount = debtAmount
-                    };
-                    Items.Add(vm);
-                }
+                        debtByCounterparty.TryGetValue(c.Id, out var debtAmount);
+                        return new CounterpartyViewModel(c, EditCommand, DeleteCommand)
+                        {
+                            ActiveDebtAmount = debtAmount
+                        };
+                    }));
 
                 OnPropertyChanged(nameof(HasItems));
 
@@ -287,8 +299,7 @@ namespace AutoKassa.ViewModels
             var vm = new CounterpartyEditViewModel(_counterpartyService, _dialogService, null);
             vm.OnClosed = () =>
             {
-                IsModalOpen = false;
-                EditViewModel = null;
+                CloseEditModal();
                 RunAsync(LoadAsync);
                 _dataChangeService?.NotifyDataChanged();
             };
@@ -303,13 +314,23 @@ namespace AutoKassa.ViewModels
             var vm = new CounterpartyEditViewModel(_counterpartyService, _dialogService, item.Counterparty);
             vm.OnClosed = () =>
             {
-                IsModalOpen = false;
-                EditViewModel = null;
+                CloseEditModal();
                 RunAsync(LoadAsync);
                 _dataChangeService?.NotifyDataChanged();
             };
             EditViewModel = vm;
             IsModalOpen = true;
+        }
+
+        /// <summary>
+        /// Закрыть модальное окно контрагента: ViewModel освобождается и обнуляется,
+        /// чтобы её представление пересоздавалось при следующем открытии.
+        /// </summary>
+        private void CloseEditModal()
+        {
+            IsModalOpen = false;
+            (_editViewModel as IDisposable)?.Dispose();
+            EditViewModel = null;
         }
 
         private async Task DeleteAsync(CounterpartyViewModel? item)
@@ -336,9 +357,9 @@ namespace AutoKassa.ViewModels
         protected override void OnDispose()
         {
             _dataChangeService.DataChanged -= OnDataChanged;
-            var navCts = Interlocked.Exchange(ref _navigateCts, null);
-            navCts?.Cancel();
-            navCts?.Dispose();
+            var searchCts = Interlocked.Exchange(ref _searchDebounceCts, null);
+            searchCts?.Cancel();
+            searchCts?.Dispose();
             (_editViewModel as IDisposable)?.Dispose();
             base.OnDispose();
         }

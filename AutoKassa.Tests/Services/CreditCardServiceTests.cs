@@ -21,7 +21,7 @@ namespace AutoKassa.Tests.Services
             _conn = conn;
             _factory = factory;
             _ctx = factory.CreateDbContext();
-            _svc = new CreditCardService(factory);
+            _svc = new CreditCardService(factory, new ReferenceDataCache(factory, new DataChangeService()));
         }
 
         public void Dispose()

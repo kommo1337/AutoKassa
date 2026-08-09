@@ -4,7 +4,6 @@ using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.Services.Dashboard;
 using AutoKassa.Services.Transactions;
-using OxyPlot;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Windows.Input;
@@ -14,7 +13,7 @@ namespace AutoKassa.ViewModels
     /// <summary>
     /// ViewModel для главного экрана (Dashboard)
     /// </summary>
-    public class DashboardViewModel : ViewModelBase, INavigationAware
+    public class DashboardViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly ITransactionService _transactionService;
         private readonly IDialogService _dialogService;
@@ -53,8 +52,7 @@ namespace AutoKassa.ViewModels
         private Transaction _selectedTransaction;
         private bool _hasTransactions;
 
-        // График
-        private PlotModel _chartModel;
+        // Загрузка
         private bool _isLoading;
 
         // Сгруппированные операции и панели
@@ -64,8 +62,6 @@ namespace AutoKassa.ViewModels
         private bool _hasTopExpenses;
         private bool _hasTopIncomes;
 
-        // Debounce навигации — не запускаем загрузку, если пользователь быстро ушёл
-        private CancellationTokenSource _navigateCts;
         private int _statsCount;
         private int _statsDays;
         private decimal _statsAvgExpense;
@@ -132,7 +128,7 @@ namespace AutoKassa.ViewModels
             TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
             OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
             RefreshCommand = new RelayCommand(_ => RunAsync(LoadDataAsync));
-            CloseModalCommand = new RelayCommand(_ => { if (IsModalOpen) IsModalOpen = false; });
+            CloseModalCommand = new RelayCommand(_ => { if (IsModalOpen) CloseEditModal(); });
 
             // Команды операций (параметр = конкретная транзакция или null → используем SelectedTransaction)
             OpenTransactionCommand = new RelayCommand(
@@ -159,18 +155,7 @@ namespace AutoKassa.ViewModels
             {
                 _needsRefresh = false;
                 _isInitialized = true;
-
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(1, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    await InitializeAsync();
-                });
+                RunAsync(InitializeAsync);
             }
         }
 
@@ -498,8 +483,9 @@ namespace AutoKassa.ViewModels
                 if (SetProperty(ref _selectedTransaction, value))
                 {
                     // CanExecute команд операций зависит от SelectedTransaction —
-                    // просим CommandManager пересчитать состояние кнопок
-                    CommandManager.InvalidateRequerySuggested();
+                    // обновляем только эти команды, а не все команды приложения
+                    OpenTransactionCommand.RaiseCanExecuteChanged();
+                    EditTransactionCommand.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -515,16 +501,7 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
-        #region Свойства графика
-
-        /// <summary>
-        /// Модель графика OxyPlot
-        /// </summary>
-        public PlotModel ChartModel
-        {
-            get => _chartModel;
-            set => SetProperty(ref _chartModel, value);
-        }
+        #region Свойства загрузки
 
         /// <summary>
         /// Идет загрузка
@@ -650,8 +627,8 @@ namespace AutoKassa.ViewModels
         public ICommand OpenAddTransactionCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand CloseModalCommand { get; }
-        public ICommand OpenTransactionCommand { get; }
-        public ICommand EditTransactionCommand { get; }
+        public RelayCommand OpenTransactionCommand { get; }
+        public RelayCommand EditTransactionCommand { get; }
         public ICommand DeleteTransactionCommand { get; }
         public ICommand SelectTransactionCommand { get; }
         public ICommand NavigateToAllTransactionsCommand { get; }
@@ -753,8 +730,6 @@ namespace AutoKassa.ViewModels
             TotalCreditDebt = cr.TotalDebt;
             NextCreditPaymentDate = cr.NextPaymentDate;
             NextCreditPaymentAmount = cr.NextPaymentAmount;
-
-            ChartModel = data.ChartModel;
         }
 
         /// <summary>
@@ -809,14 +784,15 @@ namespace AutoKassa.ViewModels
             var callbacks = new DashboardTransactionCallbacks(
                 OnSaved: async () =>
                 {
-                    IsModalOpen = false;
-                    if (EditViewModel?.SavedTransaction != null)
-                        ApplyOptimisticAdd(EditViewModel.SavedTransaction);
+                    var savedTransaction = EditViewModel?.SavedTransaction;
+                    CloseEditModal();
+                    if (savedTransaction != null)
+                        ApplyOptimisticAdd(savedTransaction);
                     await LoadDataAsync();
                     _dataChangeService?.NotifyDataChanged();
                 },
                 OnSavedKeepOpen: async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); },
-                OnCancelled: () => { IsModalOpen = false; });
+                OnCancelled: () => CloseEditModal());
 
             var vm = _transactionCoordinator.OpenAdd(callbacks);
             EditViewModel = vm;
@@ -834,16 +810,27 @@ namespace AutoKassa.ViewModels
             var callbacks = new DashboardTransactionCallbacks(
                 OnSaved: async () =>
                 {
-                    IsModalOpen = false;
+                    CloseEditModal();
                     await LoadDataAsync();
                     _dataChangeService?.NotifyDataChanged();
                 },
                 OnSavedKeepOpen: async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); },
-                OnCancelled: () => { IsModalOpen = false; });
+                OnCancelled: () => CloseEditModal());
 
             var vm = _transactionCoordinator.OpenEdit(t, callbacks);
             EditViewModel = vm;
             IsModalOpen = true;
+        }
+
+        /// <summary>
+        /// Закрыть модальное окно операции: ViewModel освобождается и обнуляется,
+        /// чтобы её представление пересоздавалось при следующем открытии.
+        /// </summary>
+        private void CloseEditModal()
+        {
+            IsModalOpen = false;
+            (_editViewModel as IDisposable)?.Dispose();
+            EditViewModel = null;
         }
 
         /// <summary>
@@ -906,10 +893,6 @@ namespace AutoKassa.ViewModels
             var cts = System.Threading.Interlocked.Exchange(ref _loadCts, null);
             cts?.Cancel();
             cts?.Dispose();
-
-            var navCts = Interlocked.Exchange(ref _navigateCts, null);
-            navCts?.Cancel();
-            navCts?.Dispose();
 
             (_editViewModel as IDisposable)?.Dispose();
 

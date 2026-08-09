@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
              xmlns:enums="clr-namespace:AutoKassa.Models.Enums"
+             xmlns:vm="clr-namespace:AutoKassa.ViewModels"
              xmlns:views="clr-namespace:AutoKassa.Views"
              Background="#F0F2F5">
 
@@ -1395,9 +1396,12 @@
                                                 </Grid>
                                             </Border>
 
-                                            <!-- Per-group inline add row -->
-                                            <Border Visibility="{Binding IsInlineOpen, Converter={StaticResource BoolToVisibilityConverter}}"
-                                                    Background="#F8FFFE" BorderBrush="#D1FAE5" BorderThickness="0,0,0,1"
+                                            <!-- Per-group inline add row (лениво: визуальное дерево редактора
+                                                 строится только у группы с открытым редактором) -->
+                                            <ContentControl Content="{Binding InlineEditorTarget}">
+                                                <ContentControl.Resources>
+                                                    <DataTemplate DataType="{x:Type vm:SelectableDateGroup}">
+                                            <Border Background="#F8FFFE" BorderBrush="#D1FAE5" BorderThickness="0,0,0,1"
                                                     Padding="14,8,20,8">
                                                 <Grid>
                                                     <Grid.RowDefinitions>
@@ -1762,6 +1766,9 @@
                                                     </Border>
                                                 </Grid>
                                             </Border>
+                                                    </DataTemplate>
+                                                </ContentControl.Resources>
+                                            </ContentControl>
 
                                             <!-- Transaction rows -->
                                             <ItemsControl ItemsSource="{Binding Items}"
@@ -2038,8 +2045,15 @@
                     </Border.Effect>
                 </Border>
                 <!-- Content layer (no Effect — text stays crisp) -->
+                <!-- Модалка создаётся лениво: пока EditViewModel == null, представление не строится -->
                 <Border Background="White" CornerRadius="20" ClipToBounds="True">
-                    <views:TransactionEditView DataContext="{Binding EditViewModel}"/>
+                    <ContentControl Content="{Binding EditViewModel}">
+                        <ContentControl.Resources>
+                            <DataTemplate DataType="{x:Type vm:TransactionEditViewModel}">
+                                <views:TransactionEditView/>
+                            </DataTemplate>
+                        </ContentControl.Resources>
+                    </ContentControl>
                 </Border>
             </Grid>
 

@@ -24,6 +24,11 @@ namespace AutoKassa.Services
         Task<CreditCard?> GetCardWithPurchasesAsync(int id, CancellationToken ct = default);
 
         /// <summary>
+        /// Получить общее количество покупок карты (для пометки об усечении истории)
+        /// </summary>
+        Task<int> GetCardPurchasesCountAsync(int cardId, CancellationToken ct = default);
+
+        /// <summary>
         /// Создать новую кредитную карту
         /// </summary>
         Task<CreditCard> CreateAsync(CreditCard card, CancellationToken ct = default);

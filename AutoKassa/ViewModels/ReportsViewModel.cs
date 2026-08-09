@@ -1,4 +1,3 @@
-using System.Threading;
 using System.Windows.Input;
 using AutoKassa.Helpers;
 using AutoKassa.Services;
@@ -6,13 +5,12 @@ using AutoKassa.ViewModels.Reports;
 
 namespace AutoKassa.ViewModels
 {
-    public class ReportsViewModel : ViewModelBase, INavigationAware
+    public class ReportsViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly IDataChangeService _dataChangeService;
         private readonly IReportViewModelFactory _reportFactory;
         private BaseReportViewModel _currentReport;
         private bool _isInitialized;
-        private CancellationTokenSource _navigateCts;
 
         public ReportsViewModel(IDataChangeService dataChangeService, IReportViewModelFactory reportFactory)
         {
@@ -59,32 +57,11 @@ namespace AutoKassa.ViewModels
             if (!_isInitialized)
             {
                 _isInitialized = true;
-
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(50, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    ShowBalanceReport();
-                });
+                ShowBalanceReport();
             }
             else if (CurrentReport != null && !CurrentReport.IsInitialized)
             {
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(50, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    await CurrentReport.InitializeAsync();
-                });
+                RunAsync(() => CurrentReport.InitializeAsync());
             }
         }
 
@@ -148,9 +125,6 @@ namespace AutoKassa.ViewModels
         protected override void OnDispose()
         {
             _dataChangeService.DataChanged -= OnDataChanged;
-            var navCts = Interlocked.Exchange(ref _navigateCts, null);
-            navCts?.Cancel();
-            navCts?.Dispose();
             DisposeReport(CurrentReport);
             CurrentReport = null;
             base.OnDispose();

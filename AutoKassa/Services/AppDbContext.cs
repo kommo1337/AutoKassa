@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -61,17 +61,22 @@ namespace AutoKassa.Services
         /// <summary>
         /// Конфигурация подключения к БД
         /// </summary>
+        /// <summary>
+        /// Путь к файлу БД в папке приложения
+        /// </summary>
+        public static string GetDatabasePath() =>
+            System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutoKassa.db");
+
+        /// <summary>
+        /// Резервная конфигурация для design-time (dotnet ef) и прямого создания контекста.
+        /// В приложении опции задаются при регистрации в App.ConfigureServices:
+        /// при пулинге контекстов модифицировать DbContextOptions здесь запрещено.
+        /// </summary>
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
             if (!optionsBuilder.IsConfigured)
             {
-                // Путь к файлу БД в папке приложения
-                var dbPath = System.IO.Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory,
-                    "AutoKassa.db"
-                );
-
-                optionsBuilder.UseSqlite($"Data Source={dbPath}");
+                optionsBuilder.UseSqlite($"Data Source={GetDatabasePath()}");
             }
         }
 

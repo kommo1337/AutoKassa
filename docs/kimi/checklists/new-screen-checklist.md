@@ -14,7 +14,7 @@
 ## Implementation
 - [ ] Create `NewScreenViewModel : ViewModelBase` in `AutoKassa/ViewModels/`.
 - [ ] Create `NewScreenView.xaml` (UserControl) in `AutoKassa/Views/`.
-- [ ] Register VM in DI in `AutoKassa/App.xaml.cs` (`services.AddTransient<NewScreenViewModel>()`).
+- [ ] Register VM in DI in `AutoKassa/App.xaml.cs`: page VM of a main-window tab — `services.AddSingleton<NewScreenViewModel>()` + `IPageViewModel` marker; modal/dialog VM — `services.AddTransient<NewScreenViewModel>()`.
 - [ ] Add `DataTemplate` in `AutoKassa/MainWindow.xaml`.
 - [ ] Add navigation command in `MainWindowViewModel`.
 - [ ] Add sidebar button in `MainWindow.xaml` if required.

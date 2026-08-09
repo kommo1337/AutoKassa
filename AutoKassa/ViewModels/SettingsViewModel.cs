@@ -8,12 +8,11 @@ using AutoKassa.Services.Settings;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
 {
-    public class SettingsViewModel : ViewModelBase, INavigationAware
+    public class SettingsViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly ISettingsService _settingsService;
         private readonly IDialogService _dialogService;
@@ -28,7 +27,6 @@ namespace AutoKassa.ViewModels
 
         private AppSettings _currentSettings;
         private AppSettings _originalSettings;
-        private CancellationTokenSource _navigateCts;
         private bool _isInitialized;
         private bool _needsRefresh;
 
@@ -154,18 +152,7 @@ namespace AutoKassa.ViewModels
             {
                 _needsRefresh = false;
                 _isInitialized = true;
-
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(50, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    await LoadSettingsAsync();
-                });
+                RunAsync(LoadSettingsAsync);
             }
         }
 
@@ -643,9 +630,6 @@ namespace AutoKassa.ViewModels
         {
             _dataChangeService.DataChanged -= OnDataChanged;
 
-            var navCts = Interlocked.Exchange(ref _navigateCts, null);
-            navCts?.Cancel();
-            navCts?.Dispose();
             base.OnDispose();
         }
 

@@ -23,7 +23,7 @@
 1. Прочитать [`PRINCIPLES.md`](PRINCIPLES.md), [`TRAPS.md`](TRAPS.md), [`00-quickstart.md`](00-quickstart.md), [`02-architecture.md`](02-architecture.md), [`07-viewmodels.md`](07-viewmodels.md), [`08-views.md`](08-views.md), [`json/relationships.json`](json/relationships.json), [`json/viewmodels.json`](json/viewmodels.json).
 2. Создать `NewScreenViewModel : ViewModelBase` в `AutoKassa/ViewModels/`.
 3. Создать `NewScreenView.xaml` (UserControl) в `AutoKassa/Views/`.
-4. Зарегистрировать VM в DI в `App.xaml.cs` (`services.AddTransient<NewScreenViewModel>()`).
+4. Зарегистрировать VM в DI в `App.xaml.cs`: page ViewModel вкладки — `services.AddSingleton<NewScreenViewModel>()` + маркер `IPageViewModel`; модальную/диалоговую — `services.AddTransient<NewScreenViewModel>()`.
 5. Добавить `DataTemplate` в `MainWindow.xaml`.
 6. Добавить команду навигации в `MainWindowViewModel` и кнопку в сайдбар, если требуется.
 7. Реализовать `IAsyncInitializable` / `RunAsync` для асинхронной загрузки данных.

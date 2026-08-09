@@ -11,7 +11,7 @@
     { "name": "Entity Framework Core", "version": "10.0.8", "purpose": "ORM и миграции" },
     { "name": "SQLite / SQLitePCLRaw", "version": "3.50.4.5 (SourceGear.sqlite3)", "purpose": "Локальная БД; runtime-замена уязвимого нативного бинарника" },
     { "name": "Microsoft.Extensions.DependencyInjection", "version": "10.0.8", "purpose": "DI-контейнер" },
-    { "name": "OxyPlot.Wpf", "version": "2.2.0", "purpose": "Графики на дашборде и в отчётах" },
+    { "name": "OxyPlot.Wpf", "version": "2.2.0", "purpose": "Графики в отчётах" },
     { "name": "QuestPDF", "version": "2026.5.0", "purpose": "Экспорт отчётов в PDF" },
     { "name": "ClosedXML", "version": "0.105.0", "purpose": "Экспорт отчётов в Excel" },
     { "name": "BCrypt.Net-Next", "version": "4.2.0", "purpose": "Хеширование паролей и ответов" },

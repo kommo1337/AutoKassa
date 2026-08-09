@@ -78,7 +78,7 @@ AutoKassa.sln
 
 1. Создать ViewModel, наследующий [`ViewModelBase`](../../AutoKassa/Helpers/ViewModelBase.cs).
 2. Создать View (UserControl/XAML).
-3. Зарегистрировать VM в DI: `services.AddTransient<NewViewModel>()` в [`App.xaml.cs`](../../AutoKassa/App.xaml.cs).
+3. Зарегистрировать VM в DI в [`App.xaml.cs`](../../AutoKassa/App.xaml.cs): page ViewModel вкладки — `services.AddSingleton<NewViewModel>()` + маркер `IPageViewModel`; модальную/диалоговую — `services.AddTransient<NewViewModel>()`.
 4. Добавить `DataTemplate` в [`MainWindow.xaml`](../../AutoKassa/MainWindow.xaml).
 5. Добавить команду навигации в [`MainWindowViewModel`](../../AutoKassa/ViewModels/MainWindowViewModel.cs) и кнопку в сайдбар.
 6. Обновить [`json/viewmodels.json`](json/viewmodels.json) и [`json/relationships.json`](json/relationships.json).

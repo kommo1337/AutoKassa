@@ -24,6 +24,9 @@ namespace AutoKassa.ViewModels
         private Category _selectedCategory;
         private string _description = string.Empty;
         private List<Category> _categories = new List<Category>();
+        private List<Category> _allCategories = new List<Category>();
+        private int? _defaultIncomeCategoryId;
+        private int? _defaultExpenseCategoryId;
         private bool _isInitialized;
         private bool _isRepayment;
         private bool _hasAttemptedSave;
@@ -174,8 +177,9 @@ namespace AutoKassa.ViewModels
             {
                 if (SetProperty(ref _type, value))
                 {
+                    // Категории обоих типов уже загружены — фильтруем в памяти, без запроса к БД
                     if (_isInitialized)
-                        RunAsync(LoadCategoriesAsync);
+                        ApplyCategoryFilter();
                     OnPropertyChanged(nameof(IsIncome));
                     OnPropertyChanged(nameof(IsExpense));
                     OnPropertyChanged(nameof(SaveButtonText));
@@ -515,27 +519,46 @@ namespace AutoKassa.ViewModels
         {
             try
             {
-                var categories = await _categoryService.GetByTypeAsync(Type, activeOnly: true);
-                Categories = categories ?? new List<Category>();
+                // Загружаем категории обоих типов один раз — дальше переключение
+                // «Доход/Расход» фильтрует их в памяти (ApplyCategoryFilter).
+                var categories = await _categoryService.GetActiveAsync();
+                _allCategories = categories ?? new List<Category>();
 
-                if (SelectedCategory == null || SelectedCategory.Type != Type)
-                {
-                    var defaultCategoryId = await _settingsService.GetDefaultCategoryIdAsync(Type);
+                var settings = await _settingsService.GetSettingsAsync();
+                _defaultIncomeCategoryId = settings.DefaultIncomeCategoryId;
+                _defaultExpenseCategoryId = settings.DefaultExpenseCategoryId;
 
-                    if (defaultCategoryId.HasValue && Categories.Count > 0)
-                        SelectedCategory = Categories.FirstOrDefault(c => c.Id == defaultCategoryId.Value);
-
-                    if (SelectedCategory == null && Categories.Count > 0)
-                        SelectedCategory = Categories.FirstOrDefault();
-                }
-
-                ValidateCategory();
+                ApplyCategoryFilter();
             }
             catch (Exception ex)
             {
+                _allCategories = new List<Category>();
                 Categories = new List<Category>();
                 _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Фильтрует уже загруженные категории по текущему типу операции в памяти.
+        /// </summary>
+        private void ApplyCategoryFilter()
+        {
+            Categories = _allCategories.Where(c => c.Type == Type).ToList();
+
+            if (SelectedCategory == null || SelectedCategory.Type != Type)
+            {
+                var defaultCategoryId = Type == OperationType.Income
+                    ? _defaultIncomeCategoryId
+                    : _defaultExpenseCategoryId;
+
+                if (defaultCategoryId.HasValue && Categories.Count > 0)
+                    SelectedCategory = Categories.FirstOrDefault(c => c.Id == defaultCategoryId.Value);
+
+                if (SelectedCategory == null && Categories.Count > 0)
+                    SelectedCategory = Categories.FirstOrDefault();
+            }
+
+            ValidateCategory();
         }
 
         private async System.Threading.Tasks.Task LoadCreditCardsAsync()
@@ -582,6 +605,7 @@ namespace AutoKassa.ViewModels
             vm.OnClosed = async () =>
             {
                 IsCategoryManagerOpen = false;
+                (CategoryManagerViewModel as IDisposable)?.Dispose();
                 CategoryManagerViewModel = null;
                 await LoadCategoriesAsync();
             };

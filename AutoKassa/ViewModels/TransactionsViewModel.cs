@@ -21,7 +21,7 @@ namespace AutoKassa.ViewModels
         Custom
     }
 
-    public class TransactionsViewModel : ViewModelBase, INavigationAware
+    public class TransactionsViewModel : ViewModelBase, INavigationAware, IPageViewModel
     {
         private readonly ITransactionService _transactionService;
         private readonly ITransactionListService _transactionListService;
@@ -50,7 +50,6 @@ namespace AutoKassa.ViewModels
         private int _pageSize = 100;
         private CancellationTokenSource _loadCts;
         private CancellationTokenSource _searchDebounceCts;
-        private CancellationTokenSource _navigateCts;
         private decimal _totalIncome;
         private decimal _totalExpense;
         private static readonly CultureInfo RuCulture = new("ru-RU");
@@ -192,18 +191,7 @@ namespace AutoKassa.ViewModels
             {
                 _needsRefresh = false;
                 _isInitialized = true;
-
-                var cts = new CancellationTokenSource();
-                var old = Interlocked.Exchange(ref _navigateCts, cts);
-                old?.Cancel();
-                old?.Dispose();
-
-                RunAsync(async () =>
-                {
-                    try { await Task.Delay(1, cts.Token); }
-                    catch (OperationCanceledException) { return; }
-                    await InitializeAsync();
-                });
+                RunAsync(InitializeAsync);
             }
         }
 
@@ -289,8 +277,9 @@ namespace AutoKassa.ViewModels
                 if (SetProperty(ref _selectedTransaction, value))
                 {
                     // CanExecute команд Edit/Delete зависит от SelectedTransaction —
-                    // просим CommandManager пересчитать состояние кнопок
-                    CommandManager.InvalidateRequerySuggested();
+                    // обновляем только эти команды, а не все команды приложения
+                    EditCommand.RaiseCanExecuteChanged();
+                    DeleteCommand.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -571,8 +560,8 @@ namespace AutoKassa.ViewModels
 
         public ICommand LoadCommand { get; }
         public ICommand AddCommand { get; }
-        public ICommand EditCommand { get; }
-        public ICommand DeleteCommand { get; }
+        public RelayCommand EditCommand { get; }
+        public RelayCommand DeleteCommand { get; }
         public ICommand SelectTransactionCommand { get; }
         public ICommand ApplyFiltersCommand { get; }
         public ICommand ResetFiltersCommand { get; }
@@ -701,8 +690,8 @@ namespace AutoKassa.ViewModels
                 var result = await _transactionListService.LoadNextPageAsync(request);
 
                 _currentPage = result.CurrentPage;
-                foreach (var t in result.Transactions)
-                    Transactions.Add(t);
+                // Одно уведомление коллекции вместо N — меньше перестроек списка
+                Transactions = new ObservableCollection<Transaction>(Transactions.Concat(result.Transactions));
 
                 OnPropertyChanged(nameof(DisplayInfo));
                 OnPropertyChanged(nameof(CanLoadMore));
@@ -805,8 +794,8 @@ namespace AutoKassa.ViewModels
             try
             {
                 var deletedIds = selected.Select(t => t.Id).ToList();
-                foreach (var id in deletedIds)
-                    await _transactionService.DeleteAsync(id);
+                // Массовое удаление одним контекстом и одной транзакцией БД
+                await _transactionService.DeleteRangeAsync(deletedIds);
 
                 await LoadDataAsync();
                 _dataChangeService?.NotifyDataChanged();
@@ -816,8 +805,8 @@ namespace AutoKassa.ViewModels
                     $"Удалено {count} {_transactionSelectionService.GetCountWord(count)}",
                     async () =>
                     {
-                        foreach (var id in deletedIds)
-                            await _transactionService.RestoreAsync(id);
+                        // Массовое восстановление одним контекстом и одной транзакцией БД
+                        await _transactionService.RestoreRangeAsync(deletedIds);
                         await LoadDataAsync();
                     });
             }
@@ -908,14 +897,12 @@ namespace AutoKassa.ViewModels
             var vm = _transactionEditViewModelFactory.CreateForAdd();
             vm.OnSaved = async () =>
             {
-                IsModalOpen = false;
-                if (vm.SavedTransaction != null)
-                    OptimisticAddTransaction(vm.SavedTransaction);
+                CloseEditModal();
                 await LoadDataAsync();
                 _dataChangeService?.NotifyDataChanged();
             };
             vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnCancelled = () => { IsModalOpen = false; };
+            vm.OnCancelled = () => CloseEditModal();
             EditViewModel = vm;
             IsModalOpen = true;
         }
@@ -925,24 +912,22 @@ namespace AutoKassa.ViewModels
             if (transaction == null) return;
 
             var vm = _transactionEditViewModelFactory.CreateForEdit(transaction);
-            vm.OnSaved = async () => { IsModalOpen = false; await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
+            vm.OnSaved = async () => { CloseEditModal(); await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
             vm.OnSavedKeepOpen = async () => { await LoadDataAsync(); _dataChangeService?.NotifyDataChanged(); };
-            vm.OnCancelled = () => { IsModalOpen = false; };
+            vm.OnCancelled = () => CloseEditModal();
             EditViewModel = vm;
             IsModalOpen = true;
         }
 
         /// <summary>
-        /// Оптимистично добавляет операцию в UI до завершения полной перезагрузки.
-        /// Это устраняет визуальную задержку на слабом железе.
+        /// Закрыть модальное окно операции: ViewModel освобождается и обнуляется,
+        /// чтобы её представление пересоздавалось при следующем открытии.
         /// </summary>
-        private void OptimisticAddTransaction(Transaction transaction)
+        private void CloseEditModal()
         {
-            var list = Transactions.ToList();
-            list.Insert(0, transaction);
-            Transactions = new ObservableCollection<Transaction>(list);
-            TotalCount++;
-            RunAsync(RefreshGroupsAsync);
+            IsModalOpen = false;
+            (_editViewModel as IDisposable)?.Dispose();
+            EditViewModel = null;
         }
 
         private async Task DeleteTransactionAsync(Transaction t)
@@ -954,9 +939,7 @@ namespace AutoKassa.ViewModels
             try
             {
                 await _transactionService.DeleteAsync(deletedId);
-                Transactions.Remove(t);
-                TotalCount--;
-                await RefreshGroupsAsync();
+                await LoadDataAsync();
                 _dataChangeService?.NotifyDataChanged();
 
                 _toastService.ShowDeleteWithUndo(
@@ -1088,9 +1071,6 @@ namespace AutoKassa.ViewModels
             var sCts = Interlocked.Exchange(ref _searchDebounceCts, null);
             sCts?.Cancel();
             sCts?.Dispose();
-            var navCts = Interlocked.Exchange(ref _navigateCts, null);
-            navCts?.Cancel();
-            navCts?.Dispose();
 
             (_editViewModel as IDisposable)?.Dispose();
 

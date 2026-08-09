@@ -39,9 +39,22 @@ namespace AutoKassa.Services
         Task DeleteAsync(int id, CancellationToken ct = default);
 
         /// <summary>
+        /// Удалить несколько операций одним контекстом и одной транзакцией БД (soft delete).
+        /// Каскадная логика (покупки по кредитным картам, погашения долгов) — как у DeleteAsync.
+        /// </summary>
+        Task DeleteRangeAsync(IEnumerable<int> ids, CancellationToken ct = default);
+
+        /// <summary>
         /// Восстановить ранее удалённую операцию (отмена soft delete)
         /// </summary>
         Task RestoreAsync(int id, CancellationToken ct = default);
+
+        /// <summary>
+        /// Восстановить несколько ранее удалённых операций одним контекстом и одной транзакцией БД.
+        /// Каскадная логика (покупки по кредитным картам, FIFO-распределение погашений,
+        /// восстановление погашений долгов, пересчёт статусов) — как у RestoreAsync.
+        /// </summary>
+        Task RestoreRangeAsync(IEnumerable<int> ids, CancellationToken ct = default);
 
         /// <summary>
         /// Проверяет, является ли операция погашением долга.
@@ -57,6 +70,11 @@ namespace AutoKassa.Services
         /// Получить суммарные доходы/расходы за период (SQL-агрегация, без загрузки всех записей)
         /// </summary>
         Task<(decimal Income, decimal Expense, int IncomeCount, int ExpenseCount)> GetPeriodTotalsAsync(DateTime from, DateTime to, PaymentType? paymentType = null, CancellationToken ct = default);
+
+        /// <summary>
+        /// Получить суммы доходов/расходов за период в разрезе типа оплаты (один SQL GROUP BY вместо запроса на каждый тип)
+        /// </summary>
+        Task<List<(PaymentType PaymentType, decimal Income, decimal Expense)>> GetPeriodTotalsByPaymentTypeAsync(DateTime from, DateTime to, CancellationToken ct = default);
 
         /// <summary>
         /// Получить суммы доходов/расходов по дням за период (для графиков и группировки)

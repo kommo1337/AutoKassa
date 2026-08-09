@@ -1,6 +1,5 @@
 using AutoKassa.Models;
 using AutoKassa.ViewModels;
-using OxyPlot;
 
 namespace AutoKassa.Services.Dashboard
 {
@@ -14,8 +13,7 @@ namespace AutoKassa.Services.Dashboard
         DashboardRecent Recent,
         DashboardToday Today,
         DashboardCash Cash,
-        DashboardCredit Credit,
-        PlotModel ChartModel);
+        DashboardCredit Credit);
 
     /// <summary>
     /// Сводка доходов/расходов/прибыли за период.

@@ -60,7 +60,7 @@
 |-----------|-------------|
 | `EnumValidator` | enum из `AutoKassa/Models/Enums/*.cs` vs [`json/enums.json`](json/enums.json) |
 | `ViewValidator` | XAML-файлы vs [`json/relationships.json`](json/relationships.json) |
-| `DiLifetimeValidator` | DI-регистрации (lifetime) в `App.xaml.cs` vs [`json/services.json`](json/services.json); учитывает неявную Scoped-регистрацию `AppDbContext` через `AddDbContextFactory` |
+| `DiLifetimeValidator` | DI-регистрации (lifetime) в `App.xaml.cs` vs [`json/services.json`](json/services.json); учитывает неявную Scoped-регистрацию `AppDbContext` через `AddDbContextFactory`/`AddPooledDbContextFactory` |
 | `DbContextInjectionValidator` | Запрет прямой инъекции `AppDbContext` в конструкторы (доступ к БД — только через `IDbContextFactory<AppDbContext>`) |
 | `ModelValidator` | Сущности vs [`json/models.json`](json/models.json) |
 | `ViewModelValidator` | ViewModels vs [`json/viewmodels.json`](json/viewmodels.json) |
