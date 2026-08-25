@@ -86,6 +86,26 @@ namespace AutoKassa.Tests.Services
             return t;
         }
 
+        private Transaction SeedReplenishmentTransaction(int creditCardId, decimal amount, DateTime? date = null)
+        {
+            var category = TestDatabase.SeedIncomeCategory(_ctx);
+            var t = new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = creditCardId,
+                Amount = amount,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = date ?? DateTime.Today,
+                Description = "Пополнение",
+                CreatedAt = DateTime.Now,
+                IsDeleted = false
+            };
+            _ctx.Transactions.Add(t);
+            _ctx.SaveChanges();
+            return t;
+        }
+
         [Fact]
         public async Task CreateAsync_AddsCard()
         {
@@ -409,6 +429,70 @@ namespace AutoKassa.Tests.Services
             var debt = await _svc.GetTotalDebtAsOfAsync(asOf);
 
             debt.Should().Be(500m);
+        }
+
+        [Fact]
+        public async Task GetCurrentDebtAsync_ReplenishmentIncome_ReducesDebt()
+        {
+            var card = SeedCard(limit: 50000m, initialDebt: 1000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+
+            var purchase = SeedPurchaseTransaction(category.Id, 5000m);
+            await _svc.AddPurchaseAsync(card.Id, purchase.Id, purchase.Amount);
+            SeedReplenishmentTransaction(card.Id, 2000m);
+
+            var debt = await _svc.GetCurrentDebtAsync(card.Id);
+
+            // 1000 (начальный долг) + 5000 (покупка) − 2000 (пополнение)
+            debt.Should().Be(4000m);
+        }
+
+        [Fact]
+        public async Task GetCardsMetricsAsync_ReplenishmentIncome_ReducesDebtAndRaisesAvailableLimit()
+        {
+            var card = SeedCard(limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+
+            var purchase = SeedPurchaseTransaction(category.Id, 5000m);
+            await _svc.AddPurchaseAsync(card.Id, purchase.Id, purchase.Amount);
+            SeedReplenishmentTransaction(card.Id, 2000m);
+
+            var metrics = await _svc.GetCardsMetricsAsync();
+
+            var cardMetrics = metrics.Should().ContainSingle().Subject;
+            cardMetrics.CurrentDebt.Should().Be(3000m);
+            cardMetrics.AvailableLimit.Should().Be(47000m);
+        }
+
+        [Fact]
+        public async Task GetTotalDebtAsync_ReplenishmentIncome_ReducesTotalDebt()
+        {
+            var card = SeedCard(limit: 50000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+
+            var purchase = SeedPurchaseTransaction(category.Id, 5000m);
+            await _svc.AddPurchaseAsync(card.Id, purchase.Id, purchase.Amount);
+            SeedReplenishmentTransaction(card.Id, 2000m);
+
+            var totalDebt = await _svc.GetTotalDebtAsync();
+
+            totalDebt.Should().Be(3000m);
+        }
+
+        [Fact]
+        public async Task GetTotalDebtAsOfAsync_ReplenishmentAfterDate_NotCounted()
+        {
+            var card = SeedCard(limit: 100000m);
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var asOf = new DateTime(2025, 6, 15);
+
+            var purchase = SeedPurchaseTransaction(category.Id, 800m, date: asOf);
+            await _svc.AddPurchaseAsync(card.Id, purchase.Id, purchase.Amount);
+            SeedReplenishmentTransaction(card.Id, 500m, date: asOf.AddDays(2));
+
+            var debt = await _svc.GetTotalDebtAsOfAsync(asOf);
+
+            debt.Should().Be(800m);
         }
     }
 }

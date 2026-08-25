@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -56,7 +56,17 @@ namespace AutoKassa.Services
                 .SumAsync(t => (decimal?)t.Amount, ct)
                 .ConfigureAwait(false) ?? 0m;
 
-            return card.InitialDebt + purchasesSum - repaymentsSum;
+            // Пополнения карты (операции дохода, привязанные к карте) уменьшают долг
+            // наравне с погашениями: деньги пришли на карту, но не из кассы.
+            var replenishmentsSum = await context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreditCardId == creditCardId
+                            && !t.IsDeleted
+                            && t.Type == OperationType.Income)
+                .SumAsync(t => (decimal?)t.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
+
+            return card.InitialDebt + purchasesSum - repaymentsSum - replenishmentsSum;
         }
 
         /// <summary>

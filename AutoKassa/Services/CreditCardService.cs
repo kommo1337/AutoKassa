@@ -248,11 +248,24 @@ namespace AutoKassa.Services
                 .ToDictionaryAsync(x => x.CardId, x => x.Total, ct)
                 .ConfigureAwait(false);
 
+            // Суммы пополнений (доходов на карту) по каждой карте — тоже уменьшают долг
+            var replenishmentTotals = await context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreditCardId != null
+                            && cardIds.Contains(t.CreditCardId.Value)
+                            && !t.IsDeleted
+                            && t.Type == OperationType.Income)
+                .GroupBy(t => t.CreditCardId!.Value)
+                .Select(g => new { CardId = g.Key, Total = g.Sum(t => t.Amount) })
+                .ToDictionaryAsync(x => x.CardId, x => x.Total, ct)
+                .ConfigureAwait(false);
+
             return cards.Select(card =>
             {
                 var debt = card.InitialDebt
                            + (purchaseTotals.TryGetValue(card.Id, out var purchases) ? purchases : 0m)
-                           - (repaymentTotals.TryGetValue(card.Id, out var repayments) ? repayments : 0m);
+                           - (repaymentTotals.TryGetValue(card.Id, out var repayments) ? repayments : 0m)
+                           - (replenishmentTotals.TryGetValue(card.Id, out var replenishments) ? replenishments : 0m);
 
                 return new CreditCardMetrics
                 {
@@ -325,7 +338,17 @@ namespace AutoKassa.Services
                 .SumAsync(t => (decimal?)t.Amount, ct)
                 .ConfigureAwait(false) ?? 0m;
 
-            return totalInitialDebt + purchasesSum - repaymentsSum;
+            // Пополнения карт (доходы на карту) уменьшают долг наравне с погашениями
+            var replenishmentsSum = await context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreditCardId != null
+                            && cardIds.Contains(t.CreditCardId.Value)
+                            && !t.IsDeleted
+                            && t.Type == OperationType.Income)
+                .SumAsync(t => (decimal?)t.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
+
+            return totalInitialDebt + purchasesSum - repaymentsSum - replenishmentsSum;
         }
 
         /// <summary>
@@ -365,7 +388,18 @@ namespace AutoKassa.Services
                 .SumAsync(t => (decimal?)t.Amount, ct)
                 .ConfigureAwait(false) ?? 0m;
 
-            return totalInitialDebt + purchasesSum - repaymentsSum;
+            // Пополнения карт (доходы на карту) на конец даты — тоже уменьшают долг
+            var replenishmentsSum = await context.Transactions
+                .AsNoTracking()
+                .Where(t => t.CreditCardId != null
+                            && cardIds.Contains(t.CreditCardId.Value)
+                            && !t.IsDeleted
+                            && t.Type == OperationType.Income
+                            && t.Date < asOfEnd)
+                .SumAsync(t => (decimal?)t.Amount, ct)
+                .ConfigureAwait(false) ?? 0m;
+
+            return totalInitialDebt + purchasesSum - repaymentsSum - replenishmentsSum;
         }
 
         /// <summary>
@@ -406,6 +440,7 @@ namespace AutoKassa.Services
                 throw new ArgumentException("Описание не должно превышать 500 символов", nameof(description));
 
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             var card = await context.CreditCards.FindAsync(new object[] { creditCardId }, ct).ConfigureAwait(false);
             if (card == null)
@@ -449,6 +484,7 @@ namespace AutoKassa.Services
                 context, transaction.Id, creditCardId, amount, ct).ConfigureAwait(false);
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             _log.Information(
                 "Создано погашение кредитной карты ID={CreditCardId}, операция ID={TransactionId}, сумма={Amount}, оставшийся долг={Debt}",

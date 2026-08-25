@@ -126,6 +126,7 @@ namespace AutoKassa.Services
                 throw new ArgumentException("Описание не должно превышать 500 символов", nameof(description));
 
             await using var context = await _contextFactory.CreateDbContextAsync().ConfigureAwait(false);
+            await using var dbTransaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             var debt = await context.Transactions
                 .Include(t => t.Category)
@@ -188,6 +189,7 @@ namespace AutoKassa.Services
             debt.UpdatedAt = DateTime.Now;
 
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
+            await dbTransaction.CommitAsync(ct).ConfigureAwait(false);
 
             if (previousStatus != debt.DebtStatus)
             {
