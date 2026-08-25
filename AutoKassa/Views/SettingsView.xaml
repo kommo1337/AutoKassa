@@ -305,12 +305,6 @@
                                          Padding="10,8" TextAlignment="Center"/>
                             </Grid>
 
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Показывать уведомления" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                <CheckBox Grid.Column="1" IsChecked="{Binding ShowNotifications}" Style="{StaticResource GreenCheckBoxStyle}"/>
-                            </Grid>
-
                             <Rectangle Height="1" Fill="{StaticResource BorderLightBrush}" Margin="0,4,0,14"/>
 
                             <TextBlock Text="Финансовые настройки" Style="{StaticResource SectionHeaderStyle}"/>
@@ -345,27 +339,11 @@
                             <TextBlock Text="Настройки операций" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <StackPanel>
-                                    <TextBlock Text="Показывать «Категории» в меню" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="Добавить кнопку Категории в боковое меню"
-                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
-                                </StackPanel>
-                                <CheckBox Grid.Column="1" IsChecked="{Binding ShowOperationsInSidebar}" Style="{StaticResource GreenCheckBoxStyle}"/>
-                            </Grid>
-
-                            <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="100"/></Grid.ColumnDefinitions>
                                 <TextBlock Text="Записей на странице" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1"
                                          Text="{Binding DefaultPageSize, UpdateSourceTrigger=PropertyChanged}"
                                          Padding="10,8" TextAlignment="Center"/>
-                            </Grid>
-
-                            <Grid Style="{StaticResource SettingRowStyle}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="Подтверждать удаление" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                <CheckBox Grid.Column="1" IsChecked="{Binding ConfirmDelete}" Style="{StaticResource GreenCheckBoxStyle}"/>
                             </Grid>
 
                             <Rectangle Height="1" Fill="{StaticResource BorderLightBrush}" Margin="0,4,0,14"/>

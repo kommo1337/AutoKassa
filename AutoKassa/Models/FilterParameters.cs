@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models.Enums;
+using AutoKassa.Models.Enums;
 
 namespace AutoKassa.Models
 {
@@ -36,6 +36,12 @@ namespace AutoKassa.Models
         /// ID контрагента (null = все)
         /// </summary>
         public int? CounterpartyId { get; set; }
+
+        /// <summary>
+        /// ID кредитной карты (null = все). Включает покупки, пополнения
+        /// и погашения, привязанные к конкретной карте.
+        /// </summary>
+        public int? CreditCardId { get; set; }
 
         /// <summary>
         /// Фильтр по долговым операциям (true = только долги)

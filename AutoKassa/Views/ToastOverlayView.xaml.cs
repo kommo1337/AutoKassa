@@ -18,8 +18,8 @@ namespace AutoKassa.Views
         private Action _currentActionCallback;
         private int _remainingTicks;
 
-        private const int TotalTicks = 50;
-        private const int TickIntervalMs = 35; // 50 × 35ms ≈ 1.75 секунды плавного обновления
+        private const int TotalTicks = 100;
+        private const int TickIntervalMs = 40; // 100 × 40ms = 4 секунды — успеть нажать «Отменить»
 
         // Кэшированные кисти — избегаем создания SolidColorBrush при каждом ShowToast
         private static readonly SolidColorBrush DeleteBackground  = new(Color.FromRgb(0xfe, 0xf2, 0xf2));

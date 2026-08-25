@@ -141,7 +141,9 @@
                 </Style>
             </Grid.Style>
             <Rectangle Fill="#66000000"/>
-            <Grid MaxWidth="470" MaxHeight="750"
+            <!-- Modal card: высота ограничена окном, при нехватке места контент скроллится -->
+            <Grid MaxWidth="470"
+                  MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource MaxModalHeightConverter}}"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
                   UseLayoutRounding="True" SnapsToDevicePixels="True">
                 <Border Background="White" CornerRadius="20">
@@ -149,7 +151,7 @@
                         <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="48" ShadowDepth="10" Direction="270"/>
                     </Border.Effect>
                 </Border>
-                <Border Background="White" CornerRadius="20" ClipToBounds="True">
+                <Border Background="White" CornerRadius="20" ClipToBounds="True" MaxHeight="750">
                     <ContentControl Content="{Binding CurrentReport.Modal.Content}">
                         <ContentControl.Resources>
                             <DataTemplate DataType="{x:Type vm:TransactionEditViewModel}">

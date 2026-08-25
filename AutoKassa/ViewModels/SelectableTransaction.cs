@@ -218,11 +218,11 @@ namespace AutoKassa.ViewModels
             GroupInlineSelectNonCashCommand    = new RelayCommand(_ => InlinePaymentType = PaymentType.NonCash);
             GroupInlineSelectCreditCardCommand = new RelayCommand(_ => InlinePaymentType = PaymentType.CreditCard);
 
-            GroupInlineSaveCommand = new RelayCommand(async _ =>
+            GroupInlineSaveCommand = new AsyncRelayCommand(async () =>
             {
                 if (_isSaving) return;
                 _isSaving = true;
-                (GroupInlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (GroupInlineSaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
                 try
                 {
                     await onSave(this);
@@ -230,9 +230,9 @@ namespace AutoKassa.ViewModels
                 finally
                 {
                     _isSaving = false;
-                    (GroupInlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (GroupInlineSaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
                 }
-            }, _ => !_isSaving);
+            }, () => !_isSaving);
             GroupInlineCancelCommand = new RelayCommand(_ =>
             {
                 var hasInput = !string.IsNullOrWhiteSpace(InlineAmountText)

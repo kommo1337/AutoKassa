@@ -1089,8 +1089,9 @@
             <!-- Backdrop -->
             <Rectangle Fill="#66000000"/>
 
-            <!-- Modal card -->
-            <Grid MaxWidth="470" MinHeight="775" MaxHeight="775"
+            <!-- Modal card: высота ограничена окном, при нехватке места контент скроллится -->
+            <Grid MaxWidth="470"
+                  MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource MaxModalHeightConverter}}"
                   HorizontalAlignment="Center" VerticalAlignment="Center"
                   UseLayoutRounding="True" SnapsToDevicePixels="True">
                 <!-- Shadow layer (separate, no children affected) -->
@@ -1101,7 +1102,7 @@
                 </Border>
                 <!-- Content layer (no Effect — text stays crisp) -->
                 <!-- Модалка создаётся лениво: пока EditViewModel == null, представление не строится -->
-                <Border Background="White" CornerRadius="20" ClipToBounds="True">
+                <Border Background="White" CornerRadius="20" ClipToBounds="True" MaxHeight="775">
                     <ContentControl Content="{Binding EditViewModel}">
                         <ContentControl.Resources>
                             <DataTemplate DataType="{x:Type vm:TransactionEditViewModel}">
