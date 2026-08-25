@@ -13,7 +13,7 @@ namespace AutoKassa.Tests.Services
         {
             return new SettingsViewModel(
                 null!, null!, null!, null!, new FakeDataChangeService(),
-                null!, null!, null!, null!, null!)
+                null!, null!, null!, null!, null!, null!)
             {
                 AutoLockMinutes = 5,
                 DefaultPageSize = 50,

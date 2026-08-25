@@ -1782,5 +1782,296 @@ namespace AutoKassa.Tests.Services
 
             await act.Should().ThrowAsync<ArgumentException>();
         }
+
+        // ─────────────────────────────────────────
+        // Пополнение кредитной карты (доход на карту)
+        // ─────────────────────────────────────────
+
+        [Fact]
+        public async Task AddAsync_IncomeOnCreditCard_ReducesDebtAndDistributesFifo()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            var replenishment = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = incomeCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Пополнение карты"
+            });
+
+            var debt = await _creditCardService.GetCurrentDebtAsync(card.Id);
+            debt.Should().Be(3000m);
+
+            using var checkCtx = _factory.CreateDbContext();
+
+            // Пополнение не создаёт покупку...
+            var incomePurchase = await checkCtx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == replenishment.Id);
+            incomePurchase.Should().BeNull();
+
+            // ...но распределяется по покупкам FIFO, как погашение
+            var payment = await checkCtx.CreditCardPayments
+                .FirstOrDefaultAsync(p => p.RepaymentTransactionId == replenishment.Id);
+            payment.Should().NotBeNull();
+            payment!.Amount.Should().Be(2000m);
+
+            var purchaseFromDb = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseFromDb.RemainingDebt.Should().Be(3000m);
+
+            var updatedCard = await checkCtx.CreditCards.FindAsync(card.Id);
+            updatedCard!.LastPaymentDate.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task AddAsync_IncomeOnCreditCard_ExceedsDebt_ThrowsInvalidOperationException()
+        {
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            Func<Task> act = async () => await _svc.AddAsync(new Transaction
+            {
+                CategoryId = incomeCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 1000m,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Пополнение без долга"
+            });
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*пополнения превышает текущий долг*");
+        }
+
+        [Fact]
+        public async Task AddAsync_IncomeOnCreditCard_InactiveCard_ThrowsInvalidOperationException()
+        {
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m, initialDebt: 5000m);
+            card.IsActive = false;
+            _ctx.SaveChanges();
+
+            Func<Task> act = async () => await _svc.AddAsync(new Transaction
+            {
+                CategoryId = incomeCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 1000m,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Пополнение неактивной карты"
+            });
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*неактивную карту*");
+        }
+
+        [Fact]
+        public async Task DeleteAsync_IncomeOnCreditCard_RestoresDebtAndRemainingDebt()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            var replenishment = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = incomeCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Пополнение карты"
+            });
+
+            await _svc.DeleteAsync(replenishment.Id);
+
+            var debt = await _creditCardService.GetCurrentDebtAsync(card.Id);
+            debt.Should().Be(5000m);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchaseFromDb = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseFromDb.RemainingDebt.Should().Be(5000m);
+
+            var payments = await checkCtx.CreditCardPayments
+                .Where(p => p.RepaymentTransactionId == replenishment.Id)
+                .ToListAsync();
+            payments.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task RestoreAsync_IncomeOnCreditCard_RedistributesToPurchases()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var purchase = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            var replenishment = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = incomeCategory.Id,
+                CreditCardId = card.Id,
+                Amount = 2000m,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Пополнение карты"
+            });
+
+            await _svc.DeleteAsync(replenishment.Id);
+            await _svc.RestoreAsync(replenishment.Id);
+
+            var debt = await _creditCardService.GetCurrentDebtAsync(card.Id);
+            debt.Should().Be(3000m);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchaseFromDb = await checkCtx.CreditCardPurchases
+                .FirstAsync(p => p.TransactionId == purchase.Id);
+            purchaseFromDb.RemainingDebt.Should().Be(3000m);
+
+            var payment = await checkCtx.CreditCardPayments
+                .FirstOrDefaultAsync(p => p.RepaymentTransactionId == replenishment.Id);
+            payment.Should().NotBeNull();
+            payment!.Amount.Should().Be(2000m);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_FromCreditCardPurchaseToIncome_RemovesPurchase()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var card = TestDatabase.SeedCreditCard(_ctx, limit: 50000m);
+
+            var transaction = await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Кредитная покупка"
+            });
+
+            transaction.Type = OperationType.Income;
+            transaction.CategoryId = incomeCategory.Id;
+            await _svc.UpdateAsync(transaction);
+
+            using var checkCtx = _factory.CreateDbContext();
+            var purchase = await checkCtx.CreditCardPurchases
+                .FirstOrDefaultAsync(p => p.TransactionId == transaction.Id);
+            purchase.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task Filter_ByCreditCardId_ReturnsAllOperationsOfThatCard()
+        {
+            var category = TestDatabase.SeedExpenseCategory(_ctx);
+            var incomeCategory = TestDatabase.SeedIncomeCategory(_ctx);
+            var repaymentCategory = _ctx.Categories.First(c => c.Name == CreditCardService.RepaymentCategoryName);
+            var card1 = TestDatabase.SeedCreditCard(_ctx, name: "Карта 1", limit: 50000m);
+            var card2 = TestDatabase.SeedCreditCard(_ctx, name: "Карта 2", limit: 50000m);
+
+            // Покупка, пополнение и погашение по первой карте
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card1.Id,
+                Amount = 5000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Покупка с первой карты"
+            });
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = incomeCategory.Id,
+                CreditCardId = card1.Id,
+                Amount = 1000m,
+                Type = OperationType.Income,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Пополнение первой карты"
+            });
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = repaymentCategory.Id,
+                CreditCardId = card1.Id,
+                Amount = 2000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Погашение первой карты"
+            });
+
+            // Покупка по второй карте и операция без карты
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                CreditCardId = card2.Id,
+                Amount = 3000m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.CreditCard,
+                Date = DateTime.Today,
+                Description = "Покупка со второй карты"
+            });
+            await _svc.AddAsync(new Transaction
+            {
+                CategoryId = category.Id,
+                Amount = 500m,
+                Type = OperationType.Expense,
+                PaymentType = PaymentType.Cash,
+                Date = DateTime.Today,
+                Description = "Обычный расход"
+            });
+
+            var result = await _svc.GetTransactionsAsync(
+                new TransactionFilterParameters { CreditCardId = card1.Id });
+
+            result.Should().HaveCount(3);
+            result.Should().OnlyContain(t => t.CreditCardId == card1.Id);
+            result.Should().Contain(t => t.Description == "Пополнение первой карты");
+            result.Should().Contain(t => t.Description == "Погашение первой карты");
+        }
     }
 }

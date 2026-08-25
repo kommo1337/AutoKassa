@@ -14,7 +14,7 @@ namespace AutoKassa.Tests.Services
         {
             return new SettingsViewModel(
                 null!, null!, null!, null!, new FakeDataChangeService(),
-                null!, null!, null!, null!, null!);
+                null!, null!, null!, null!, null!, null!);
         }
 
         [Fact]
