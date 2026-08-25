@@ -71,6 +71,7 @@ namespace AutoKassa.Services.Transactions
                 PaymentType = source.PaymentType,
                 CategoryId = source.CategoryId,
                 CounterpartyId = source.CounterpartyId,
+                CreditCardId = source.CreditCardId,
                 IsDebtFilter = source.IsDebtFilter,
                 DebtStatus = source.DebtStatus,
                 SearchText = source.SearchText,

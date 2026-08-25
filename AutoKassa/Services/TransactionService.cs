@@ -171,9 +171,15 @@ namespace AutoKassa.Services
             transaction.Category = category;
             await context.SaveChangesAsync(ct).ConfigureAwait(false);
 
-            // Обработка операций по кредитной карте — проверка лимита и создание покупки
-            // выполняются в той же транзакции, что и сама операция.
-            if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
+            // Обработка операций по кредитной карте выполняется в той же транзакции,
+            // что и сама операция. Доход на карту — пополнение: уменьшает долг и
+            // распределяется по покупкам FIFO. Расход — покупка: проверка лимита
+            // и создание записи CreditCardPurchase.
+            if (transaction.Type == OperationType.Income && transaction.CreditCardId.HasValue)
+            {
+                await RegisterCreditCardReplenishmentInContextAsync(context, transaction, ct).ConfigureAwait(false);
+            }
+            else if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
             {
                 await CreditCardOperationHelper.AddPurchaseAsync(
                     context,
@@ -517,7 +523,10 @@ namespace AutoKassa.Services
             // 1. Восстановление кредитной покупки.
             // При удалении покупки CreditCardPurchase удалялась жёстко,
             // поэтому при восстановлении операции создаём её заново.
-            if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
+            // Доход на карту (пополнение) покупку не создаёт — он обрабатывается ниже.
+            if (transaction.Type == OperationType.Expense
+                && transaction.PaymentType == PaymentType.CreditCard
+                && transaction.CreditCardId.HasValue)
             {
                 var purchaseExists = await context.CreditCardPurchases
                     .AnyAsync(p => p.TransactionId == id, ct)
@@ -566,10 +575,13 @@ namespace AutoKassa.Services
             }
             else
             {
-                // 3. Восстановление операции-погашения кредитной карты.
-                var isCreditCardRepayment = transaction.Type == OperationType.Expense
-                                            && transaction.Category?.Name == CreditCardService.RepaymentCategoryName
-                                            && transaction.CreditCardId.HasValue;
+                // 3. Восстановление операции-погашения кредитной карты или пополнения карты.
+                // Пополнение (доход на карту) при восстановлении заново распределяется
+                // по покупкам FIFO так же, как погашение.
+                var isCreditCardRepayment = transaction.CreditCardId.HasValue
+                                            && ((transaction.Type == OperationType.Expense
+                                                 && transaction.Category?.Name == CreditCardService.RepaymentCategoryName)
+                                                || transaction.Type == OperationType.Income);
 
                 if (isCreditCardRepayment)
                 {
@@ -589,7 +601,10 @@ namespace AutoKassa.Services
                                 context, transaction.CreditCardId.Value, ct: ct).ConfigureAwait(false);
 
                             if (transaction.Amount > currentDebt)
-                                throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
+                                throw new InvalidOperationException(
+                                    transaction.Type == OperationType.Income
+                                        ? "Сумма пополнения превышает текущий долг по карте"
+                                        : "Сумма погашения превышает текущий долг по карте");
 
                             card.LastPaymentDate = DateTime.Today;
                             await CreditCardOperationHelper.DistributeRepaymentAsync(
@@ -665,7 +680,10 @@ namespace AutoKassa.Services
                 // 1. Восстановление кредитной покупки.
                 // При удалении покупки CreditCardPurchase удалялась жёстко,
                 // поэтому при восстановлении операции создаём её заново.
-                if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
+                // Доход на карту (пополнение) покупку не создаёт — он обрабатывается ниже.
+                if (transaction.Type == OperationType.Expense
+                    && transaction.PaymentType == PaymentType.CreditCard
+                    && transaction.CreditCardId.HasValue)
                 {
                     var purchaseExists = await context.CreditCardPurchases
                         .AnyAsync(p => p.TransactionId == transaction.Id, ct)
@@ -712,10 +730,13 @@ namespace AutoKassa.Services
                 }
                 else
                 {
-                    // 3. Восстановление операции-погашения кредитной карты.
-                    var isCreditCardRepayment = transaction.Type == OperationType.Expense
-                                                && transaction.Category?.Name == CreditCardService.RepaymentCategoryName
-                                                && transaction.CreditCardId.HasValue;
+                    // 3. Восстановление операции-погашения кредитной карты или пополнения карты.
+                    // Пополнение (доход на карту) при восстановлении заново распределяется
+                    // по покупкам FIFO так же, как погашение.
+                    var isCreditCardRepayment = transaction.CreditCardId.HasValue
+                                                && ((transaction.Type == OperationType.Expense
+                                                     && transaction.Category?.Name == CreditCardService.RepaymentCategoryName)
+                                                    || transaction.Type == OperationType.Income);
 
                     if (isCreditCardRepayment)
                     {
@@ -735,7 +756,10 @@ namespace AutoKassa.Services
                                     context, transaction.CreditCardId.Value, ct: ct).ConfigureAwait(false);
 
                                 if (transaction.Amount > currentDebt)
-                                    throw new InvalidOperationException("Сумма погашения превышает текущий долг по карте");
+                                    throw new InvalidOperationException(
+                                        transaction.Type == OperationType.Income
+                                            ? "Сумма пополнения превышает текущий долг по карте"
+                                            : "Сумма погашения превышает текущий долг по карте");
 
                                 card.LastPaymentDate = DateTime.Today;
                                 await CreditCardOperationHelper.DistributeRepaymentAsync(
@@ -980,6 +1004,35 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
+        /// Зарегистрировать пополнение кредитной карты (доход на карту) в рамках переданного контекста.
+        /// Операция уже сохранена и имеет Id. Пополнение уменьшает долг по карте и распределяется
+        /// по покупкам FIFO (как погашение), но не является расходом собственных средств
+        /// и не создаёт запись покупки.
+        /// </summary>
+        private async Task RegisterCreditCardReplenishmentInContextAsync(AppDbContext context, Transaction transaction, CancellationToken ct = default)
+        {
+            var card = await context.CreditCards
+                .FindAsync(new object[] { transaction.CreditCardId.Value }, ct)
+                .ConfigureAwait(false);
+
+            if (card == null)
+                throw new InvalidOperationException($"Кредитная карта ID={transaction.CreditCardId.Value} не найдена");
+
+            if (!card.IsActive)
+                throw new InvalidOperationException("Нельзя пополнить неактивную карту");
+
+            var currentDebt = await CreditCardOperationHelper.GetCurrentDebtAsync(
+                context, card.Id, ct: ct).ConfigureAwait(false);
+
+            if (transaction.Amount > currentDebt)
+                throw new InvalidOperationException("Сумма пополнения превышает текущий долг по карте");
+
+            // DistributeRepaymentAsync также обновляет LastPaymentDate карты
+            await CreditCardOperationHelper.DistributeRepaymentAsync(
+                context, transaction.Id, card.Id, transaction.Amount, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Пересчитать статус долга в рамках переданного DbContext.
         /// </summary>
         private async Task RecalculateDebtStatusInContextAsync(AppDbContext context, int debtTransactionId, CancellationToken ct = default)
@@ -1028,14 +1081,19 @@ namespace AutoKassa.Services
             var isRepayment = currentCategory?.Name == CreditCardService.RepaymentCategoryName;
             var wasRepayment = oldCategory?.Name == CreditCardService.RepaymentCategoryName;
 
-            // Удаляем связанную покупку, если тип оплаты перестал быть кредитным.
+            // Удаляем связанную покупку, если операция перестала быть кредитной покупкой:
+            // сменился тип оплаты, потеряна карта или тип сменился на доход
+            // (доход на карту — пополнение, покупки не создаёт).
             // Если операция одновременно становится погашением по той же карте,
             // покупку необходимо сохранить, чтобы на неё могло быть распределено погашение.
             var becomesRepayment = isRepayment && transaction.CreditCardId.HasValue;
             var keepPurchaseForRepayment = becomesRepayment && oldCreditCardId == transaction.CreditCardId;
+            var isCreditPurchase = transaction.Type == OperationType.Expense
+                                   && transaction.PaymentType == PaymentType.CreditCard
+                                   && transaction.CreditCardId.HasValue;
 
             if (oldPaymentType == PaymentType.CreditCard &&
-                (transaction.PaymentType != PaymentType.CreditCard || !transaction.CreditCardId.HasValue) &&
+                !isCreditPurchase &&
                 !keepPurchaseForRepayment)
             {
                 var purchase = await context.CreditCardPurchases
@@ -1047,8 +1105,10 @@ namespace AutoKassa.Services
                 }
             }
 
-            // Создаём или обновляем покупку, если операция стала/осталась кредитной
-            if (transaction.PaymentType == PaymentType.CreditCard && transaction.CreditCardId.HasValue)
+            // Создаём или обновляем покупку, если операция стала/осталась кредитной покупкой.
+            // Пополнение (доход на карту) покупку не создаёт: оно уменьшает долг
+            // и учитывается в CreditCardOperationHelper.GetCurrentDebtAsync.
+            if (isCreditPurchase)
             {
                 var purchase = await context.CreditCardPurchases
                     .Include(p => p.CreditCardPayments)
@@ -1173,6 +1233,12 @@ namespace AutoKassa.Services
             if (filters.CounterpartyId.HasValue)
             {
                 query = query.Where(t => t.CounterpartyId == filters.CounterpartyId.Value);
+            }
+
+            // Фильтр по кредитной карте: покупки, пополнения и погашения конкретной карты
+            if (filters.CreditCardId.HasValue)
+            {
+                query = query.Where(t => t.CreditCardId == filters.CreditCardId.Value);
             }
 
             // Фильтр по долгам

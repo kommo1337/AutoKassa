@@ -70,7 +70,8 @@ namespace AutoKassa.Services.Dashboard
             }
             catch (Exception ex)
             {
-                _toastService.ShowError($"Ошибка удаления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка удаления операции {TransactionId} с дашборда", deletedId);
+                _toastService.ShowError("Не удалось удалить операцию");
             }
         }
 

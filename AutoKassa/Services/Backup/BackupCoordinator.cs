@@ -74,7 +74,8 @@ namespace AutoKassa.Services.Backup
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка создания резервной копии: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка создания резервной копии в {TargetPath}", targetPath);
+                _dialogService.ShowError("Не удалось создать резервную копию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
                 return null;
             }
         }
@@ -107,7 +108,8 @@ namespace AutoKassa.Services.Backup
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка восстановления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка восстановления базы данных из {FileName}", dialog.FileName);
+                _dialogService.ShowError("Не удалось восстановить базу данных. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
     }
