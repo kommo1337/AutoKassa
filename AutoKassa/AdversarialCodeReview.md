@@ -4,6 +4,8 @@
 > Объём: ~50 тыс. строк C#/XAML  
 > Цель: выявить критические уязвимости, ошибки бизнес-логики, проблемы архитектуры и качества кода, которые могут привести к крашам, некорректным финансовым показателям или компрометации данных.
 
+> **Статус на 2026-08-21:** все Critical (1.3–1.6) и все P1 закрыты — см. столбец «Статус» в §5. Открыты два P0: шифрование БД (осознанно отложено — локальное приложение) и санитизация строк в Excel (низкая эксплуатируемость: ClosedXML записывает строки как текст, формулы не вычисляются).
+
 ---
 
 ## 1. Критические проблемы (Critical)
@@ -18,6 +20,7 @@
   падает с `ArgumentOutOfRangeException`, если у карты `PaymentDay = 31`, а в текущем/расчётном месяце меньше 31 дня (апрель, июнь, сентябрь, ноябрь, февраль). Это ломает Dashboard (`LoadCreditMetricsAsync`) и отчёт «Баланс за период».
 - **Риск:** невозможность открыть Dashboard / сформировать балансовый отчёт для любой активной карты с таким днём платежа.
 - **Рекомендация:** использовать `DateTime.DaysInMonth(year, month)` и ограничивать день платежа при валидации карты.
+- **Статус:** ✅ исправлено — `CalculateNextPaymentDate` ограничивает день через `Math.Min(PaymentDay, DaysInMonth)`; валидация диапазона 1–31 на месте.
 
 ### 1.4 Crash отчёта по долгам без явной даты окончания
 - **Файл:** `Services/ReportService.cs` (строки 340–342)
@@ -30,6 +33,7 @@
   `DateTime.MaxValue.Date.AddDays(1)` выбрасывает `ArgumentOutOfRangeException`. Хотя UI сейчас передаёт даты, сигнатура метода допускает `null`, и любой вызов без `dateTo` приведёт к падению.
 - **Риск:** непредсказуемый краш при расширении функционала или тестировании.
 - **Рекомендация:** добавить проверку `if (to == DateTime.MaxValue) dateToEnd = to;` или использовать `DateTime.MaxValue.AddTicks(-1)`.
+- **Статус:** ✅ исправлено — для «без ограничения» используется само `MaxValue` как верхняя граница (`GenerateDebtReportAsync`).
 
 ### 1.5 Восстановление операции (soft delete) не восстанавливает связи
 - **Файл:** `Services/TransactionService.cs` (строки 353–364)
@@ -40,6 +44,7 @@
   - soft-deleted операции-погашения, которые `DeleteAsync` пометил удалёнными вместе с долгом.
 - **Риск:** двойной учёт денег, некорректный остаток долга, расхождение фактического баланса и кредитного долга.
 - **Рекомендация:** либо запретить восстановление связанных операций, либо атомарно восстанавливать всю цепочку зависимостей в рамках одной транзакции.
+- **Статус:** ✅ исправлено — `RestoreAsync`/`RestoreRangeAsync` атомарно восстанавливают покупки, погашения кредиток и долговые связи в одной транзакции; покрыто тестами.
 
 ### 1.6 `async void` в точке входа приложения
 - **Файл:** `App.xaml.cs` (строка 21)
@@ -47,6 +52,7 @@
 - **Описание:** `protected override async void OnStartup(StartupEventArgs e)` не позволяет вызывающему коду поймать исключения из асинхронного тела. Ошибки при миграции/инициализации могут привести к немедленному крашу процесса вместо контролируемого `Shutdown`.
 - **Риск:** необработанный краш на старте.
 - **Рекомендация:** переписать стартап на синхронный `OnStartup` с явным `.GetAwaiter().GetResult()` для контролируемого запуска, либо обернуть всё тело в `try/catch` с логированием.
+- **Статус:** ✅ исправлено — `OnStartup` синхронный, инициализация через `Task.Run(() => InitializeAsync(...)).GetAwaiter().GetResult()`.
 
 ---
 
@@ -103,22 +109,22 @@
 
 ## 5. Приоритеты исправления
 
-| Приоритет | Задача | Файлы |
-|-----------|--------|-------|
-| **P0 — Critical** | Шифрование SQLite или защита файла БД | `Services/AppDbContext.cs` |
-| **P0 — Critical** | Санитизация строк перед записью в Excel | `Services/ExportService.cs` |
-| **P0 — Critical** | Исправить `GetNextPaymentDateAsync` для 31-го дня | `Services/CreditCardService.cs` |
-| **P0 — Critical** | Защита `DateTime.MaxValue.AddDays(1)` в отчёте по долгам | `Services/ReportService.cs` |
-| **P0 — Critical** | Корректное восстановление связей при `RestoreAsync` | `Services/TransactionService.cs` |
-| **P1 — High** | Убрать `async void` в `App.OnStartup` и VM-командах | `App.xaml.cs`, `ViewModels/*` |
-| **P1 — High** | Атомарность операций с кредитками/долгами в одной транзакции | `Services/TransactionService.cs`, `Services/CreditCardService.cs`, `Services/DebtService.cs` |
-| **P1 — High** | Отказ от вечного кэша VM в `NavigationService` | `Services/NavigationService.cs` |
-| **P1 — High** | Усилить политику паролей | `ViewModels/ChangePasswordViewModel.cs`, `InitialSetupViewModel.cs` |
-| **P1 — High** | Потокобезопасность `_cachedSettings` | `Services/SettingsService.cs` |
-| **P1 — High** | Внедрить `IDialogService` и убрать зависимости VM от View | `ViewModels/SettingsViewModel.cs`, `Services/LockService.cs` |
-| **P1 — High** | Отказ от service locator `App.GetService<T>` | `App.xaml.cs`, `ViewModels/DashboardViewModel.cs`, `ReportsViewModel.cs` |
-| **P1 — High** | Суммировать `decimal` без приведения к `double` | `Services/*Service.cs` |
-| **P3 — Low** | Локализация, именованные константы, `DateTime.UtcNow`, async dispose | По всему проекту |
+| Приоритет | Задача | Файлы | Статус (на 2026-08-21) |
+|-----------|--------|-------|------------------------|
+| **P0 — Critical** | Шифрование SQLite или защита файла БД | `Services/AppDbContext.cs` | ⬜ Открыто — осознанно отложено (локальное приложение) |
+| **P0 — Critical** | Санитизация строк перед записью в Excel | `Services/ExportService.cs` | ⬜ Открыто — низкая эксплуатируемость: ClosedXML пишет строки как текст, формулы не вычисляются |
+| **P0 — Critical** | Исправить `GetNextPaymentDateAsync` для 31-го дня | `Services/CreditCardService.cs` | ✅ Исправлено |
+| **P0 — Critical** | Защита `DateTime.MaxValue.AddDays(1)` в отчёте по долгам | `Services/ReportService.cs` | ✅ Исправлено |
+| **P0 — Critical** | Корректное восстановление связей при `RestoreAsync` | `Services/TransactionService.cs` | ✅ Исправлено, покрыто тестами |
+| **P1 — High** | Убрать `async void` в `App.OnStartup` и VM-командах | `App.xaml.cs`, `ViewModels/*` | ✅ `OnStartup` синхронный; все async-команды переведены на `AsyncRelayCommand` (2026-08-21) |
+| **P1 — High** | Атомарность операций с кредитками/долгами в одной транзакции | `Services/TransactionService.cs`, `Services/CreditCardService.cs`, `Services/DebtService.cs` | ✅ `TransactionService` — транзакции везде; добавлены в `RepayDebtAsync` и `DebtService.RepayAsync` (2026-08-21) |
+| **P1 — High** | Отказ от вечного кэша VM в `NavigationService` | `Services/NavigationService.cs` | ✅ Кэш удалён: страницы — singleton по маркеру `IPageViewModel`, модальные диспозятся при навигации |
+| **P1 — High** | Усилить политику паролей | `ViewModels/ChangePasswordViewModel.cs`, `InitialSetupViewModel.cs` | ✅ Единый минимум 6 символов во всех сценариях (2026-08-21) |
+| **P1 — High** | Потокобезопасность `_cachedSettings` | `Services/SettingsService.cs` | ✅ Все доступы под `SemaphoreSlim _settingsLock` |
+| **P1 — High** | Внедрить `IDialogService` и убрать зависимости VM от View | `ViewModels/SettingsViewModel.cs`, `Services/LockService.cs` | ✅ Внедрён повсеместно |
+| **P1 — High** | Отказ от service locator `App.GetService<T>` | `App.xaml.cs`, `ViewModels/DashboardViewModel.cs`, `ReportsViewModel.cs` | ✅ Метод удалён; `GetRequiredService` только в composition root и фабриках (TRAPS 1.2) |
+| **P1 — High** | Суммировать `decimal` без приведения к `double` | `Services/*Service.cs` | ✅ Суммы в `decimal`; `(double)` остался только для расчёта процентов |
+| **P3 — Low** | Локализация, именованные константы, `DateTime.UtcNow`, async dispose | По всему проекту | ⬜ Частично (reflection `Initialize` задокументирован в TRAPS 1.6; остальное сознательно отложено) |
 
 ---
 
