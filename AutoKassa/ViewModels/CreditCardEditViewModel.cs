@@ -39,7 +39,7 @@ namespace AutoKassa.ViewModels
             _dialogService = dialogService;
             _toastService = toastService;
 
-            SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
+            SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
             CancelCommand = new RelayCommand(_ => OnCancelled?.Invoke());
         }
 
@@ -329,7 +329,7 @@ namespace AutoKassa.ViewModels
             if (HasErrors) return;
 
             _isSaving = true;
-            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -386,14 +386,20 @@ namespace AutoKassa.ViewModels
                 if (OnSaved != null)
                     await OnSaved();
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сохранения кредитной карты");
+                _dialogService.ShowError("Не удалось сохранить карту. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
                 _isSaving = false;
-                (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 

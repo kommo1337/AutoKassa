@@ -108,10 +108,10 @@ namespace AutoKassa.ViewModels
             CreditCardItems = new ObservableCollection<CreditCardListItemViewModel>();
             SelectedCardPurchases = new ObservableCollection<CreditCardPurchase>();
 
-            LoadCommand = new RelayCommand(async _ => await LoadCardsAsync());
+            LoadCommand = new AsyncRelayCommand(LoadCardsAsync);
             AddCommand = new RelayCommand(_ => OpenAddCard());
             EditCommand = new RelayCommand(_ => OpenEditCard(), _ => SelectedCardItem != null);
-            DeleteCommand = new RelayCommand(async _ => await DeleteCardAsync(), _ => SelectedCardItem != null);
+            DeleteCommand = new AsyncRelayCommand(DeleteCardAsync, () => SelectedCardItem != null);
             RepayCommand = new RelayCommand(_ => OpenRepayCard(), _ => SelectedCardItem != null && SelectedCardItem.CurrentDebt > 0);
 
             _dataChangeService.DataChanged += OnDataChanged;
@@ -151,7 +151,7 @@ namespace AutoKassa.ViewModels
                 {
                     RunAsync(LoadSelectedCardPurchasesAsync);
                     (EditCommand as RelayCommand)?.RaiseCanExecuteChanged();
-                    (DeleteCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (DeleteCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
                     (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
@@ -300,7 +300,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки карт: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки кредитных карт");
+                _dialogService.ShowError("Не удалось загрузить карты. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -361,7 +362,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки покупок: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки покупок по карте");
+                _dialogService.ShowError("Не удалось загрузить покупки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -451,9 +453,15 @@ namespace AutoKassa.ViewModels
                 _dataChangeService?.NotifyDataChanged();
                 _toastService.ShowInfo($"Карта «{card.Name}» деактивирована");
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка удаления кредитной карты {CreditCardId}", card.Id);
+                _dialogService.ShowError("Не удалось удалить карту. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 

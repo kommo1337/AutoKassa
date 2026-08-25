@@ -124,7 +124,7 @@ namespace AutoKassa.ViewModels
 
             // Команды периода
             SelectPeriodCommand = new RelayCommand(period => SelectPeriod((PeriodType)period));
-            ApplyCustomPeriodCommand = new RelayCommand(async _ => await ApplyCustomPeriodAsync());
+            ApplyCustomPeriodCommand = new AsyncRelayCommand(ApplyCustomPeriodAsync);
             TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
             OpenAddTransactionCommand = new RelayCommand(_ => OpenAddTransaction());
             RefreshCommand = new RelayCommand(_ => RunAsync(LoadDataAsync));
@@ -137,7 +137,7 @@ namespace AutoKassa.ViewModels
             EditTransactionCommand = new RelayCommand(
                 t => OpenTransaction(t as Transaction ?? SelectedTransaction),
                 t => (t as Transaction ?? SelectedTransaction) != null);
-            DeleteTransactionCommand = new RelayCommand(async t => await DeleteTransactionAsync(t as Transaction ?? SelectedTransaction));
+            DeleteTransactionCommand = new AsyncRelayCommand<object>(t => DeleteTransactionAsync(t as Transaction ?? SelectedTransaction));
             SelectTransactionCommand = new RelayCommand(t => SelectedTransaction = t as Transaction);
             NavigateToAllTransactionsCommand = new RelayCommand(_ => NavigateToAllTransactions());
             OpenFullReportCommand = new RelayCommand(_ => OpenFullReport());
@@ -668,7 +668,8 @@ namespace AutoKassa.ViewModels
             catch (OperationCanceledException) { /* пользователь сменил период — игнорируем */ }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки данных: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки данных дашборда");
+                _dialogService.ShowError("Не удалось загрузить данные. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {

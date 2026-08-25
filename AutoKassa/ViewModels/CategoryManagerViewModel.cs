@@ -21,8 +21,8 @@ namespace AutoKassa.ViewModels
             IncomeCategories = new ObservableCollection<CategoryItemViewModel>();
             ExpenseCategories = new ObservableCollection<CategoryItemViewModel>();
 
-            AddIncomeCategoryCommand = new RelayCommand(async _ => await AddCategoryAsync(OperationType.Income));
-            AddExpenseCategoryCommand = new RelayCommand(async _ => await AddCategoryAsync(OperationType.Expense));
+            AddIncomeCategoryCommand = new AsyncRelayCommand(() => AddCategoryAsync(OperationType.Income));
+            AddExpenseCategoryCommand = new AsyncRelayCommand(() => AddCategoryAsync(OperationType.Expense));
             CloseCommand = new RelayCommand(_ => OnClosed?.Invoke());
         }
 

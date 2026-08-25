@@ -55,17 +55,25 @@ namespace AutoKassa.ViewModels.Reports
             _activePeriodPreset = "Month";
 
             // Команды
-            GenerateCommand = new RelayCommand(async _ => await GenerateReportAsync());
-            ExportToPdfCommand = new RelayCommand(async _ =>
+            GenerateCommand = new AsyncRelayCommand(GenerateReportAsync);
+            ExportToPdfCommand = new AsyncRelayCommand(async () =>
             {
                 try { await ExportToPdfAsync(); }
-                catch (Exception ex) { _toastService.ShowError($"Ошибка экспорта в PDF: {ex.Message}"); }
-            }, _ => HasData);
-            ExportToExcelCommand = new RelayCommand(async _ =>
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(ex, "Ошибка экспорта отчёта в PDF");
+                    _toastService.ShowError("Не удалось экспортировать отчёт в PDF");
+                }
+            }, () => HasData);
+            ExportToExcelCommand = new AsyncRelayCommand(async () =>
             {
                 try { await ExportToExcelAsync(); }
-                catch (Exception ex) { _toastService.ShowError($"Ошибка экспорта в Excel: {ex.Message}"); }
-            }, _ => HasData);
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(ex, "Ошибка экспорта отчёта в Excel");
+                    _toastService.ShowError("Не удалось экспортировать отчёт в Excel");
+                }
+            }, () => HasData);
 
             SetPeriodCommand = new RelayCommand<string>(period => SetPeriod(period));
 
@@ -306,7 +314,8 @@ namespace AutoKassa.ViewModels.Reports
             }
             catch (Exception ex)
             {
-                _toastService.ShowError($"Ошибка формирования отчета: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка формирования отчёта");
+                _toastService.ShowError("Не удалось сформировать отчёт");
                 HasData = false;
             }
             finally

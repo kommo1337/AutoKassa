@@ -41,7 +41,7 @@ namespace AutoKassa.ViewModels
 
             _date = DateTime.Now;
 
-            RepayCommand = new RelayCommand(async _ => await RepayAsync(), _ => CanRepay());
+            RepayCommand = new AsyncRelayCommand(RepayAsync, CanRepay);
             CancelCommand = new RelayCommand(_ => Cancel());
         }
 
@@ -165,7 +165,7 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(Amount));
 
             OnPropertyChanged(nameof(AmountError));
-            (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (RepayCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         }
 
         private void ValidateDate()
@@ -176,7 +176,7 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(Date));
 
             OnPropertyChanged(nameof(DateError));
-            (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (RepayCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         }
 
         private void ValidateDescription()
@@ -190,7 +190,7 @@ namespace AutoKassa.ViewModels
                 ClearErrors(nameof(Description));
 
             OnPropertyChanged(nameof(DescriptionError));
-            (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (RepayCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         }
 
         private bool CanRepay() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText);
@@ -205,7 +205,7 @@ namespace AutoKassa.ViewModels
             if (HasErrors) return;
 
             _isSaving = true;
-            (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (RepayCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -221,14 +221,20 @@ namespace AutoKassa.ViewModels
                 _dataChangeService.NotifyDataChanged();
                 OnSaved?.Invoke();
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка погашения: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка создания погашения долга {DebtTransactionId}", _debt.TransactionId);
+                _dialogService.ShowError("Не удалось создать погашение. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
                 _isSaving = false;
-                (RepayCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (RepayCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 

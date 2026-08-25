@@ -30,10 +30,10 @@ namespace AutoKassa.ViewModels
             _color = model.Color;
 
             StartRenameCommand = new RelayCommand(_ => StartRename());
-            CommitRenameCommand = new RelayCommand(async _ => await CommitRenameAsync());
+            CommitRenameCommand = new AsyncRelayCommand(CommitRenameAsync);
             CancelRenameCommand = new RelayCommand(_ => CancelRename());
             ToggleColorPickerCommand = new RelayCommand(_ => IsColorPickerOpen = !IsColorPickerOpen);
-            SelectColorCommand = new RelayCommand(async p => await SelectColorAsync(p as string));
+            SelectColorCommand = new AsyncRelayCommand<object>(p => SelectColorAsync(p as string));
             DeleteCommand = new RelayCommand(_ => onDelete?.Invoke(this));
         }
 

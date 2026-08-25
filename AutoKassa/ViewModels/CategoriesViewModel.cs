@@ -38,9 +38,9 @@ namespace AutoKassa.ViewModels
             IncomeCategories = new ObservableCollection<Category>();
             ExpenseCategories = new ObservableCollection<Category>();
 
-            LoadCommand = new RelayCommand(async _ => await LoadCategoriesAsync());
+            LoadCommand = new AsyncRelayCommand(LoadCategoriesAsync);
             OpenManagerCommand = new RelayCommand(_ => OpenManager());
-            DeleteCommand = new RelayCommand(async _ => await DeleteCategoryAsync(), _ => SelectedCategory != null);
+            DeleteCommand = new AsyncRelayCommand(DeleteCategoryAsync, () => SelectedCategory != null);
             FilterCommand = new RelayCommand<string>(type => ApplyFilter(type));
 
             _dataChangeService.DataChanged += OnDataChanged;
@@ -164,7 +164,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки категорий");
+                _dialogService.ShowError("Не удалось загрузить категории. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -216,7 +217,8 @@ namespace AutoKassa.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    _dialogService.ShowError($"Ошибка деактивации: {ex.Message}");
+                    Serilog.Log.Error(ex, "Ошибка деактивации категории {CategoryId}", category.Id);
+                    _dialogService.ShowError("Не удалось скрыть категорию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
                 }
             }
             else
@@ -249,9 +251,15 @@ namespace AutoKassa.ViewModels
                         _dialogService.ShowError("Не удалось удалить категорию");
                     }
                 }
+                catch (InvalidOperationException ex)
+                {
+                    // Бизнес-правило из сервиса — текст уже понятен пользователю
+                    _dialogService.ShowError(ex.Message);
+                }
                 catch (Exception ex)
                 {
-                    _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+                    Serilog.Log.Error(ex, "Ошибка удаления категории {CategoryId}", category.Id);
+                    _dialogService.ShowError("Не удалось удалить категорию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
                 }
             }
         }

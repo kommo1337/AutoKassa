@@ -321,7 +321,8 @@ namespace AutoKassa.ViewModels
             }
             catch (System.Exception ex)
             {
-                _dialogService.ShowError($"Ошибка при сохранении настроек: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сохранения начальных настроек");
+                _dialogService.ShowError("Не удалось сохранить настройки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 

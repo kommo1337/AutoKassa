@@ -41,6 +41,7 @@ namespace AutoKassa.ViewModels
         private ObservableCollection<Transaction> _transactions;
         private ObservableCollection<Category> _categories;
         private ObservableCollection<CreditCard> _creditCards = new();
+        private ObservableCollection<CreditCard> _creditCardFilterItems = new();
         private ObservableCollection<Counterparty> _counterparties = new();
         private ObservableCollection<SelectableDateGroup> _groupedTransactions = new();
         private Transaction _selectedTransaction;
@@ -64,6 +65,7 @@ namespace AutoKassa.ViewModels
         private bool _isDebtFilter;
         private DebtStatus? _selectedDebtStatusFilter;
         private Counterparty _selectedCounterpartyFilter;
+        private CreditCard _selectedCreditCardFilter;
         private string _amountFromText;
         private string _amountToText;
         private decimal? _amountFrom;
@@ -76,6 +78,12 @@ namespace AutoKassa.ViewModels
         // Category picker
         private bool _isCategoryPickerOpen;
         private string _categorySearchText;
+
+        // Counterparty picker
+        private bool _isCounterpartyPickerOpen;
+
+        // Credit card picker
+        private bool _isCreditCardPickerOpen;
 
         // Modal
         private bool _isModalOpen;
@@ -121,32 +129,32 @@ namespace AutoKassa.ViewModels
             Categories = new ObservableCollection<Category>();
 
             // Standard commands
-            LoadCommand = new RelayCommand(async _ => await LoadDataAsync());
+            LoadCommand = new AsyncRelayCommand(LoadDataAsync);
             AddCommand = new RelayCommand(_ => AddTransaction());
             // Параметр = конкретная операция (строка списка) или null → используем SelectedTransaction
             EditCommand = new RelayCommand(p => EditTransaction(p as Transaction ?? SelectedTransaction), p => (p as Transaction ?? SelectedTransaction) != null);
-            DeleteCommand = new RelayCommand(async p => await DeleteTransactionAsync(p as Transaction ?? SelectedTransaction), p => (p as Transaction ?? SelectedTransaction) != null);
+            DeleteCommand = new AsyncRelayCommand<object>(p => DeleteTransactionAsync(p as Transaction ?? SelectedTransaction), p => (p as Transaction ?? SelectedTransaction) != null);
             SelectTransactionCommand = new RelayCommand(p => SelectedTransaction = p as Transaction);
-            ApplyFiltersCommand = new RelayCommand(async _ => await ApplyFiltersAsync());
-            ResetFiltersCommand = new RelayCommand(async _ => await ResetFiltersAsync());
-            LoadMoreCommand = new RelayCommand(async _ => await LoadMoreAsync());
-            SelectAllPaymentCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); await LoadDataAsync(); });
-            SelectCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.Cash; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
-            SelectNonCashFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.NonCash; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
-            SelectCreditCardFilterCommand = new RelayCommand(async _ => { _selectedPaymentTypeFilter = PaymentType.CreditCard; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
-            SelectDebtFilterCommand = new RelayCommand(async _ => { _isDebtFilter = true; _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
-            FilterByIncomeCommand = new RelayCommand(async _ => { _selectedType = OperationType.Income; RefreshTypeFilterUI(); await LoadDataAsync(); });
-            FilterByExpenseCommand = new RelayCommand(async _ => { _selectedType = OperationType.Expense; RefreshTypeFilterUI(); await LoadDataAsync(); });
-            ResetTypeFilterCommand = new RelayCommand(async _ => { _selectedType = null; RefreshTypeFilterUI(); await LoadDataAsync(); });
-            SelectDebtStatusFilterCommand = new RelayCommand<DebtStatus?>(async status => { _selectedDebtStatusFilter = status; RefreshDebtStatusFilterUI(); await LoadDataAsync(); });
+            ApplyFiltersCommand = new AsyncRelayCommand(ApplyFiltersAsync);
+            ResetFiltersCommand = new AsyncRelayCommand(ResetFiltersAsync);
+            LoadMoreCommand = new AsyncRelayCommand(LoadMoreAsync);
+            SelectAllPaymentCommand = new AsyncRelayCommand(async () => { _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); await LoadDataAsync(); });
+            SelectCashFilterCommand = new AsyncRelayCommand(async () => { _selectedPaymentTypeFilter = PaymentType.Cash; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            SelectNonCashFilterCommand = new AsyncRelayCommand(async () => { _selectedPaymentTypeFilter = PaymentType.NonCash; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            SelectCreditCardFilterCommand = new AsyncRelayCommand(async () => { _selectedPaymentTypeFilter = PaymentType.CreditCard; _isDebtFilter = false; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            SelectDebtFilterCommand = new AsyncRelayCommand(async () => { _isDebtFilter = true; _selectedPaymentTypeFilter = null; RefreshPaymentFilterUI(); RefreshDebtFilterUI(); await LoadDataAsync(); });
+            FilterByIncomeCommand = new AsyncRelayCommand(async () => { _selectedType = OperationType.Income; RefreshTypeFilterUI(); await LoadDataAsync(); });
+            FilterByExpenseCommand = new AsyncRelayCommand(async () => { _selectedType = OperationType.Expense; RefreshTypeFilterUI(); await LoadDataAsync(); });
+            ResetTypeFilterCommand = new AsyncRelayCommand(async () => { _selectedType = null; RefreshTypeFilterUI(); await LoadDataAsync(); });
+            SelectDebtStatusFilterCommand = new AsyncRelayCommand<DebtStatus?>(async status => { _selectedDebtStatusFilter = status; RefreshDebtStatusFilterUI(); await LoadDataAsync(); });
 
             // Period picker commands
             TogglePeriodPickerCommand = new RelayCommand(_ => IsPeriodPickerOpen = !IsPeriodPickerOpen);
-            SelectPeriodCommand = new RelayCommand(async p => { if (p is string s) await SelectPeriodAsync(s); });
+            SelectPeriodCommand = new AsyncRelayCommand<object>(async p => { if (p is string s) await SelectPeriodAsync(s); });
 
             // Category picker commands
             ToggleCategoryPickerCommand = new RelayCommand(_ => IsCategoryPickerOpen = !IsCategoryPickerOpen);
-            SelectCategoryCommand = new RelayCommand(async p =>
+            SelectCategoryCommand = new AsyncRelayCommand<object>(async p =>
             {
                 if (p is Category cat)
                 {
@@ -157,13 +165,29 @@ namespace AutoKassa.ViewModels
                 }
             });
 
+            // Counterparty picker commands
+            ToggleCounterpartyPickerCommand = new RelayCommand(_ => IsCounterpartyPickerOpen = !IsCounterpartyPickerOpen);
+            SelectCounterpartyFilterCommand = new RelayCommand<Counterparty>(cp =>
+            {
+                SelectedCounterpartyFilter = cp;
+                IsCounterpartyPickerOpen = false;
+            });
+
+            // Credit card picker commands
+            ToggleCreditCardPickerCommand = new RelayCommand(_ => IsCreditCardPickerOpen = !IsCreditCardPickerOpen);
+            SelectCreditCardFilterItemCommand = new RelayCommand<CreditCard>(card =>
+            {
+                SelectedCreditCardFilter = card;
+                IsCreditCardPickerOpen = false;
+            });
+
             // Bulk selection commands
-            DeleteSelectedCommand = new RelayCommand(async _ => await DeleteSelectedAsync());
+            DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync);
             ClearSelectionCommand = new RelayCommand(_ => _transactionSelectionService.ClearSelection(GroupedTransactions, RefreshSelectionState));
 
             // Inline add commands
             OpenInlineCommand = new RelayCommand(_ => OpenInline());
-            InlineSaveCommand = new RelayCommand(async _ => await InlineSaveAsync(), _ => CanInlineSave());
+            InlineSaveCommand = new AsyncRelayCommand(InlineSaveAsync, CanInlineSave);
             InlineCancelCommand = new RelayCommand(_ => CloseInline());
             InlineToggleTypeCommand    = new RelayCommand(_ => InlineType = InlineType == OperationType.Expense ? OperationType.Income : OperationType.Expense);
             InlineSelectExpenseCommand = new RelayCommand(_ => InlineType = OperationType.Expense);
@@ -178,9 +202,12 @@ namespace AutoKassa.ViewModels
                 _ => PaymentType.Cash
             });
 
-            // Default period = current month
+            // Период по умолчанию — текущий месяц целиком, включая будущие даты:
+            // иначе операции с будущей датой скрыты до её наступления
+            // и «появляются из ниоткуда» в свой день
             _dateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            _dateTo = DateTime.Now;
+            _dateTo = new DateTime(DateTime.Now.Year, DateTime.Now.Month,
+                DateTime.DaysInMonth(DateTime.Now.Year, DateTime.Now.Month));
 
             _dataChangeService.DataChanged += OnDataChanged;
         }
@@ -261,6 +288,16 @@ namespace AutoKassa.ViewModels
                         InlineCreditCard = value[0];
                 }
             }
+        }
+
+        /// <summary>
+        /// Список карт для фильтра операций: пункт «Все карты» (Id = 0) и все карты,
+        /// включая неактивные — по ним могут остаться исторические операции.
+        /// </summary>
+        public ObservableCollection<CreditCard> CreditCardFilterItems
+        {
+            get => _creditCardFilterItems;
+            set => SetProperty(ref _creditCardFilterItems, value);
         }
 
         public ObservableCollection<Counterparty> Counterparties
@@ -381,6 +418,16 @@ namespace AutoKassa.ViewModels
             }
         }
 
+        public CreditCard SelectedCreditCardFilter
+        {
+            get => _selectedCreditCardFilter;
+            set
+            {
+                if (SetProperty(ref _selectedCreditCardFilter, value))
+                    _ = LoadDataAsync();
+            }
+        }
+
         public string AmountFromText
         {
             get => _amountFromText;
@@ -454,6 +501,18 @@ namespace AutoKassa.ViewModels
             string.IsNullOrWhiteSpace(_categorySearchText)
                 ? (IEnumerable<Category>)Categories
                 : Categories.Where(c => c.Name.Contains(_categorySearchText, StringComparison.OrdinalIgnoreCase));
+
+        public bool IsCounterpartyPickerOpen
+        {
+            get => _isCounterpartyPickerOpen;
+            set => SetProperty(ref _isCounterpartyPickerOpen, value);
+        }
+
+        public bool IsCreditCardPickerOpen
+        {
+            get => _isCreditCardPickerOpen;
+            set => SetProperty(ref _isCreditCardPickerOpen, value);
+        }
 
         #endregion
 
@@ -561,7 +620,7 @@ namespace AutoKassa.ViewModels
         public ICommand LoadCommand { get; }
         public ICommand AddCommand { get; }
         public RelayCommand EditCommand { get; }
-        public RelayCommand DeleteCommand { get; }
+        public AsyncRelayCommand<object> DeleteCommand { get; }
         public ICommand SelectTransactionCommand { get; }
         public ICommand ApplyFiltersCommand { get; }
         public ICommand ResetFiltersCommand { get; }
@@ -579,6 +638,10 @@ namespace AutoKassa.ViewModels
         public ICommand SelectPeriodCommand { get; }
         public ICommand ToggleCategoryPickerCommand { get; }
         public ICommand SelectCategoryCommand { get; }
+        public ICommand ToggleCounterpartyPickerCommand { get; }
+        public ICommand SelectCounterpartyFilterCommand { get; }
+        public ICommand ToggleCreditCardPickerCommand { get; }
+        public ICommand SelectCreditCardFilterItemCommand { get; }
         public ICommand DeleteSelectedCommand { get; }
         public ICommand ClearSelectionCommand { get; }
         public ICommand OpenInlineCommand { get; }
@@ -622,12 +685,24 @@ namespace AutoKassa.ViewModels
                     newCreditCards.Add(card);
                 CreditCards = newCreditCards;
 
+                // Для фильтра — все карты, включая неактивные (по ним могут быть операции)
+                var cardFilterItems = new ObservableCollection<CreditCard> { new CreditCard { Id = 0, Name = "Все карты" } };
+                foreach (var card in creditCards)
+                    cardFilterItems.Add(card);
+                CreditCardFilterItems = cardFilterItems;
+                // Начальное значение — «Все карты»; через поле, чтобы не запускать лишнюю загрузку
+                _selectedCreditCardFilter ??= CreditCardFilterItems.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedCreditCardFilter));
+
                 var counterparties = await _counterpartyService.GetActiveAsync();
                 var newCounterparties = new ObservableCollection<Counterparty>();
                 newCounterparties.Add(new Counterparty { Id = 0, Name = "Все контрагенты" });
                 foreach (var c in counterparties)
                     newCounterparties.Add(c);
                 Counterparties = newCounterparties;
+                // Начальное значение — «Все контрагенты»; через поле, чтобы не запускать лишнюю загрузку
+                _selectedCounterpartyFilter ??= Counterparties.FirstOrDefault();
+                OnPropertyChanged(nameof(SelectedCounterpartyFilter));
 
                 OnPropertyChanged(nameof(InlineCategories));
                 OnPropertyChanged(nameof(FilteredCategories));
@@ -638,7 +713,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки категорий");
+                _dialogService.ShowError("Не удалось загрузить категории. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -669,7 +745,8 @@ namespace AutoKassa.ViewModels
             catch (OperationCanceledException) { /* фильтр изменился — игнорируем */ }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки данных: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки операций");
+                _dialogService.ShowError("Не удалось загрузить операции. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -699,7 +776,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки данных: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки операций");
+                _dialogService.ShowError("Не удалось загрузить операции. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -717,6 +795,7 @@ namespace AutoKassa.ViewModels
                 PaymentType = _selectedPaymentTypeFilter,
                 CategoryId = SelectedCategory?.Id > 0 ? SelectedCategory.Id : (int?)null,
                 CounterpartyId = SelectedCounterpartyFilter?.Id > 0 ? SelectedCounterpartyFilter.Id : (int?)null,
+                CreditCardId = SelectedCreditCardFilter?.Id > 0 ? SelectedCreditCardFilter.Id : (int?)null,
                 IsDebtFilter = _isDebtFilter,
                 DebtStatus = _selectedDebtStatusFilter,
                 SearchText = SearchText,
@@ -812,7 +891,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка массового удаления операций");
+                _dialogService.ShowError("Не удалось удалить операции. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -828,7 +908,9 @@ namespace AutoKassa.ViewModels
             OnPropertyChanged(nameof(PeriodLabel));
 
             DateFrom = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            DateTo = DateTime.Now;
+            // Конец месяца, а не «сейчас»: будущие даты текущего месяца должны быть видны
+            DateTo = new DateTime(DateTime.Now.Year, DateTime.Now.Month,
+                DateTime.DaysInMonth(DateTime.Now.Year, DateTime.Now.Month));
             _selectedType = null;
             RefreshTypeFilterUI();
             _selectedPaymentTypeFilter = null;
@@ -839,6 +921,7 @@ namespace AutoKassa.ViewModels
             RefreshDebtStatusFilterUI();
             SelectedCategory = Categories.FirstOrDefault();
             SelectedCounterpartyFilter = Counterparties.FirstOrDefault();
+            SelectedCreditCardFilter = CreditCardFilterItems.FirstOrDefault();
             SearchText = string.Empty;
             AmountFromText = string.Empty;
             AmountToText = string.Empty;
@@ -866,7 +949,8 @@ namespace AutoKassa.ViewModels
                     break;
                 case "Month":
                     DateFrom = new DateTime(today.Year, today.Month, 1);
-                    DateTo = today;
+                    // Весь месяц, включая будущие даты (см. комментарий в конструкторе)
+                    DateTo = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
                     _selectedPeriodPreset = PeriodPreset.Month;
                     break;
                 case "LastMonth":
@@ -952,7 +1036,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка удаления операции {TransactionId}", deletedId);
+                _dialogService.ShowError("Не удалось удалить операцию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -1002,7 +1087,7 @@ namespace AutoKassa.ViewModels
             if (_isInlineSaving) return;
 
             _isInlineSaving = true;
-            (InlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (InlineSaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -1028,14 +1113,20 @@ namespace AutoKassa.ViewModels
                 _dataChangeService?.NotifyDataChanged();
                 _toastService.ShowSuccess("Операция добавлена");
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка добавления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка добавления inline-операции");
+                _dialogService.ShowError("Не удалось добавить операцию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
                 _isInlineSaving = false;
-                (InlineSaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (InlineSaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 

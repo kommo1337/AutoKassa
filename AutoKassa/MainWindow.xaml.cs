@@ -3,6 +3,7 @@ using AutoKassa.ViewModels;
 using System;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 
 namespace AutoKassa
@@ -12,15 +13,32 @@ namespace AutoKassa
     /// </summary>
     public partial class MainWindow : Window
     {
+        private readonly MainWindowViewModel _viewModel;
         private readonly IToastNotificationService _toastService;
 
         public MainWindow(MainWindowViewModel viewModel, IToastNotificationService toastService)
         {
             InitializeComponent();
             DataContext = viewModel;
+            _viewModel = viewModel;
 
             _toastService = toastService;
             _toastService.ToastRequested += OnToastRequested;
+
+            // Отслеживаем ввод пользователя для автоблокировки по простою
+            InputManager.Current.PreProcessInput += OnPreProcessInput;
+        }
+
+        /// <summary>
+        /// Любой ввод (клавиатура, кнопки мыши) — активность пользователя.
+        /// Движение мыши не считаем, решение о сбросе таймера принимает ViewModel.
+        /// </summary>
+        private void OnPreProcessInput(object sender, PreProcessInputEventArgs e)
+        {
+            if (e.StagingItem.Input is KeyEventArgs or MouseButtonEventArgs)
+            {
+                _viewModel.NotifyUserActivity();
+            }
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -69,6 +87,7 @@ namespace AutoKassa
 
         protected override void OnClosed(System.EventArgs e)
         {
+            InputManager.Current.PreProcessInput -= OnPreProcessInput;
             _toastService.ToastRequested -= OnToastRequested;
             (DataContext as System.IDisposable)?.Dispose();
             base.OnClosed(e);

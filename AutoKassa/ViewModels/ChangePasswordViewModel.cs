@@ -111,9 +111,10 @@ namespace AutoKassa.ViewModels
             {
                 SetErrors(nameof(NewPassword), new[] { "Введите новый пароль" });
             }
-            else if (NewPassword.Length < 4)
+            else if (NewPassword.Length < 6)
             {
-                SetErrors(nameof(NewPassword), new[] { "Пароль должен содержать минимум 4 символа" });
+                // Единый минимум длины пароля: 6 (как при первичной установке и восстановлении)
+                SetErrors(nameof(NewPassword), new[] { "Пароль должен содержать минимум 6 символов" });
             }
             else if (NewPassword == CurrentPassword)
             {
@@ -173,7 +174,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка смены пароля: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка смены пароля");
+                _dialogService.ShowError("Не удалось изменить пароль. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 

@@ -261,6 +261,7 @@ namespace AutoKassa
             services.AddSingleton<SettingsViewModel>();
             services.AddTransient<ChangePasswordViewModel>();
             services.AddTransient<LockScreenViewModel>();
+            services.AddTransient<PasswordRecoveryViewModel>();
 
             // Регистрация Views
             services.AddTransient<ChangePasswordView>();

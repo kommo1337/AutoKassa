@@ -24,6 +24,7 @@ namespace AutoKassa.ViewModels
         private readonly IBackupCoordinator _backupCoordinator;
         private readonly IAppInfoService _appInfoService;
         private readonly ICreditCardSettingsService _creditCardSettingsService;
+        private readonly ILockService _lockService;
 
         private AppSettings _currentSettings;
         private AppSettings _originalSettings;
@@ -120,7 +121,8 @@ namespace AutoKassa.ViewModels
             ISettingsValidator validator,
             IBackupCoordinator backupCoordinator,
             IAppInfoService appInfoService,
-            ICreditCardSettingsService creditCardSettingsService)
+            ICreditCardSettingsService creditCardSettingsService,
+            ILockService lockService)
         {
             _settingsService = settingsService;
             _dialogService = dialogService;
@@ -132,16 +134,17 @@ namespace AutoKassa.ViewModels
             _backupCoordinator = backupCoordinator;
             _appInfoService = appInfoService;
             _creditCardSettingsService = creditCardSettingsService;
+            _lockService = lockService;
 
-            SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => HasUnsavedChanges);
+            SaveCommand = new AsyncRelayCommand(SaveAsync, () => HasUnsavedChanges);
             CancelCommand = new RelayCommand(_ => Cancel());
-            ResetCommand = new RelayCommand(async _ => await ResetToDefaultsAsync());
-            ExportCommand = new RelayCommand(async _ => await ExportSettingsAsync());
-            ImportCommand = new RelayCommand(async _ => await ImportSettingsAsync());
+            ResetCommand = new AsyncRelayCommand(ResetToDefaultsAsync);
+            ExportCommand = new AsyncRelayCommand(ExportSettingsAsync);
+            ImportCommand = new AsyncRelayCommand(ImportSettingsAsync);
             ChangePasswordCommand = new RelayCommand(_ => ChangePassword());
             SelectBackupPathCommand = new RelayCommand(_ => SelectBackupPath());
-            CreateBackupCommand = new RelayCommand(async _ => await CreateBackupAsync());
-            RestoreBackupCommand = new RelayCommand(async _ => await RestoreBackupAsync());
+            CreateBackupCommand = new AsyncRelayCommand(CreateBackupAsync);
+            RestoreBackupCommand = new AsyncRelayCommand(RestoreBackupAsync);
 
             _dataChangeService.DataChanged += OnDataChanged;
         }
@@ -439,7 +442,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки настроек: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки настроек");
+                _dialogService.ShowError("Не удалось загрузить настройки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -475,17 +479,27 @@ namespace AutoKassa.ViewModels
                 try { await _creditCardSettingsService.SyncFromSettingsAsync(_currentSettings); }
                 catch (Exception ex)
                 {
-                    _dialogService.ShowWarning($"Не удалось синхронизировать кредитную карту: {ex.Message}");
+                    Serilog.Log.Error(ex, "Ошибка синхронизации кредитной карты с настройками");
+                    _dialogService.ShowWarning("Не удалось синхронизировать кредитную карту с новыми настройками. Подробности — в файле журнала (папка logs).");
                 }
 
                 _originalSettings = _mapper.Clone(_currentSettings);
                 HasUnsavedChanges = false;
                 _dataChangeService?.NotifyDataChanged();
+
+                // Применяем настройки автоблокировки к таймеру сразу,
+                // не дожидаясь перезапуска приложения
+                if (AutoLockEnabled && AutoLockMinutes > 0)
+                    _lockService.StartAutoLockTimer(); // Перечитает настройки и пересоздаст интервал
+                else
+                    _lockService.StopAutoLockTimer();
+
                 _toastService.ShowSuccess("Настройки сохранены");
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сохранения настроек");
+                _dialogService.ShowError("Не удалось сохранить настройки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -517,7 +531,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка сброса: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сброса настроек");
+                _dialogService.ShowError("Не удалось сбросить настройки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -548,7 +563,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка экспорта: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка экспорта настроек в {FileName}", dialog.FileName);
+                _dialogService.ShowError("Не удалось экспортировать настройки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -588,7 +604,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка импорта: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка импорта настроек из {FileName}", dialog.FileName);
+                _dialogService.ShowError("Не удалось импортировать настройки. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {

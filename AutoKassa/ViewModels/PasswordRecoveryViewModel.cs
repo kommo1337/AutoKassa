@@ -1,4 +1,4 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using System.Threading.Tasks;
@@ -170,9 +170,10 @@ namespace AutoKassa.ViewModels
             }
             else
             {
-                // Неверный ответ
-                ErrorMessage = "Неверный ответ. Попробуйте снова.";
+                // Неверный ответ. Сначала очищаем поле — сеттер Answer сбрасывает
+                // ErrorMessage, поэтому сообщение ставим после очистки.
                 Answer = string.Empty;
+                ErrorMessage = "Неверный ответ. Попробуйте снова.";
             }
         }
 
@@ -207,18 +208,32 @@ namespace AutoKassa.ViewModels
 
                 _dialogService.ShowInfo("Пароль успешно изменен!");
 
-                // Закрываем окно восстановления и разблокируем приложение
+                // Возвращаемся на панель входа — разблокировка новым паролем
                 OnPasswordReset?.Invoke();
             }
             catch (System.Exception ex)
             {
-                ErrorMessage = $"Ошибка: {ex.Message}";
+                Serilog.Log.Error(ex, "Ошибка восстановления пароля");
+                ErrorMessage = "Произошла ошибка. Попробуйте ещё раз.";
             }
         }
 
         private void Cancel()
         {
             OnCancelled?.Invoke();
+        }
+
+        /// <summary>
+        /// Сбросить состояние восстановления (при повторном входе на панель)
+        /// </summary>
+        public void Reset()
+        {
+            Answer = string.Empty;
+            NewPassword = string.Empty;
+            ConfirmNewPassword = string.Empty;
+            ErrorMessage = null;
+            IsAnswerVerified = false;
+            LoadSecurityQuestion();
         }
 
         #endregion

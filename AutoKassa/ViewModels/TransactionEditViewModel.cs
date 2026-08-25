@@ -78,8 +78,8 @@ namespace AutoKassa.ViewModels
             _settingsService = settingsService;
             _toastService = toastService;
 
-            SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
-            SaveAndAddNextCommand = new RelayCommand(async _ => await SaveAndAddNextAsync(), _ => CanSave() && !IsEditMode);
+            SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
+            SaveAndAddNextCommand = new AsyncRelayCommand(SaveAndAddNextAsync, () => CanSave() && !IsEditMode);
             CancelCommand = new RelayCommand(_ => Cancel());
             SelectCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.Cash);
             SelectNonCashCommand = new RelayCommand(_ => SelectedPaymentType = PaymentType.NonCash);
@@ -261,8 +261,8 @@ namespace AutoKassa.ViewModels
             {
                 if (SetProperty(ref _isRepayment, value))
                 {
-                    (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-                    (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                    (SaveAndAddNextCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
                     OnPropertyChanged(nameof(RepaymentWarning));
                 }
             }
@@ -534,7 +534,8 @@ namespace AutoKassa.ViewModels
             {
                 _allCategories = new List<Category>();
                 Categories = new List<Category>();
-                _dialogService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки категорий");
+                _dialogService.ShowError("Не удалось загрузить категории. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -576,7 +577,8 @@ namespace AutoKassa.ViewModels
             catch (Exception ex)
             {
                 AvailableCreditCards = new List<CreditCard>();
-                _dialogService.ShowError($"Ошибка загрузки кредитных карт: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки кредитных карт");
+                _dialogService.ShowError("Не удалось загрузить кредитные карты. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -595,7 +597,8 @@ namespace AutoKassa.ViewModels
             catch (Exception ex)
             {
                 AvailableCounterparties = new List<Counterparty>();
-                _dialogService.ShowError($"Ошибка загрузки контрагентов: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки контрагентов");
+                _dialogService.ShowError("Не удалось загрузить контрагентов. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 
@@ -676,6 +679,21 @@ namespace AutoKassa.ViewModels
 
         private bool CanSave() => !_isSaving && !HasErrors && !string.IsNullOrEmpty(_amountText) && !IsRepayment;
 
+        /// <summary>
+        /// Запрашивает подтверждение, если дата операции ещё не наступила.
+        /// Защита от ошибочного выбора месяца в календаре при вводе операций задним числом:
+        /// такая операция сохраняется молча, а в своё число «появляется из ниоткуда».
+        /// </summary>
+        private bool ConfirmFutureDate()
+        {
+            if (Date.Date <= DateTime.Today)
+                return true;
+
+            return _dialogService.ShowConfirmation(
+                $"Дата операции ({Date:dd.MM.yyyy}) ещё не наступила.\nСохранить операцию с будущей датой?",
+                "Будущая дата");
+        }
+
         private async System.Threading.Tasks.Task SaveAsync()
         {
             if (_isSaving) return;
@@ -689,9 +707,11 @@ namespace AutoKassa.ViewModels
 
             if (HasErrors) return;
 
+            if (!ConfirmFutureDate()) return;
+
             _isSaving = true;
-            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (SaveAndAddNextCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -731,15 +751,21 @@ namespace AutoKassa.ViewModels
                 if (OnSaved != null)
                     await OnSaved();
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сохранения операции");
+                _dialogService.ShowError("Не удалось сохранить операцию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
                 _isSaving = false;
-                (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-                (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                (SaveAndAddNextCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 
@@ -756,9 +782,11 @@ namespace AutoKassa.ViewModels
 
             if (HasErrors) return;
 
+            if (!ConfirmFutureDate()) return;
+
             _isSaving = true;
-            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (SaveAndAddNextCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -795,15 +823,21 @@ namespace AutoKassa.ViewModels
 
                 RequestFocusAmount?.Invoke();
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сохранения операции");
+                _dialogService.ShowError("Не удалось сохранить операцию. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
                 _isSaving = false;
-                (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-                (SaveAndAddNextCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+                (SaveAndAddNextCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 

@@ -50,9 +50,9 @@ namespace AutoKassa.ViewModels
             _items = new ObservableCollection<CounterpartyViewModel>();
 
             AddCommand = new RelayCommand(_ => OpenAdd());
-            RefreshCommand = new RelayCommand(async _ => await LoadAsync());
+            RefreshCommand = new AsyncRelayCommand(LoadAsync);
             FilterByTypeCommand = new RelayCommand<string>(type => ApplyTypeFilter(type));
-            DeleteCommand = new RelayCommand<CounterpartyViewModel>(async vm => await DeleteAsync(vm), _ => true);
+            DeleteCommand = new AsyncRelayCommand<CounterpartyViewModel>(vm => DeleteAsync(vm), _ => true);
             EditCommand = new RelayCommand<CounterpartyViewModel>(vm => OpenEdit(vm), _ => true);
 
             _dataChangeService.DataChanged += OnDataChanged;
@@ -261,7 +261,8 @@ namespace AutoKassa.ViewModels
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка загрузки контрагентов: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки контрагентов");
+                _dialogService.ShowError("Не удалось загрузить контрагентов. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
@@ -346,11 +347,13 @@ namespace AutoKassa.ViewModels
             }
             catch (InvalidOperationException ex)
             {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
                 _dialogService.ShowError(ex.Message);
             }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка удаления контрагента {CounterpartyId}", item.Id);
+                _dialogService.ShowError("Не удалось удалить контрагента. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
         }
 

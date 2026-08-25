@@ -63,7 +63,7 @@ namespace AutoKassa.ViewModels.Reports
                     EditTransaction(t);
             });
 
-            DeleteTransactionCommand = new RelayCommand(async param =>
+            DeleteTransactionCommand = new AsyncRelayCommand<object>(async param =>
             {
                 if (param is Transaction t)
                     await DeleteTransactionAsync(t);
@@ -227,7 +227,8 @@ namespace AutoKassa.ViewModels.Reports
             }
             catch (Exception ex)
             {
-                _toastService.ShowError($"Ошибка удаления: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка удаления операции {TransactionId} из отчёта", deletedId);
+                _toastService.ShowError("Не удалось удалить операцию");
             }
         }
 

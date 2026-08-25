@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -35,7 +35,7 @@ namespace AutoKassa.ViewModels
             _dialogService = dialogService;
             _existingCounterparty = existingCounterparty;
 
-            SaveCommand = new RelayCommand(async _ => await SaveAsync(), _ => CanSave());
+            SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
             CancelCommand = new RelayCommand(_ => OnClosed?.Invoke());
 
             if (existingCounterparty != null)
@@ -168,7 +168,7 @@ namespace AutoKassa.ViewModels
             if (HasErrors) return;
 
             _isSaving = true;
-            (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
 
             try
             {
@@ -189,14 +189,20 @@ namespace AutoKassa.ViewModels
 
                 OnClosed?.Invoke();
             }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowError(ex.Message);
+            }
             catch (Exception ex)
             {
-                _dialogService.ShowError($"Ошибка сохранения: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка сохранения контрагента");
+                _dialogService.ShowError("Не удалось сохранить контрагента. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
             }
             finally
             {
                 _isSaving = false;
-                (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (SaveCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
             }
         }
 

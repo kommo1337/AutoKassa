@@ -59,6 +59,7 @@
             <converters:DebtStatusToTextConverter x:Key="DebtStatusToTextConverter"/>
             <converters:DebtStatusToColorConverter x:Key="DebtStatusToColorConverter"/>
             <converters:CounterpartyTypeToTextConverter x:Key="CounterpartyTypeToTextConverter"/>
+            <converters:MaxModalHeightConverter x:Key="MaxModalHeightConverter"/>
 
             <!-- ========== СТИЛИ КНОПОК ========== -->
 

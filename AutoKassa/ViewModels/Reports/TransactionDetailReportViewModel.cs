@@ -105,7 +105,8 @@ namespace AutoKassa.ViewModels.Reports
             }
             catch (Exception ex)
             {
-                _toastService.ShowError($"Ошибка загрузки категорий: {ex.Message}");
+                Serilog.Log.Error(ex, "Ошибка загрузки категорий для отчёта");
+                _toastService.ShowError("Не удалось загрузить категории");
             }
         }
 

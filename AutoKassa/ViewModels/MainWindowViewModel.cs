@@ -194,9 +194,28 @@ namespace AutoKassa.ViewModels
 
         #region Блокировка
 
+        // Троттлинг сброса таймера автоблокировки, чтобы не дёргать
+        // DispatcherTimer на каждое событие ввода
+        private static readonly TimeSpan ActivityResetInterval = TimeSpan.FromSeconds(15);
+        private DateTime _lastActivityReset = DateTime.MinValue;
+
         private void Lock()
         {
             _lockService.Lock();
+        }
+
+        /// <summary>
+        /// Пользователь проявил активность (ввод с клавиатуры/мыши) —
+        /// сбросить таймер автоблокировки. Вызывается из MainWindow.
+        /// </summary>
+        public void NotifyUserActivity()
+        {
+            var now = DateTime.Now;
+            if (now - _lastActivityReset < ActivityResetInterval)
+                return;
+
+            _lastActivityReset = now;
+            _lockService.ResetAutoLockTimer();
         }
 
         #endregion
