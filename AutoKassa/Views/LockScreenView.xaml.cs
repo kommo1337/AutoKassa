@@ -1,5 +1,6 @@
-﻿using AutoKassa.ViewModels;
+using AutoKassa.ViewModels;
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -24,6 +25,7 @@ namespace AutoKassa.Views
             // Подписка на события
             _viewModel.OnUnlocked = OnUnlocked;
             _viewModel.OnPasswordError = OnPasswordError;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
             // Фокус на поле пароля при загрузке
             _loadedHandler = (s, e) => PasswordBox.Focus();
@@ -47,6 +49,66 @@ namespace AutoKassa.Views
             if (e.Key == Key.Enter && _viewModel.UnlockCommand.CanExecute(null))
             {
                 _viewModel.UnlockCommand.Execute(null);
+            }
+        }
+
+        /// <summary>
+        /// Переключение панелей входа/восстановления:
+        /// очистка полей и установка фокуса (чистая UI-логика)
+        /// </summary>
+        private void OnViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(LockScreenViewModel.IsPasswordRecoveryMode))
+                return;
+
+            if (_viewModel.IsPasswordRecoveryMode)
+            {
+                // Очищаем поля восстановления и фокусируемся на ответе
+                NewPasswordBox.Clear();
+                ConfirmNewPasswordBox.Clear();
+                Dispatcher.BeginInvoke(new System.Action(() => AnswerTextBox.Focus()),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+            else
+            {
+                // Вернулись на панель входа
+                PasswordBox.Clear();
+                Dispatcher.BeginInvoke(new System.Action(() => PasswordBox.Focus()),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+        }
+
+        /// <summary>
+        /// Обработчик изменения нового пароля (восстановление)
+        /// </summary>
+        private void NewPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            _viewModel.Recovery.NewPassword = ((PasswordBox)sender).Password;
+        }
+
+        /// <summary>
+        /// Обработчик изменения подтверждения нового пароля (восстановление)
+        /// </summary>
+        private void ConfirmNewPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            _viewModel.Recovery.ConfirmNewPassword = ((PasswordBox)sender).Password;
+        }
+
+        /// <summary>
+        /// Enter в полях восстановления: проверка ответа или смена пароля
+        /// </summary>
+        private void RecoveryInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+
+            if (_viewModel.Recovery.IsAnswerVerified)
+            {
+                if (_viewModel.Recovery.ResetPasswordCommand.CanExecute(null))
+                    _viewModel.Recovery.ResetPasswordCommand.Execute(null);
+            }
+            else if (_viewModel.Recovery.VerifyAnswerCommand.CanExecute(null))
+            {
+                _viewModel.Recovery.VerifyAnswerCommand.Execute(null);
             }
         }
 
@@ -87,6 +149,7 @@ namespace AutoKassa.Views
         {
             _viewModel.OnUnlocked = null;
             _viewModel.OnPasswordError = null;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             Loaded -= _loadedHandler;
             Closed -= OnClosed;
             _viewModel?.Dispose();

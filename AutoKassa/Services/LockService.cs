@@ -64,8 +64,10 @@ namespace AutoKassa.Services
             }
             else
             {
-                // Окно закрыто без разблокировки (крестик) — сбрасываем флаг
-                _isLocked = false;
+                // Окно закрыто без разблокировки (Alt+F4, крестик, Esc) —
+                // завершаем приложение, иначе блокировку можно обойти.
+                // Флаг _isLocked не сбрасываем: повторный вход в Lock() невозможен.
+                Application.Current.Shutdown();
             }
         }
 
@@ -74,11 +76,19 @@ namespace AutoKassa.Services
         /// </summary>
         public void StartAutoLockTimer()
         {
-            if (!_settingsService.GetSettings().AutoLockEnabled) return; // Автоблокировка отключена в настройках
+            if (!_settingsService.GetSettings().AutoLockEnabled)
+            {
+                _autoLockTimer?.Stop(); // Автоблокировка отключена в настройках
+                return;
+            }
 
             var timeout = _settingsService.GetAutoLockTimeout();
 
-            if (timeout <= 0) return; // Автоблокировка отключена (таймаут 0)
+            if (timeout <= 0)
+            {
+                _autoLockTimer?.Stop(); // Автоблокировка отключена (таймаут 0)
+                return;
+            }
 
             if (_autoLockTimer == null)
             {
@@ -103,11 +113,15 @@ namespace AutoKassa.Services
         /// </summary>
         public void ResetAutoLockTimer()
         {
-            if (_autoLockTimer != null && _autoLockTimer.IsEnabled)
-            {
-                _autoLockTimer.Stop();
-                StartAutoLockTimer();
-            }
+            if (_isLocked) return; // На экране блокировки таймер не трогаем
+
+            if (_autoLockTimer == null) return; // Таймер ещё ни разу не запускался
+
+            // Таймер мог быть остановлен после срабатывания (IsEnabled == false) —
+            // перезапускаем в любом случае. StartAutoLockTimer сам проверяет
+            // настройки (AutoLockEnabled/таймаут) и пересоздаёт интервал.
+            _autoLockTimer.Stop();
+            StartAutoLockTimer();
         }
 
         /// <summary>

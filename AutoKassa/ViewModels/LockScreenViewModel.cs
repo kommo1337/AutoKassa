@@ -1,4 +1,4 @@
-﻿using AutoKassa.Helpers;
+using AutoKassa.Helpers;
 using AutoKassa.Services;
 using System.Windows.Input;
 
@@ -17,10 +17,16 @@ namespace AutoKassa.ViewModels
 
         public LockScreenViewModel(
             IPasswordService passwordService,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            PasswordRecoveryViewModel passwordRecoveryViewModel)
         {
             _passwordService = passwordService;
             _settingsService = settingsService;
+
+            // Дочерняя ViewModel восстановления пароля
+            Recovery = passwordRecoveryViewModel;
+            Recovery.OnPasswordReset = OnRecoveryPasswordReset;
+            Recovery.OnCancelled = CancelPasswordRecovery;
 
             // Команды
             UnlockCommand = new RelayCommand(_ => Unlock(), _ => CanUnlock());
@@ -63,6 +69,11 @@ namespace AutoKassa.ViewModels
             set => SetProperty(ref _isPasswordRecoveryMode, value);
         }
 
+        /// <summary>
+        /// ViewModel панели восстановления пароля
+        /// </summary>
+        public PasswordRecoveryViewModel Recovery { get; }
+
         #endregion
 
         #region Команды
@@ -77,7 +88,7 @@ namespace AutoKassa.ViewModels
 
         private bool CanUnlock()
         {
-            return !string.IsNullOrEmpty(Password);
+            return !string.IsNullOrEmpty(Password) && !IsPasswordRecoveryMode;
         }
 
         private void Unlock()
@@ -100,21 +111,34 @@ namespace AutoKassa.ViewModels
             }
             else
             {
-                // Неверный пароль
-                ErrorMessage = "Неверный пароль. Попробуйте снова.";
+                // Неверный пароль. Сначала очищаем поле — сеттер Password сбрасывает
+                // ErrorMessage, поэтому сообщение ставим после очистки.
                 Password = string.Empty;
+                ErrorMessage = "Неверный пароль. Попробуйте снова.";
                 OnPasswordError?.Invoke(); // Анимация тряски
             }
         }
 
         private void ShowPasswordRecovery()
         {
+            Recovery.Reset(); // Сбрасываем состояние предыдущей попытки
             IsPasswordRecoveryMode = true;
         }
 
         private void CancelPasswordRecovery()
         {
             IsPasswordRecoveryMode = false;
+            ErrorMessage = null;
+        }
+
+        /// <summary>
+        /// Пароль успешно изменён через восстановление —
+        /// возвращаемся к панели входа для разблокировки новым паролем
+        /// </summary>
+        private void OnRecoveryPasswordReset()
+        {
+            IsPasswordRecoveryMode = false;
+            Password = string.Empty;
             ErrorMessage = null;
         }
 
@@ -133,5 +157,12 @@ namespace AutoKassa.ViewModels
         public System.Action OnPasswordError { get; set; }
 
         #endregion
+
+        protected override void OnDispose()
+        {
+            Recovery.OnPasswordReset = null;
+            Recovery.OnCancelled = null;
+            Recovery.Dispose();
+        }
     }
 }
