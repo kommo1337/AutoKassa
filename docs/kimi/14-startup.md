@@ -82,7 +82,7 @@
 
 - Доменные сервисы: `ITransactionService`, `ITransactionListService`, `ITransactionGroupingService`, `IInlineTransactionService`, `ITransactionSelectionService`, `ICategoryService`, `ICounterpartyService`, `IDebtService`, `IReportService`, `ICreditCardService`, `ICreditCardSettingsService`.
 - Дашборд: `IDashboardService`, `IDashboardPeriodCoordinator`, `IDashboardTransactionCoordinator`.
-- **Все ViewModels**: `MainWindowViewModel`, `InitialSetupViewModel`, `DashboardViewModel`, `TransactionsViewModel`, `TransactionEditViewModel`, `CategoriesViewModel`, `CategoryManagerViewModel`, `ReportsViewModel`, `BalanceReportViewModel`, `CategoryReportViewModel`, `TransactionDetailReportViewModel`, `DebtReportViewModel`, `CounterpartiesViewModel`, `CounterpartyEditViewModel`, `CreditCardsViewModel`, `CreditCardEditViewModel`, `CreditCardRepaymentViewModel`, `ReconciliationViewModel`, `SettingsViewModel`, `ChangePasswordViewModel`, `LockScreenViewModel`.
+- **Все ViewModels**: `MainWindowViewModel`, `InitialSetupViewModel`, `DashboardViewModel`, `TransactionsViewModel`, `TransactionEditViewModel`, `CategoriesViewModel`, `CategoryManagerViewModel`, `ReportsViewModel`, `BalanceReportViewModel`, `CategoryReportViewModel`, `TransactionDetailReportViewModel`, `DebtReportViewModel`, `CounterpartiesViewModel`, `CounterpartyEditViewModel`, `CreditCardsViewModel`, `CreditCardEditViewModel`, `CreditCardRepaymentViewModel`, `ReconciliationViewModel`, `SettingsViewModel`, `ChangePasswordViewModel`, `LockScreenViewModel`, `PasswordRecoveryViewModel`.
 - **Views** (только две): `ChangePasswordView`, `LockScreenView`. Остальные представления создаются через `DataTemplate` в `MainWindow.xaml`, а `InitialSetupView` — вручную в `OnStartup`.
 
 ### DbContext

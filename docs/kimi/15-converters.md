@@ -16,7 +16,7 @@ xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
 
 ### 1.1. Глобальная регистрация в `App.xaml`
 
-15 из 18 конвертеров зарегистрированы как ресурсы приложения в [`App.xaml`](../../AutoKassa/App.xaml) (строки 47–61) и доступны в любом View без локального объявления:
+16 из 19 конвертеров зарегистрированы как ресурсы приложения в [`App.xaml`](../../AutoKassa/App.xaml) (строки 47–62) и доступны в любом View без локального объявления:
 
 ```xml
 <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
@@ -34,6 +34,7 @@ xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
 <converters:DebtStatusToTextConverter x:Key="DebtStatusToTextConverter"/>
 <converters:DebtStatusToColorConverter x:Key="DebtStatusToColorConverter"/>
 <converters:CounterpartyTypeToTextConverter x:Key="CounterpartyTypeToTextConverter"/>
+<converters:MaxModalHeightConverter x:Key="MaxModalHeightConverter"/>
 ```
 
 ### 1.2. Конвертеры без глобальной регистрации
@@ -76,6 +77,7 @@ xmlns:converters="clr-namespace:AutoKassa.Helpers.Converters"
 | `DebtStatusToTextConverter` | `IValueConverter` | `DebtStatus` → `string` | Русская метка статуса долга | Да |
 | `DebtStatusToColorConverter` | `IValueConverter` | `DebtStatus` → `SolidColorBrush` | Цвет статуса долга (без кеша) | Да |
 | `CounterpartyTypeToTextConverter` | `IValueConverter` | `CounterpartyType` → `string` | Русская метка типа контрагента | Да |
+| `MaxModalHeightConverter` | `IValueConverter` | `double` (ActualHeight) → `double` | Максимальная высота модального окна: доступная высота минус отступ (параметр, по умолчанию 48), минимум 320 | Да |
 
 ---
 
@@ -344,6 +346,21 @@ HEX-строка (`#22c55e`) → `SolidColorBrush`. Особенности:
 ```xml
 <!-- CounterpartiesView.xaml:262 -->
 <TextBlock Text="{Binding Type, Converter={StaticResource CounterpartyTypeToTextConverter}}" .../>
+```
+
+---
+
+### 2.18. `MaxModalHeightConverter`
+
+Файл: [`MaxModalHeightConverter.cs`](../../AutoKassa/Helpers/Converters/MaxModalHeightConverter.cs)
+
+Вычисляет максимальную высоту модального окна: `Math.Max(320, available - margin)`, где `available` — `ActualHeight` контейнера (UserControl), а `margin` — вертикальные отступы из строкового `ConverterParameter` (парсится `double.TryParse` в `InvariantCulture`, по умолчанию 48). Невалидный вход (`NaN`, `<= 0`, не-`double`) → `double.PositiveInfinity` (без ограничения). `ConvertBack` → `Binding.DoNothing`.
+
+Применяется в трёх модальных оверлеях — [`DashboardView.xaml`](../../AutoKassa/Views/DashboardView.xaml), [`TransactionsView.xaml`](../../AutoKassa/Views/TransactionsView.xaml), [`ReportsView.xaml`](../../AutoKassa/Views/ReportsView.xaml): внешний контейнер модалки привязывает `MaxHeight` к `ActualHeight` UserControl, а внутренний `Border` контента сохраняет прежний потолок `MaxHeight=775` (дашборд, операции) / `750` (отчёты). При маленьких окнах контент скроллится вместо обрезания модалки.
+
+```xml
+<!-- DashboardView.xaml:1094 -->
+<Grid MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource MaxModalHeightConverter}}" .../>
 ```
 
 ---

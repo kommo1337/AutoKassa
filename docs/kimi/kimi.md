@@ -82,4 +82,4 @@
 
 ---
 
-> Последнее обновление: Этап 7 — добавлены ссылки на TROUBLESHOOTING.md, CONSTANTS.md, 14-startup.md, 15-converters.md и json/constants.json. Добавлен 16-cicd.md (CI/CD).
+> Последнее обновление: 2026-08-20 — пакет «безопасность + UX» покрыт тестами; исправлен учёт пополнения кредитной карты и добавлен фильтр операций по карте (см. TRAPS.md 2.23, 06-business-logic.md §3.8). Ранее: Этап 7 — добавлены ссылки на TROUBLESHOOTING.md, CONSTANTS.md, 14-startup.md, 15-converters.md и json/constants.json. Добавлен 16-cicd.md (CI/CD).

@@ -324,7 +324,7 @@
       "interfaceFile": "AutoKassa/Services/ILockService.cs",
       "lifetime": "Singleton",
       "category": "security",
-      "purpose": "Реализует автоблокировку приложения по таймауту неактивности с помощью DispatcherTimer и показом модального экрана блокировки.",
+      "purpose": "Реализует автоблокировку приложения по таймауту простоя с помощью DispatcherTimer и показом модального экрана блокировки. Таймер отсчитывает неактивность: MainWindowViewModel.NotifyUserActivity сбрасывает его по вводу пользователя (троттлинг 15 с). Закрытие экрана блокировки без ввода пароля завершает приложение (Application.Current.Shutdown) — разблокировка только паролем. Настройки применяются на лету из SettingsViewModel.SaveAsync (StartAutoLockTimer/StopAutoLockTimer), без перезапуска приложения.",
       "dependencies": [
         "IServiceProvider",
         "IDialogService",
@@ -338,11 +338,11 @@
         },
         {
           "signature": "void Lock()",
-          "description": "Немедленная блокировка."
+          "description": "Немедленная блокировка. Закрытие окна без разблокировки (Alt+F4, крестик, Esc) завершает приложение."
         },
         {
           "signature": "void StartAutoLockTimer()",
-          "description": "Запуск таймера автоблокировки."
+          "description": "Запуск/перезапуск таймера автоблокировки; при выключенной настройке или таймауте 0 явно останавливает существующий таймер."
         },
         {
           "signature": "void StopAutoLockTimer()",
@@ -350,11 +350,12 @@
         },
         {
           "signature": "void ResetAutoLockTimer()",
-          "description": "Сброс таймера при активности пользователя."
+          "description": "Безусловный перезапуск таймера при активности пользователя. Стражи: не сбрасывает на экране блокировки и до первого запуска таймера."
         }
       ],
       "usedBy": [
-        "MainWindowViewModel"
+        "MainWindowViewModel",
+        "SettingsViewModel"
       ],
       "docFile": "docs/kimi/05-services.md"
     },

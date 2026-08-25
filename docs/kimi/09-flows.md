@@ -77,9 +77,27 @@
 
 ---
 
-## 4. Работа с долгами
+## 4. Пополнение кредитной карты (доход на карту)
 
-### 4.1. Создание долга
+**Триггер:** добавление операции с типом «Доход», типом оплаты «Кредитка» и выбранной картой.
+
+| Шаг | Actor | Действие | Файл/метод |
+|-----|-------|----------|------------|
+| 1 | User | Выбор «Доход» и типа оплаты «Кредитка» | [`TransactionEditView.xaml`](../../AutoKassa/Views/TransactionEditView.xaml) |
+| 2 | User | Выбор карты, ввод суммы | [`TransactionEditView.xaml`](../../AutoKassa/Views/TransactionEditView.xaml) |
+| 3 | VM | Валидация | [`TransactionEditViewModel.cs`](../../AutoKassa/ViewModels/TransactionEditViewModel.cs) `SaveAsync` |
+| 4 | Service | Сохранение операции | [`TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs) `AddAsync` |
+| 5 | Service | Проверка карты и долга | [`TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs) `RegisterCreditCardReplenishmentInContextAsync` |
+| 6 | Service | Распределение FIFO по покупкам | [`CreditCardOperationHelper.cs`](../../AutoKassa/Services/CreditCardOperationHelper.cs) `DistributeRepaymentAsync` |
+| 7 | VM | Обновление списка | [`TransactionsViewModel.cs`](../../AutoKassa/ViewModels/TransactionsViewModel.cs) `LoadDataAsync` |
+
+Покупка не создаётся; долг по карте уменьшается (см. [`06-business-logic.md`](06-business-logic.md) §3.8).
+
+---
+
+## 5. Работа с долгами
+
+### 5.1. Создание долга
 
 **Триггер:** добавление операции с `PaymentType = Debt`.
 
@@ -91,7 +109,7 @@
 | 4 | Service | Сохранение | [`TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs) `AddAsync` |
 | 5 | Service | Установка статуса | `DebtStatus.Active` |
 
-### 4.2. Погашение долга
+### 5.2. Погашение долга
 
 **Триггер:** кнопка «Погасить» в отчёте по долгам или на экране контрагентов.
 
@@ -109,7 +127,7 @@
 
 ---
 
-## 5. Формирование и экспорт отчёта
+## 6. Формирование и экспорт отчёта
 
 **Триггер:** пользователь переходит в «Отчёты» и выбирает период.
 
@@ -128,7 +146,7 @@
 
 ---
 
-## 6. Смена настроек и резервное копирование
+## 7. Смена настроек и резервное копирование
 
 **Триггер:** пользователь открывает «Настройки».
 
@@ -148,33 +166,33 @@
 
 ---
 
-## 7. Автоблокировка и восстановление пароля
+## 8. Автоблокировка и восстановление пароля
 
 **Триггер:** таймаут неактивности или нажатие `Ctrl+L`.
 
-> **Примечание:** `PasswordRecoveryViewModel` зарегистрирован, но **не используется**. В [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) восстановление пароля реализовано в виде заглушки с сообщением «Функция восстановления будет реализована позже».
+> **Примечание:** таймер отсчитывает **простой**, а не время с запуска: ввод пользователя (клавиатура, кнопки мыши — через `InputManager.PreProcessInput` в `MainWindow.xaml.cs`) сбрасывает его через `MainWindowViewModel.NotifyUserActivity()` с троттлингом 15 с. Закрытие экрана блокировки без ввода пароля (Alt+F4, крестик, Esc) завершает приложение (`Application.Current.Shutdown()`) — разблокировка только паролем. Восстановление пароля реализовано: панель `PasswordRecoveryViewModel` внутри `LockScreenView` (секретный вопрос → ответ → новый пароль).
 
 | Шаг | Actor | Действие | Файл/метод |
 |-----|-------|----------|------------|
 | 1 | VM | Запуск таймера | [`MainWindowViewModel.cs`](../../AutoKassa/ViewModels/MainWindowViewModel.cs) ctor |
 | 2 | Service | Настройка таймера | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `StartAutoLockTimer` |
-| 3 | Service | Срабатывание | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `AutoLockTimer_Tick` |
-| 4 | Service | Блокировка | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `Lock` |
-| 5 | User | Ввод пароля | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) |
-| 6 | VM | Проверка | [`LockScreenViewModel.cs`](../../AutoKassa/ViewModels/LockScreenViewModel.cs) `Unlock` |
-| 7 | Service | Верификация | [`PasswordService.cs`](../../AutoKassa/Services/PasswordService.cs) `VerifyPassword` |
-| 8 | Service | Сброс таймера | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `ResetAutoLockTimer` |
-| 9 | User | «Забыли пароль?» | [`LockScreenViewModel.cs`](../../AutoKassa/ViewModels/LockScreenViewModel.cs) `ShowPasswordRecoveryCommand` |
-| 10 | VM | Форма восстановления | [`PasswordRecoveryViewModel.cs`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) `LoadSecurityQuestion` |
-| 11 | User | Ввод ответа | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) |
+| 3 | VM | Сброс таймера по активности | [`MainWindowViewModel.cs`](../../AutoKassa/ViewModels/MainWindowViewModel.cs) `NotifyUserActivity` → `ILockService.ResetAutoLockTimer` |
+| 4 | Service | Срабатывание по простою | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `AutoLockTimer_Tick` |
+| 5 | Service | Блокировка | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `Lock` |
+| 6 | User | Ввод пароля | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) |
+| 7 | VM | Проверка | [`LockScreenViewModel.cs`](../../AutoKassa/ViewModels/LockScreenViewModel.cs) `Unlock` |
+| 8 | Service | Верификация | [`PasswordService.cs`](../../AutoKassa/Services/PasswordService.cs) `VerifyPassword` |
+| 9 | Service | Сброс таймера | [`LockService.cs`](../../AutoKassa/Services/LockService.cs) `ResetAutoLockTimer` |
+| 10 | User | «Забыли пароль?» | [`LockScreenViewModel.cs`](../../AutoKassa/ViewModels/LockScreenViewModel.cs) `ShowPasswordRecoveryCommand` → `Recovery.Reset`, `IsPasswordRecoveryMode = true` |
+| 11 | User | Ввод ответа на секретный вопрос | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) (панель `Recovery.*`) |
 | 12 | VM | Проверка ответа | [`PasswordRecoveryViewModel.cs`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) `VerifyAnswerAsync` |
-| 13 | User | Новый пароль | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) |
-| 14 | VM | Сброс | [`PasswordRecoveryViewModel.cs`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) `ResetPasswordAsync` |
-| 15 | Service | Сохранение | [`SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs) `UpdatePasswordAsync` |
+| 13 | User | Новый пароль + подтверждение | [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) |
+| 14 | VM | Сброс пароля | [`PasswordRecoveryViewModel.cs`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) `ResetPasswordAsync` |
+| 15 | Service | Сохранение | [`SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs) `UpdatePasswordAsync`; событие `OnPasswordReset` возвращает к панели входа |
 
 ---
 
-## 8. Удаление операции с undo
+## 9. Удаление операции с undo
 
 **Триггер:** пользователь нажимает «Удалить» в списке операций.
 
@@ -191,7 +209,7 @@
 
 ---
 
-## 9. Сводная схема потоков
+## 10. Сводная схема потоков
 
 ```mermaid
 flowchart LR

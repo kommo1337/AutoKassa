@@ -231,6 +231,7 @@ public static (AppDbContext context, SqliteConnection connection) Create()
 - Повторный запуск блокируется флагом `_isExecuting`: пока команда выполняется, `CanExecute` возвращает `false`. `CanExecuteChanged` привязан к `CommandManager.RequerySuggested`, а при входе в `Execute` и при завершении команда сама вызывает свой `RaiseCanExecuteChanged()` (точечно, только своё событие — без `CommandManager.InvalidateRequerySuggested()`), поэтому вручную вызывать его не нужно.
 - У синхронного `RelayCommand` метод `RaiseCanExecuteChanged()` вызывает только собственное событие `CanExecuteChanged` этой команды (подписка на `CommandManager.RequerySuggested` тоже сохранена) — используй его для точечного обновления одной команды, не дёргая все команды приложения через `CommandManager.InvalidateRequerySuggested()`. Такой же метод есть и у `AsyncRelayCommand`.
 - **Исключения глотаются.** `Execute` — это `async void`, весь вызов обёрнут в `try/catch`, и любое исключение уходит только в лог (`_log.Error(ex, "Ошибка выполнения асинхронной команды")`). UI о сбое **не узнаёт автоматически**: ни toast, ни диалог не появятся. Ошибки, о которых должен знать пользователь, обрабатывай внутри самого метода: `try/catch` + `_dialogService.ShowError(...)` / `_toastService.ShowError(...)`.
+- **Не показывай сырые `ex.Message` пользователю.** Технические ошибки (БД, файловая система и т.п.) пиши в лог через Serilog, а пользователю показывай дружелюбное сообщение вида «Не удалось <действие>. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).» (в toast — короткий вариант без инструкций). Исключение — бизнес-исключения `InvalidOperationException` с русскими текстами из сервисов: их показывай как есть в отдельном `catch (InvalidOperationException)` с комментарием «Бизнес-правило из сервиса — текст уже понятен пользователю» (см. [`TRAPS.md`](TRAPS.md) §4.3).
 - `OperationCanceledException` тоже попадёт в лог — если отмена штатная, лови её внутри метода до общего `catch` (см. §11).
 
 ```csharp
@@ -250,10 +251,17 @@ private async Task SaveAsync()
         // ... проверка и сохранение ...
         _toastService.ShowSuccess("Пароль успешно изменен");
     }
+    catch (InvalidOperationException ex)
+    {
+        // Бизнес-правило из сервиса — текст уже понятен пользователю
+        _dialogService.ShowError(ex.Message);
+    }
     catch (Exception ex)
     {
-        // Без этого catch пользователь не увидит ошибку: AsyncRelayCommand только залогирует её
-        _dialogService.ShowError($"Ошибка смены пароля: {ex.Message}");
+        // Без этого catch пользователь не увидит ошибку: AsyncRelayCommand только залогирует её.
+        // Технические детали — в лог, пользователю — дружелюбное сообщение, а не ex.Message.
+        Serilog.Log.Error(ex, "Ошибка смены пароля");
+        _dialogService.ShowError("Не удалось изменить пароль. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
     }
 }
 ```

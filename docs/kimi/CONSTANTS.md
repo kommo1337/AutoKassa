@@ -20,10 +20,10 @@
 | AutoLockEnabled | true | AppSettings.cs, AppDbContext.cs | |
 | Theme | `"Light"` | AppDbContext.cs, SettingsService.cs | Хранится строкой, хотя есть enum `ThemeMode` — stringly-typed |
 | DefaultPeriodFilter | `"Month"` | AppDbContext.cs, SettingsService.cs | Пресеты — см. `PeriodHelper` (Today/Week/Month/Quarter/Year) |
-| ShowNotifications | true | AppSettings.cs, AppDbContext.cs | Toast-уведомления |
-| ShowOperationsInSidebar | false | AppSettings.cs, AppDbContext.cs | Кнопка «Операции» в боковом меню |
+| ShowNotifications | true | AppSettings.cs, AppDbContext.cs | Toast-уведомления; ⚠ чекбокс удалён из SettingsView.xaml — поле остаётся в БД, редактируется только в коде |
+| ShowOperationsInSidebar | false | AppSettings.cs, AppDbContext.cs | Кнопка «Операции» в боковом меню; ⚠ чекбокс удалён из SettingsView.xaml — поле остаётся в БД |
 | DefaultPageSize | 20 | AppSettings.cs, AppDbContext.cs, SettingsService.cs | ⚠ TransactionsViewModel игнорирует настройку (`_pageSize = 100`) — см. §9 |
-| ConfirmDelete | true | AppSettings.cs, AppDbContext.cs | |
+| ConfirmDelete | true | AppSettings.cs, AppDbContext.cs | ⚠ чекбокс удалён из SettingsView.xaml — поле остаётся в БД |
 | AutoGenerateReports | false | AppSettings.cs, AppDbContext.cs | |
 | BackupEnabled | false | AppDbContext.cs, SettingsService.cs | Автобэкап выключен по умолчанию |
 | AutoBackupDays | 7 | AppSettings.cs, AppDbContext.cs, SettingsService.cs | Валидируется 1–365 |
@@ -63,8 +63,8 @@
 | CreditCardPaymentDay | 1–31 | SettingsValidator.cs | ⚠ Строже, чем `StatementDay` (1–28) — см. §9 |
 | CreditCardMinimumPaymentPercent | 0–100 | SettingsValidator.cs | |
 | BackupPath | ≤ 500 символов | SettingsValidator.cs, AppSettings.cs | Совпадает с `MaxLength(500)` |
-| MinPasswordLengthSetup | 6 | InitialSetupViewModel.cs, PasswordRecoveryViewModel.cs | ⚠ Несогласованно со сменой пароля — см. §9 |
-| MinPasswordLengthChange | 4 | ChangePasswordViewModel.cs | ⚠ Слабее первичной настройки (6) |
+| MinPasswordLengthSetup | 6 | InitialSetupViewModel.cs, PasswordRecoveryViewModel.cs | Единый минимум длины пароля |
+| MinPasswordLengthChange | 6 | ChangePasswordViewModel.cs | Совпадает с первичной настройкой (с 2026-08-21) |
 | MinSecurityAnswerLength | 2 | InitialSetupViewModel.cs | Ответ на секретный вопрос |
 | CustomSecurityQuestion | 5–200 | InitialSetupViewModel.cs | `MaxCustomQuestionLength = 200` = `MaxLength(200)` модели |
 | MaxCategoryNameLength | 100 | CategoryItemViewModel.cs | |
@@ -128,6 +128,7 @@
 | AccentGreenBrush / AccentRedBrush | `#22c55e` / `#ef4444` | App.xaml | Доходы / расходы |
 | CardCornerRadius | 14 | App.xaml | Карточки; мелкие контролы — 6–8, «пилюли» — 16–20 |
 | CategoryPresetColors | 12 цветов | CategoryItemViewModel.cs (`PresetColors`) | Первые 10 = цветам seed-категорий + `#10b981`, `#3b82f6` |
+| ToastLifetime | 4 с | Views/ToastOverlayView.xaml.cs | `TotalTicks=100` × `TickIntervalMs=40`; увеличено с ~1,75 с, чтобы кнопка «Отменить» (undo удаления) успевала быть нажатой |
 
 ---
 
@@ -156,7 +157,7 @@
 |-----|----------|------------|-------------|
 | MinPasswordLengthSetup | 6 | InitialSetupViewModel.cs, PasswordRecoveryViewModel.cs | ⚠ См. §9 |
 | MinPasswordLengthChange | 4 | ChangePasswordViewModel.cs | ⚠ См. §9 |
-| DefaultAutoLockTimeout | 10 мин | AppDbContext.cs (seed), SettingsService.cs | Таймер — `DispatcherTimer` в LockService (минуты); `timeout <= 0` отключает |
+| DefaultAutoLockTimeout | 10 мин | AppDbContext.cs (seed), SettingsService.cs | Таймер — `DispatcherTimer` в LockService (минуты), отсчитывает **простой**: сбрасывается по вводу пользователя (`MainWindowViewModel.NotifyUserActivity`, троттлинг 15 с); `timeout <= 0` отключает. Закрытие экрана блокировки без пароля = завершение приложения |
 | PasswordHashAlgorithm | BCrypt | PasswordService.cs | WorkFactor не задан — дефолт библиотеки (10 для BCrypt.Net-Next 4.2.0) |
 | PasswordHashMaxLength | 255 | AppSettings.cs | Также для `SecurityAnswerHash` |
 | BackupFileNamePattern | `AutoKassa_Backup_yyyyMMdd_HHmmss.db` | SettingsService.cs | Дата последнего бэкапа парсится из имени |
@@ -185,7 +186,7 @@
 
 Эти расхождения существуют в коде на момент аудита (2026-07-30). Не «исправляй» их молча — сначала согласуй (см. [TRAPS.md](TRAPS.md) §5).
 
-1. **Требования к длине пароля.** Первичная настройка и восстановление требуют ≥ 6 символов (`InitialSetupViewModel`, `PasswordRecoveryViewModel`), а смена пароля — лишь ≥ 4 (`ChangePasswordViewModel`). Единого правила нет.
+1. ~~**Требования к длине пароля.**~~ **Устранено 2026-08-21:** смена пароля (`ChangePasswordViewModel`) теперь требует ≥ 6 символов, как первичная настройка и восстановление. Единое правило: минимум 6 везде.
 2. **День платежа по кредиту.** `AppSettings.CreditCardPaymentDay` валидируется диапазоном 1–31 (`SettingsValidator`), а `StatementDay` карты — 1–28 (`CreditCardEditViewModel`, константа `MaxDayInShortestMonth`). Разные поля, но концептуально один смысл.
 3. **Размер страницы операций.** Настройка `AppSettings.DefaultPageSize = 20` (валидируется 10–100) не используется списком операций: `TransactionsViewModel._pageSize = 100` захардкожено.
 4. **Размеры окна.** `AppSettings.WindowWidth/WindowHeight = 1200×700` не совпадают со стартовым размером `MainWindow.xaml` (1366×768) и даже меньше его минимума (1280×720).
@@ -204,4 +205,4 @@
 - [`15-converters.md`](15-converters.md) — конвертеры форматирования значений.
 - [`INDEX.md`](INDEX.md) — полная карта документации.
 
-> Последнее обновление: Этап 7 — создан справочник констант (аудит кода 2026-07-30).
+> Последнее обновление: 2026-08-21 — устранена несогласованность длины пароля (§9 п.1): при смене пароля минимум 6 символов, как при первичной настройке и восстановлении. Ранее: 2026-08-09 — отмечены удалённые из UI настройки (`ShowNotifications`, `ShowOperationsInSidebar`, `ConfirmDelete`), обновлён механизм автоблокировки (по простою, закрытие экрана = выход), добавлено время жизни toast (4 с). Этап 7 — создан справочник констант (аудит кода 2026-07-30).

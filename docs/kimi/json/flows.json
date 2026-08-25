@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-08T23:30:00+03:00",
+  "lastUpdated": "2026-08-20T20:00:00+03:00",
   "flows": [
     {
       "name": "Запуск приложения",
@@ -390,6 +390,71 @@
       ]
     },
     {
+      "name": "Пополнение кредитной карты (доход на карту)",
+      "trigger": "Пользователь добавляет операцию с типом «Доход», типом оплаты «Кредитка» и выбранной картой",
+      "servicesInvolved": [
+        "TransactionService",
+        "CreditCardOperationHelper",
+        "DialogService",
+        "ToastNotificationService",
+        "DataChangeService"
+      ],
+      "viewModelsInvolved": [
+        "TransactionsViewModel",
+        "TransactionEditViewModel"
+      ],
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "Выбор «Доход» и типа оплаты «Кредитка», выбор карты, ввод суммы",
+          "file": "Views/TransactionEditView.xaml",
+          "method": "Data bindings",
+          "notes": "Выбор карты показывается при PaymentType = CreditCard независимо от типа операции."
+        },
+        {
+          "order": 2,
+          "actor": "ViewModel",
+          "action": "Валидация и сохранение",
+          "file": "ViewModels/TransactionEditViewModel.cs",
+          "method": "SaveAsync",
+          "notes": "Карта обязательна при типе оплаты «Кредитка»."
+        },
+        {
+          "order": 3,
+          "actor": "Service",
+          "action": "Сохранение операции дохода",
+          "file": "Services/TransactionService.cs",
+          "method": "AddAsync",
+          "notes": "Доход с привязанной картой не создаёт CreditCardPurchase — это пополнение, а не покупка."
+        },
+        {
+          "order": 4,
+          "actor": "Service",
+          "action": "Проверка карты и долга",
+          "file": "Services/TransactionService.cs",
+          "method": "RegisterCreditCardReplenishmentInContextAsync",
+          "notes": "Карта должна быть активной; сумма пополнения не может превышать текущий долг по карте."
+        },
+        {
+          "order": 5,
+          "actor": "Service",
+          "action": "Распределение суммы по покупкам FIFO",
+          "file": "Services/CreditCardOperationHelper.cs",
+          "method": "DistributeRepaymentAsync",
+          "notes": "Уменьшает RemainingDebt самых ранних покупок, создаёт записи CreditCardPayment — как при погашении."
+        },
+        {
+          "order": 6,
+          "actor": "ViewModel",
+          "action": "Обновление списка операций",
+          "file": "ViewModels/TransactionsViewModel.cs",
+          "method": "LoadDataAsync",
+          "notes": "Перезагрузка списка и итогов, вызывается DataChangeService.NotifyDataChanged."
+        }
+      ]
+    },
+    {
       "name": "Работа с долгами (создание и погашение)",
       "trigger": "Пользователь создаёт долговую операцию и позже погашает её",
       "servicesInvolved": [
@@ -705,7 +770,7 @@
     {
       "name": "Автоблокировка и восстановление пароля",
       "trigger": "Истечение таймаута неактивности или ручная блокировка",
-      "notes": "PasswordRecoveryViewModel не используется; в LockScreenView.xaml реализована заглушка восстановления пароля (ответ не проверяется, сброс пароля не производится).",
+      "notes": "Таймер отсчитывает простой: ввод пользователя (клавиатура/кнопки мыши) сбрасывает его через NotifyUserActivity (троттлинг 15 с). Закрытие экрана блокировки без ввода пароля завершает приложение (Application.Current.Shutdown). Восстановление пароля реализовано через панель PasswordRecoveryViewModel внутри LockScreenView.",
       "servicesInvolved": [
         "LockService",
         "PasswordService",
@@ -714,7 +779,8 @@
       ],
       "viewModelsInvolved": [
         "MainWindowViewModel",
-        "LockScreenViewModel"
+        "LockScreenViewModel",
+        "PasswordRecoveryViewModel"
       ],
       "steps": [
         {
@@ -731,26 +797,34 @@
           "action": "Настройка таймера",
           "file": "Services/LockService.cs",
           "method": "StartAutoLockTimer",
-          "notes": "Интервал берётся из SettingsService.GetAutoLockTimeout()."
+          "notes": "Интервал берётся из SettingsService.GetAutoLockTimeout(); при выключенной настройке или таймауте 0 существующий таймер останавливается."
         },
         {
           "order": 3,
+          "actor": "ViewModel",
+          "action": "Сброс таймера по активности пользователя",
+          "file": "ViewModels/MainWindowViewModel.cs",
+          "method": "NotifyUserActivity",
+          "notes": "MainWindow.xaml.cs вызывает метод из InputManager.PreProcessInput (только KeyEventArgs/MouseButtonEventArgs); троттлинг 15 с (ActivityResetInterval), затем ILockService.ResetAutoLockTimer()."
+        },
+        {
+          "order": 4,
           "actor": "Service",
-          "action": "Срабатывание таймера",
+          "action": "Срабатывание таймера по простою",
           "file": "Services/LockService.cs",
           "method": "AutoLockTimer_Tick",
           "notes": "Останавливает таймер и вызывает Lock()."
         },
         {
-          "order": 4,
+          "order": 5,
           "actor": "Service",
           "action": "Блокировка приложения",
           "file": "Services/LockService.cs",
           "method": "Lock",
-          "notes": "Создаёт LockScreenViewModel и показывает LockScreenView через DialogService.ShowLockScreen."
+          "notes": "Создаёт LockScreenViewModel и показывает LockScreenView через DialogService.ShowLockScreen. Закрытие окна без разблокировки (Alt+F4, крестик, Esc) завершает приложение (Application.Current.Shutdown)."
         },
         {
-          "order": 5,
+          "order": 6,
           "actor": "User",
           "action": "Ввод пароля",
           "file": "Views/LockScreenView.xaml",
@@ -758,15 +832,15 @@
           "notes": "Пользователь вводит пароль и нажимает «Разблокировать»."
         },
         {
-          "order": 6,
+          "order": 7,
           "actor": "ViewModel",
           "action": "Проверка пароля",
           "file": "ViewModels/LockScreenViewModel.cs",
           "method": "Unlock",
-          "notes": "Сравнивает введённый пароль с PasswordHash через PasswordService.VerifyPassword."
+          "notes": "Сравнивает введённый пароль с PasswordHash через PasswordService.VerifyPassword. CanUnlock дополнительно требует !IsPasswordRecoveryMode."
         },
         {
-          "order": 7,
+          "order": 8,
           "actor": "Service",
           "action": "Верификация пароля",
           "file": "Services/PasswordService.cs",
@@ -774,12 +848,52 @@
           "notes": "BCrypt-проверка."
         },
         {
-          "order": 8,
+          "order": 9,
           "actor": "Service",
           "action": "Сброс таймера при успехе",
           "file": "Services/LockService.cs",
           "method": "ResetAutoLockTimer",
-          "notes": "При неудаче — анимация тряски и сообщение об ошибке. Кнопка «Забыли пароль?» — заглушка, PasswordRecoveryViewModel не задействован."
+          "notes": "При неудаче — анимация тряски и сообщение об ошибке."
+        },
+        {
+          "order": 10,
+          "actor": "User",
+          "action": "Нажатие «Забыли пароль?»",
+          "file": "ViewModels/LockScreenViewModel.cs",
+          "method": "ShowPasswordRecoveryCommand",
+          "notes": "Вызывает Recovery.Reset() (очистка состояния, перезагрузка секретного вопроса) и включает IsPasswordRecoveryMode — панель восстановления в LockScreenView."
+        },
+        {
+          "order": 11,
+          "actor": "User",
+          "action": "Ввод ответа на секретный вопрос",
+          "file": "Views/LockScreenView.xaml",
+          "method": "Data binding (Recovery.*)",
+          "notes": "Ответ нормализуется (Trim().ToLower()) и проверяется по BCrypt-хешу."
+        },
+        {
+          "order": 12,
+          "actor": "ViewModel",
+          "action": "Проверка ответа",
+          "file": "ViewModels/PasswordRecoveryViewModel.cs",
+          "method": "VerifyAnswerAsync",
+          "notes": "При успехе открывается ввод нового пароля и подтверждения."
+        },
+        {
+          "order": 13,
+          "actor": "ViewModel",
+          "action": "Сброс пароля",
+          "file": "ViewModels/PasswordRecoveryViewModel.cs",
+          "method": "ResetPasswordAsync",
+          "notes": "Валидация (минимум 6 символов, совпадение подтверждения), хеширование и сохранение через SettingsService.UpdatePasswordAsync."
+        },
+        {
+          "order": 14,
+          "actor": "Service",
+          "action": "Сохранение нового пароля",
+          "file": "Services/SettingsService.cs",
+          "method": "UpdatePasswordAsync",
+          "notes": "Событие Recovery.OnPasswordReset возвращает экран блокировки к панели входа; «Назад» — CancelPasswordRecoveryCommand / OnCancelled."
         }
       ]
     },

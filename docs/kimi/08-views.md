@@ -107,6 +107,7 @@ flowchart TB
 | `DebtStatusToTextConverter` | Статус долга → русская метка. |
 | `DebtStatusToColorConverter` | Статус долга → цвет. |
 | `CounterpartyTypeToTextConverter` | Тип контрагента → русская метка. |
+| `MaxModalHeightConverter` | `ActualHeight` контейнера → максимальная высота модального окна (минус отступ из параметра, по умолчанию 48; минимум 320). |
 
 ---
 
@@ -134,6 +135,8 @@ flowchart TB
 ```
 
 Модальные окна инстанцируются лениво через `ContentControl Content="{Binding ...ViewModel}"` + типизированный `DataTemplate` (эталон — `ReportsView.xaml`): View не строится, пока VM модалки `null`. Blur-эффекты не используются (дорогой софтверный рендер на слабых GPU) — только затемняющий `Rectangle`.
+
+Высота модалок адаптивная: внешний контейнер привязывает `MaxHeight` к `ActualHeight` UserControl через `MaxModalHeightConverter` (`DashboardView.xaml`, `TransactionsView.xaml`, `ReportsView.xaml`), а внутренний `Border` контента ограничен прежними `MaxHeight=775` (дашборд, операции) / `750` (отчёты). При больших окнах вид не изменился, при маленьких модалка не обрезается, а контент скроллится (`ScrollViewer` внутри `TransactionEditView`).
 
 ### 5.2. Период-пикер
 
@@ -230,6 +233,7 @@ flowchart TB
 
 - Горизонтальная панель фильтров с поиском, периодом, чипсами.
 - `ListBox` с группировкой операций по датам (DataGrid в проекте не используется).
+- Бесконечный скролл: code-behind находит внутренний `ScrollViewer` списка (`VisualTreeHelper`, первый `ScrollViewer` дерева; подписка в `Loaded`, отписка в `Unloaded`) и при приближении к низу (порог 200px, константа `LoadMoreThreshold`) вызывает `TransactionsViewModel.LoadMoreCommand` с проверкой `CanExecute` — подгружаются следующие страницы по 100 записей.
 - Inline-форма добавления/редактирования операции внутри группы; визуальное дерево формы строится лениво (ContentControl + DataTemplate) только для группы с открытым редактором.
 - CheckBox для массового выделения.
 - Контекстное меню с редактированием/удалением.
@@ -254,6 +258,7 @@ flowchart TB
 - Боковое меню настроек через `RadioButton` + `IntEqualityConverter`.
 - 7 вкладок: Общие, Операции, Отчёты, Резервное копирование, Безопасность, Кредитная карта, О программе.
 - Карточки секций через `SettingsSectionCard`.
+- Из UI удалены три неработающих чекбокса: «Показывать уведомления» (`ShowNotifications`), «Показывать "Категории" в меню» (`ShowOperationsInSidebar`), «Подтверждать удаление» (`ConfirmDelete`). Свойства в `SettingsViewModel`/`SettingsMapper`/`AppSettings` и поля в БД сохранены — удалён только UI.
 
 ### 8.6. `ReportsView.xaml`
 
@@ -267,12 +272,14 @@ flowchart TB
 - Иконки: удаление, успех, ошибка, информация.
 - Кнопки действия и «Отменить».
 - Полоса обратного отсчёта через `ScaleTransform`.
+- Время жизни toast — 4 секунды (`TotalTicks=100` × `TickIntervalMs=40` в code-behind): кнопка «Отменить» (undo удаления) успевает быть нажатой.
 
 ### 8.8. `InitialSetupView.xaml` / `LockScreenView.xaml`
 
 - Отдельные `Window` (не `UserControl`).
 - `PasswordBox` с code-behind обработчиками `PasswordChanged`.
 - `LockScreenView` — `Topmost`, без рамки, с кнопкой закрытия приложения.
+- `LockScreenView` содержит две панели: вход (пароль) и восстановление пароля (секретный вопрос, ответ, новый пароль + подтверждение, кнопки «Проверить»/«Сменить пароль»/«Назад»; биндинги через `Recovery.*`). Переключение по `IsPasswordRecoveryMode`; в code-behind — `PasswordChanged`-обработчики, Enter на панели, очистка полей и фокус при переключении. Закрытие окна без разблокировки завершает приложение (см. `LockService.Lock()`).
 
 ---
 

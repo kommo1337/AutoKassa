@@ -20,6 +20,8 @@ Single-row таблица, `Id = 1`. Основные группы полей:
 | Финансы | `InitialBalance` |
 | Кредитная карта | `CreditCardLimit`, `CreditCardCurrentDebt`, `CreditCardInterestRate`, `CreditCardPaymentDay`, `CreditCardLastPaymentDate`, `CreditCardMinimumPaymentPercent` |
 
+> Поля `ShowNotifications`, `ShowOperationsInSidebar` и `ConfirmDelete` сохранены в модели и БД, но их чекбоксы удалены из `SettingsView.xaml` (настройки не работали) — редактируются только в коде/БД.
+
 ---
 
 ## 2. `SettingsService`
@@ -141,17 +143,19 @@ UI-координатор:
 
 **Lifetime:** Singleton
 
-- `DispatcherTimer` с интервалом из `SettingsService.GetAutoLockTimeout()`. Таймер не стартует, если `AutoLockEnabled == false` или таймаут `<= 0`.
+- `DispatcherTimer` с интервалом из `SettingsService.GetAutoLockTimeout()`. Таймер отсчитывает **простой**, а не время с запуска: `MainWindow` отслеживает ввод пользователя (`InputManager.Current.PreProcessInput`, только клавиатура и кнопки мыши — движение мыши игнорируется) и вызывает `MainWindowViewModel.NotifyUserActivity()` → `ResetAutoLockTimer()` с троттлингом 15 секунд (`ActivityResetInterval`).
+- `StartAutoLockTimer()` при выключенной настройке (`AutoLockEnabled == false`) или таймауте `<= 0` явно останавливает существующий таймер.
+- `ResetAutoLockTimer()` перезапускает таймер безусловно (ранее — только если `IsEnabled`, из-за чего после срабатывания таймер оставался остановленным). Стражи: не сбрасывает на экране блокировки (`_isLocked`) и до первого запуска таймера (`null`).
 - `Lock()` создаёт `LockScreenViewModel` через DI и показывает `LockScreenView` через `DialogService.ShowLockScreen`.
-- При успешной разблокировке сбрасывается таймер.
+- При успешной разблокировке сбрасывается таймер. Закрытие экрана блокировки без ввода пароля (Alt+F4, крестик, Esc) **завершает приложение** (`Application.Current.Shutdown()`) — иначе блокировку можно было бы обойти; разблокировка возможна только паролем.
+- Настройки автоблокировки применяются на лету: `SettingsViewModel.SaveAsync` после сохранения вызывает `StartAutoLockTimer()`/`StopAutoLockTimer()` через `ILockService`, перезапуск приложения не требуется.
 - При запуске приложения экран блокировки не показывается: настройка `RequirePasswordOnStartup` хранится в БД и UI настроек, но в `OnStartup` не проверяется — сразу открывается `MainWindow` (см. [`14-startup.md`](14-startup.md) §4). Блокировка срабатывает только в процессе работы — по таймеру или вручную.
 
 ### 5.4. Восстановление пароля
 
-> **Текущее состояние:** [`PasswordRecoveryViewModel`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) существует, но **не используется**. В [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) восстановление пароля реализовано в виде заглушки с сообщением «Функция восстановления будет реализована позже».
+[`PasswordRecoveryViewModel`](../../AutoKassa/ViewModels/PasswordRecoveryViewModel.cs) (Transient в DI) встроена в экран блокировки как дочерняя панель: `LockScreenViewModel` получает её через конструктор (свойство `Recovery`), а [`LockScreenView.xaml`](../../AutoKassa/Views/LockScreenView.xaml) переключает панели входа и восстановления по `IsPasswordRecoveryMode` (биндинги через `Recovery.*`).
 
-- В будущем `PasswordRecoveryViewModel` будет загружать вопрос из настроек.
-- Проверка ответа → ввод нового пароля → `SettingsService.UpdatePasswordAsync`.
+Сценарий: «Забыли пароль?» (`ShowPasswordRecoveryCommand`) → `Recovery.Reset()` (очистка полей, перезагрузка вопроса из настроек) → ввод ответа → `VerifyAnswerAsync` (BCrypt-проверка хеша ответа) → ввод нового пароля и подтверждения → `ResetPasswordAsync` → `SettingsService.UpdatePasswordAsync`. Кнопка «Назад» (`CancelPasswordRecoveryCommand`) и события `Recovery.OnPasswordReset` / `OnCancelled` возвращают к панели входа. В режиме восстановления `CanUnlock()` дополнительно блокирует разблокировку (`&& !IsPasswordRecoveryMode`). `LockScreenViewModel.OnDispose()` отписывает события и диспозит `Recovery`.
 
 ### 5.5. Смена пароля
 
@@ -202,6 +206,7 @@ UI-координатор:
 - `OnNavigatedTo()` — загружает настройки при первом показе.
 - `MarkAsChanged()` — отслеживает несохранённые изменения.
 - При сохранении: валидация → маппинг → `SaveSettingsAsync` → синхронизация кредитки → `NotifyDataChanged`.
+- Настройки автоблокировки применяются сразу после сохранения: `SaveAsync` вызывает `ILockService.StartAutoLockTimer()`/`StopAutoLockTimer()` (зависимость `ILockService` через конструктор) — перезапуск приложения не нужен.
 
 ---
 

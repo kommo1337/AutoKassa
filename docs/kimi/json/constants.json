@@ -1,6 +1,6 @@
 {
   "version": "1.3.0",
-  "lastUpdated": "2026-08-09",
+  "lastUpdated": "2026-08-21",
   "sourceRoot": "AutoKassa/",
   "description": "Единый справочник констант, лимитов, дефолтов, seed-ID и магических строк AutoKassa. Все значения сверены с кодом. Человекочитаемая версия — docs/kimi/CONSTANTS.md.",
   "categories": [
@@ -75,7 +75,7 @@
           "description": "Показывать toast-уведомления",
           "relatedEnum": null,
           "isConfigurable": true,
-          "notes": null
+          "notes": "Чекбокс удалён из SettingsView.xaml (настройка не работала) — поле остаётся в модели и БД"
         },
         {
           "name": "ShowOperationsInSidebar",
@@ -85,7 +85,7 @@
           "description": "Показывать кнопку «Операции» в боковом меню",
           "relatedEnum": null,
           "isConfigurable": true,
-          "notes": null
+          "notes": "Чекбокс удалён из SettingsView.xaml (настройка не работала) — поле остаётся в модели и БД"
         },
         {
           "name": "DefaultPageSize",
@@ -105,7 +105,7 @@
           "description": "Подтверждать удаление операций",
           "relatedEnum": null,
           "isConfigurable": true,
-          "notes": null
+          "notes": "Чекбокс удалён из SettingsView.xaml (настройка не работала) — поле остаётся в модели и БД"
         },
         {
           "name": "AutoGenerateReports",
@@ -410,17 +410,17 @@
           "description": "Минимальная длина пароля при первичной настройке и восстановлении",
           "relatedEnum": null,
           "isConfigurable": false,
-          "notes": "НЕСОГЛАСОВАННОСТЬ: при смене пароля требуется всего 4 символа"
+          "notes": "Единый минимум длины пароля (совпадает со сменой пароля)"
         },
         {
           "name": "MinPasswordLengthChange",
-          "value": 4,
+          "value": 6,
           "type": "int",
           "sourceFiles": ["ViewModels/ChangePasswordViewModel.cs"],
           "description": "Минимальная длина нового пароля при смене",
           "relatedEnum": null,
           "isConfigurable": false,
-          "notes": "НЕСОГЛАСОВАННОСТЬ: слабее, чем при первичной настройке (6)"
+          "notes": "Совпадает с первичной настройкой (6); до 2026-08-21 было 4"
         },
         {
           "name": "MinSecurityAnswerLength",
@@ -866,6 +866,17 @@
           "relatedEnum": null,
           "isConfigurable": false,
           "notes": "Первые 10 совпадают с цветами seed-категорий (у Id=11 «Погашение кредита» в seed — #64748b, в палитре отсутствует)"
+        },
+        {
+          "name": "ToastLifetime",
+          "value": "4 с",
+          "type": "string",
+          "sourceFiles": ["Views/ToastOverlayView.xaml.cs"],
+          "description": "Время жизни toast-уведомления: TotalTicks=100 × TickIntervalMs=40 мс",
+          "relatedEnum": null,
+          "isConfigurable": false,
+          "docOnly": true,
+          "notes": "Увеличено с ~1,75 с, чтобы кнопка «Отменить» (undo удаления) успевала быть нажатой"
         }
       ]
     },
@@ -1002,11 +1013,11 @@
           "value": "minutes",
           "type": "string",
           "sourceFiles": ["Services/LockService.cs"],
-          "description": "Таймер автоблокировки срабатывает через AutoLockTimeout минут (DispatcherTimer)",
+          "description": "Таймер автоблокировки срабатывает через AutoLockTimeout минут простоя (DispatcherTimer); сбрасывается по вводу пользователя (NotifyUserActivity, троттлинг 15 с)",
           "relatedEnum": null,
           "isConfigurable": false,
           "docOnly": true,
-          "notes": "timeout <= 0 отключает таймер"
+          "notes": "timeout <= 0 отключает таймер; закрытие экрана блокировки без пароля завершает приложение"
         },
         {
           "name": "PasswordHashAlgorithm",

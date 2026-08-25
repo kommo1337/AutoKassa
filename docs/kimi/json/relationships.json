@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-08T12:00:00+03:00",
+  "lastUpdated": "2026-08-09T12:00:00+03:00",
   "viewsToViewModels": [
     {
       "view": "AutoKassa/MainWindow.xaml",
@@ -125,7 +125,7 @@
       "view": "AutoKassa/Views/LockScreenView.xaml",
       "viewModel": "AutoKassa/ViewModels/LockScreenViewModel.cs",
       "dataTemplateIn": null,
-      "notes": "Диалог блокировки; показывается через LockService/DialogService"
+      "notes": "Диалог блокировки; показывается через LockService/DialogService. Содержит панель восстановления пароля (биндинги через Recovery.* — PasswordRecoveryViewModel)"
     },
     {
       "view": "AutoKassa/Views/ChangePasswordView.xaml",
@@ -333,6 +333,7 @@
         { "service": "IBackupCoordinator", "via": "constructor", "commands": ["SelectBackupPathCommand", "CreateBackupCommand", "RestoreBackupCommand"] },
         { "service": "IAppInfoService", "via": "constructor", "commands": [] },
         { "service": "ICreditCardSettingsService", "via": "constructor", "commands": ["SaveCommand"] },
+        { "service": "ILockService", "via": "constructor", "commands": ["SaveCommand"] },
         { "service": "ICategoryService", "via": "constructor", "commands": [] },
         { "service": "IDialogService", "via": "constructor", "commands": ["ChangePasswordCommand"] },
         { "service": "IToastNotificationService", "via": "constructor", "commands": [] },
@@ -359,7 +360,8 @@
       "viewModel": "LockScreenViewModel",
       "services": [
         { "service": "IPasswordService", "via": "constructor", "commands": ["UnlockCommand"] },
-        { "service": "ISettingsService", "via": "constructor", "commands": ["UnlockCommand"] }
+        { "service": "ISettingsService", "via": "constructor", "commands": ["UnlockCommand"] },
+        { "service": "PasswordRecoveryViewModel", "via": "constructor", "commands": ["ShowPasswordRecoveryCommand", "CancelPasswordRecoveryCommand"] }
       ]
     },
     {
@@ -387,6 +389,7 @@
     { "viewModel": "MainWindowViewModel", "command": "NavigateToReconciliationCommand", "method": "NavigateToReconciliation", "callsService": "INavigationService.NavigateTo<ReconciliationViewModel>" },
     { "viewModel": "MainWindowViewModel", "command": "NavigateToSettingsCommand", "method": "NavigateToSettings", "callsService": "INavigationService.NavigateTo<SettingsViewModel>" },
     { "viewModel": "MainWindowViewModel", "command": "LockCommand", "method": "Lock", "callsService": "ILockService.Lock" },
+    { "viewModel": "MainWindowViewModel", "command": "— (активность пользователя)", "method": "NotifyUserActivity", "callsService": "ILockService.ResetAutoLockTimer" },
     { "viewModel": "DashboardViewModel", "command": "SelectPeriodCommand", "method": "SelectPeriod", "callsService": "IDashboardPeriodCoordinator.SetPeriod" },
     { "viewModel": "DashboardViewModel", "command": "ApplyCustomPeriodCommand", "method": "ApplyCustomPeriodAsync", "callsService": "IDashboardPeriodCoordinator.SetCustomPeriod" },
     { "viewModel": "DashboardViewModel", "command": "OpenAddTransactionCommand", "method": "OpenAddTransaction", "callsService": "IDashboardTransactionCoordinator.OpenAdd" },
@@ -467,6 +470,8 @@
     { "viewModel": "ChangePasswordViewModel", "command": "SaveCommand", "method": "SaveAsync", "callsService": "ISettingsService.UpdatePasswordAsync" },
     { "viewModel": "InitialSetupViewModel", "command": "ContinueCommand", "method": "ContinueAsync", "callsService": "ISettingsService.SetPasswordAsync" },
     { "viewModel": "LockScreenViewModel", "command": "UnlockCommand", "method": "Unlock", "callsService": "IPasswordService.VerifyPassword" },
+    { "viewModel": "LockScreenViewModel", "command": "ShowPasswordRecoveryCommand", "method": "ShowPasswordRecovery", "callsService": "PasswordRecoveryViewModel.Reset" },
+    { "viewModel": "LockScreenViewModel", "command": "CancelPasswordRecoveryCommand", "method": "CancelPasswordRecovery", "callsService": "— (локальное состояние панели)" },
     { "viewModel": "PasswordRecoveryViewModel", "command": "VerifyAnswerCommand", "method": "VerifyAnswerAsync", "callsService": "IPasswordService.VerifyPassword" },
     { "viewModel": "PasswordRecoveryViewModel", "command": "ResetPasswordCommand", "method": "ResetPasswordAsync", "callsService": "ISettingsService.UpdatePasswordAsync" },
     { "viewModel": "ReconciliationViewModel", "command": "SetTodayCommand", "method": "ReconciliationDate = Today", "callsService": "IReportService.GetReconciliationDataAsync" }

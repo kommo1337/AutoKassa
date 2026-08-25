@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-01",
+  "lastUpdated": "2026-08-09",
   "totalCount": 35,
   "viewModels": [
     {
@@ -238,7 +238,7 @@
       "view": "AutoKassa/Views/LockScreenView.xaml",
       "screen": "Экран блокировки",
       "registeredInDi": true,
-      "dependencies": ["IPasswordService", "ISettingsService"],
+      "dependencies": ["IPasswordService", "ISettingsService", "PasswordRecoveryViewModel"],
       "interfaces": [],
       "keyCommands": ["UnlockCommand", "ShowPasswordRecoveryCommand", "CancelPasswordRecoveryCommand"],
       "purpose": "ViewModel экрана блокировки с разблокировкой и восстановлением пароля."
@@ -253,7 +253,7 @@
       "dependencies": ["INavigationService", "ILockService", "ISettingsService"],
       "interfaces": [],
       "keyCommands": ["NavigateToDashboardCommand", "NavigateToTransactionsCommand", "NavigateToReportsCommand", "NavigateToCategoriesCommand", "NavigateToCounterpartiesCommand", "NavigateToCreditCardsCommand", "NavigateToReconciliationCommand", "NavigateToSettingsCommand", "LockCommand"],
-      "purpose": "ViewModel главного окна: навигация, активная страница и автоблокировка."
+      "purpose": "ViewModel главного окна: навигация, активная страница и автоблокировка. Публичный метод NotifyUserActivity() (троттлинг 15 с, ActivityResetInterval) сбрасывает таймер автоблокировки по вводу пользователя — вызывается из MainWindow.xaml.cs (InputManager.PreProcessInput)."
     },
     {
       "name": "PasswordRecoveryViewModel",
@@ -261,12 +261,13 @@
       "category": "dialog",
       "view": "AutoKassa/Views/LockScreenView.xaml",
       "screen": "Восстановление пароля",
-      "registeredInDi": false,
+      "registeredInDi": true,
+      "lifetime": "Transient",
       "dependencies": ["IPasswordService", "ISettingsService", "IDialogService"],
       "interfaces": [],
       "keyCommands": ["VerifyAnswerCommand", "ResetPasswordCommand", "CancelCommand"],
-      "purpose": "ViewModel восстановления пароля через секретный вопрос.",
-      "notes": "Зарегистрирован, но не используется. В LockScreenView.xaml реализована заглушка восстановления пароля."
+      "purpose": "ViewModel восстановления пароля через секретный вопрос. Публичный метод Reset() очищает состояние и перезагружает вопрос при каждом открытии панели.",
+      "notes": "Используется как дочерняя панель (свойство Recovery) внутри LockScreenViewModel; события OnPasswordReset / OnCancelled возвращают экран блокировки к панели входа."
     },
     {
       "name": "ReconciliationViewModel",
@@ -428,7 +429,7 @@
       "screen": "Настройки",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ISettingsService", "IDialogService", "IToastNotificationService", "ICategoryService", "IDataChangeService", "ISettingsMapper", "ISettingsValidator", "IBackupCoordinator", "IAppInfoService", "ICreditCardSettingsService"],
+      "dependencies": ["ISettingsService", "IDialogService", "IToastNotificationService", "ICategoryService", "IDataChangeService", "ISettingsMapper", "ISettingsValidator", "IBackupCoordinator", "IAppInfoService", "ICreditCardSettingsService", "ILockService"],
       "interfaces": ["INavigationAware", "IPageViewModel"],
       "keyCommands": ["SaveCommand", "CancelCommand", "ResetCommand", "ExportCommand", "ImportCommand", "ChangePasswordCommand", "SelectBackupPathCommand", "CreateBackupCommand", "RestoreBackupCommand"],
       "purpose": "ViewModel экрана настроек: параметры, резервное копирование, экспорт/импорт и «О программе»."
@@ -500,6 +501,7 @@
     "ReconciliationViewModel",
     "SettingsViewModel",
     "ChangePasswordViewModel",
-    "LockScreenViewModel"
+    "LockScreenViewModel",
+    "PasswordRecoveryViewModel"
   ]
 }

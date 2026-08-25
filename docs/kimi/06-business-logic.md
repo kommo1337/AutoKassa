@@ -53,6 +53,7 @@
   ```
 - Если операция не долг — `DebtStatus = DebtStatus.NotDebt`.
 - Для `PaymentType.CreditCard` создаётся [`CreditCardPurchase`](../../AutoKassa/Models/CreditCardPurchase.cs) в той же транзакции.
+- Операция дохода с привязанной картой (`Type = Income` + `CreditCardId`) — пополнение карты: покупка не создаётся, сумма распределяется по покупкам FIFO и уменьшает долг (см. §3.8).
 - Навигационные свойства сбрасываются в `null` перед сохранением, чтобы избежать конфликтов отслеживания.
 
 ### 2.3. Бизнес-правила при обновлении
@@ -88,6 +89,7 @@ transaction.UpdatedAt = DateTime.Now;
 | `PaymentType` | `PaymentType` |
 | `CategoryId` | По категории |
 | `CounterpartyId` | По контрагенту |
+| `CreditCardId` | По кредитной карте (покупки, пополнения и погашения конкретной карты) |
 | `IsDebtFilter` | Только долговые операции |
 | `DebtStatus` | Фильтр по статусу долга |
 | `AmountFrom` / `AmountTo` | Диапазон суммы |
@@ -166,9 +168,20 @@ var purchases = await context.CreditCardPurchases
 ### 3.7. Текущий долг и минимальный платёж
 
 ```csharp
-var debt = card.InitialDebt + purchasesSum - repaymentsSum;
+var debt = card.InitialDebt + purchasesSum - repaymentsSum - replenishmentsSum;
 var minimumPayment = debt * (card.MinimumPaymentPercent / 100m);
 ```
+
+Здесь `replenishmentsSum` — сумма пополнений (операций дохода с привязанной картой), см. §3.8.
+
+### 3.8. Пополнение карты (доход на карту)
+
+- Операция с `Type = Income` и привязанной картой — это пополнение карты (возврат средств, приход на карту), а не покупка.
+- Запись `CreditCardPurchase` не создаётся; сумма распределяется по покупкам с остатком долга FIFO через `CreditCardOperationHelper.DistributeRepaymentAsync` (создаются записи `CreditCardPayment`).
+- Карта должна быть активной; сумма пополнения не может превышать текущий долг по карте (как и погашение, TRAPS 2.13).
+- Пополнение уменьшает долг наравне с погашениями во всех расчётах (`GetCurrentDebtAsync`, `GetCardsMetricsAsync`, `GetTotalDebtAsync`, `GetTotalDebtAsOfAsync`).
+- Как и погашение, операция-пополнение не редактируется (TRAPS 2.6): удалить и создать заново. При удалении остатки покупок восстанавливаются, при восстановлении операции распределение пересоздаётся.
+- Исторические ошибочные покупки от операций дохода удаляются миграцией `FixIncomeCreditCardPurchases`.
 
 ---
 

@@ -229,6 +229,20 @@
 - **Файлы:** [`../../AutoKassa/Services/CreditCardOperationHelper.cs`](../../AutoKassa/Services/CreditCardOperationHelper.cs), [`../../AutoKassa/Services/CreditCardService.cs`](../../AutoKassa/Services/CreditCardService.cs), [`../../AutoKassa/Services/TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs).
 - **Теги:** #business
 
+### 2.23. Доход на кредитную карту — пополнение, а не покупка
+- **Запрет:** не создавай `CreditCardPurchase` для операции с `Type = Income`, даже если к ней привязана карта (`PaymentType = CreditCard`).
+- **Почему:** доход на карту — это пополнение (возврат или приход средств на карту): оно уменьшает долг. Запись покупки увеличивает долг, поэтому доступный лимит уменьшался вместо увеличения. Исторические ошибочные покупки доходов удалены миграцией `FixIncomeCreditCardPurchases`.
+- **Правильно:** пополнение распределяй по покупкам FIFO через `CreditCardOperationHelper.DistributeRepaymentAsync` (как погашение) и вычитай в формуле долга: `debt = InitialDebt + purchases − repayments − replenishments`.
+- **Файлы:** [`../../AutoKassa/Services/TransactionService.cs`](../../AutoKassa/Services/TransactionService.cs) (`AddAsync`, `RegisterCreditCardReplenishmentInContextAsync`), [`../../AutoKassa/Services/CreditCardOperationHelper.cs`](../../AutoKassa/Services/CreditCardOperationHelper.cs) (`GetCurrentDebtAsync`).
+- **Теги:** #business
+
+### 2.24. Не скрывай операции с будущей датой
+- **Запрет:** не ограничивай верхнюю границу периода «Месяц» (и периода по умолчанию) значением `DateTime.Now` и не убирай подтверждение сохранения операции с будущей датой.
+- **Почему:** при вводе операций задним числом легко ошибиться месяцем в календаре. Раньше такая операция молча сохранялась, а фильтр `[1-е число … сейчас]` скрывал её до наступления даты — в свой день она «появлялась из ниоткуда» и выглядела фантомной («операции создаются сами»).
+- **Правильно:** период «Месяц» заканчивается последним днём текущего месяца; `TransactionEditViewModel.ConfirmFutureDate` спрашивает подтверждение при `Date > сегодня`.
+- **Файлы:** [`../../AutoKassa/ViewModels/TransactionsViewModel.cs`](../../AutoKassa/ViewModels/TransactionsViewModel.cs) (конструктор, `ResetFiltersAsync`, `SelectPeriodAsync`), [`../../AutoKassa/ViewModels/TransactionEditViewModel.cs`](../../AutoKassa/ViewModels/TransactionEditViewModel.cs) (`ConfirmFutureDate`).
+- **Теги:** #business #mvvm
+
 ---
 
 ## 3. Технические ловушки
@@ -350,6 +364,14 @@
 - **Правильно:** после изменения свойств, влияющих на `CanExecute`, вызывай `RaiseCanExecuteChanged()` конкретной команды (у `RelayCommand` и `AsyncRelayCommand`) или `CommandManager.InvalidateRequerySuggested()`.
 - **Файлы:** [`../../AutoKassa/Helpers/RelayCommand.cs`](../../AutoKassa/Helpers/RelayCommand.cs), [`../../AutoKassa/Helpers/AsyncRelayCommand.cs`](../../AutoKassa/Helpers/AsyncRelayCommand.cs).
 - **Теги:** #mvvm #wpf
+
+### 4.3. Не показывай сырые `ex.Message` пользователю
+- **Запрет:** не передавай технический текст исключения (`ex.Message`) в `IDialogService.ShowError` или toast.
+- **Почему:** сообщения вида «SQLite Error 19: UNIQUE constraint failed...» непонятны пользователю и раскрывают внутреннее устройство; а без записи в лог диагностика сбоя невозможна.
+- **Правильно:** технические ошибки логируй через `Serilog.Log.Error(ex, ...)` и показывай дружелюбное сообщение вида «Не удалось <действие>. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).» (в toast — короткий вариант без инструкций). Бизнес-исключения `InvalidOperationException` с русскими текстами из сервисов показывай как есть — выноси их в отдельный `catch (InvalidOperationException)` с комментарием «Бизнес-правило из сервиса — текст уже понятен пользователю».
+- **Файлы:** [`../../AutoKassa/ViewModels/ChangePasswordViewModel.cs`](../../AutoKassa/ViewModels/ChangePasswordViewModel.cs), [`../../AutoKassa/ViewModels/CounterpartyEditViewModel.cs`](../../AutoKassa/ViewModels/CounterpartyEditViewModel.cs).
+- **См. также:** [`PRINCIPLES.md`](PRINCIPLES.md) §10.
+- **Теги:** #mvvm
 
 ---
 
@@ -510,4 +532,4 @@
 
 ---
 
-> Последнее обновление: Этап 7 — добавлена легенда тегов, теги у всех ловушек, новые ловушки из аудита кода (навигация, диалоги, настройки, команды, конвертеры, seed-данные) и раздел «Тестовые ловушки». Формат `### N.N. Заголовок` сохранён для синхронизации с `json/traps.json` (DocValidator `TrapSyncValidator`).
+> Последнее обновление: 2026-08-20 — добавлена ловушка 2.23 «Доход на кредитную карту — пополнение, а не покупка». Ранее: 2026-08-09 — добавлена ловушка 4.3 «Не показывай сырые `ex.Message` пользователю» (конвенция дружелюбных сообщений об ошибках). Этап 7 — добавлена легенда тегов, теги у всех ловушек, новые ловушки из аудита кода (навигация, диалоги, настройки, команды, конвертеры, seed-данные) и раздел «Тестовые ловушки». Формат `### N.N. Заголовок` сохранён для синхронизации с `json/traps.json` (DocValidator `TrapSyncValidator`).

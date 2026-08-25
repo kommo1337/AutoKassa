@@ -1,4 +1,5 @@
 {
+  "lastUpdated": "2026-08-25",
   "traps": [
     {
       "category": "Архитектурные запреты",
@@ -329,6 +330,30 @@
       "tags": ["#business"]
     },
     {
+      "category": "Бизнес-правила-ловушки",
+      "title": "Доход на кредитную карту — пополнение, а не покупка",
+      "forbidden": "Не создавай CreditCardPurchase для операции с Type = Income, даже если к ней привязана карта (PaymentType = CreditCard).",
+      "why": "Доход на карту — это пополнение (возврат или приход средств на карту): оно уменьшает долг. Запись покупки увеличивает долг, поэтому доступный лимит уменьшался вместо увеличения. Исторические ошибочные покупки доходов удалены миграцией FixIncomeCreditCardPurchases.",
+      "correct": "Пополнение распределяй по покупкам FIFO через CreditCardOperationHelper.DistributeRepaymentAsync (как погашение) и вычитай в формуле долга: debt = InitialDebt + purchases − repayments − replenishments.",
+      "files": [
+        "../../AutoKassa/Services/TransactionService.cs",
+        "../../AutoKassa/Services/CreditCardOperationHelper.cs"
+      ],
+      "tags": ["#business"]
+    },
+    {
+      "category": "Бизнес-правила-ловушки",
+      "title": "Не скрывай операции с будущей датой",
+      "forbidden": "Не ограничивай верхнюю границу периода «Месяц» (и периода по умолчанию) значением DateTime.Now и не убирай подтверждение сохранения операции с будущей датой.",
+      "why": "При вводе операций задним числом легко ошибиться месяцем в календаре. Раньше такая операция молча сохранялась, а фильтр [1-е число … сейчас] скрывал её до наступления даты — в свой день она «появлялась из ниоткуда» и выглядела фантомной («операции создаются сами»).",
+      "correct": "Период «Месяц» заканчивается последним днём текущего месяца; TransactionEditViewModel.ConfirmFutureDate спрашивает подтверждение при Date > сегодня.",
+      "files": [
+        "../../AutoKassa/ViewModels/TransactionsViewModel.cs",
+        "../../AutoKassa/ViewModels/TransactionEditViewModel.cs"
+      ],
+      "tags": ["#business", "#mvvm"]
+    },
+    {
       "category": "Технические ловушки",
       "title": "SQLite LOWER() не поддерживает кириллицу",
       "forbidden": "Не используй SQL-фильтрацию по Description с LOWER/Contains для кириллицы.",
@@ -509,6 +534,18 @@
         "../../AutoKassa/Helpers/AsyncRelayCommand.cs"
       ],
       "tags": ["#mvvm", "#wpf"]
+    },
+    {
+      "category": "MVVM и команды",
+      "title": "Не показывай сырые ex.Message пользователю",
+      "forbidden": "Не передавай технический текст исключения (ex.Message) в IDialogService.ShowError или toast.",
+      "why": "Сообщения вида «SQLite Error 19: UNIQUE constraint failed...» непонятны пользователю и раскрывают внутреннее устройство; а без записи в лог диагностика сбоя невозможна.",
+      "correct": "Технические ошибки логируй через Serilog.Log.Error(ex, ...) и показывай дружелюбное сообщение вида «Не удалось <действие>. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).» (в toast — короткий вариант без инструкций). Бизнес-исключения InvalidOperationException с русскими текстами из сервисов показывай как есть — выноси их в отдельный catch (InvalidOperationException) с комментарием «Бизнес-правило из сервиса — текст уже понятен пользователю».",
+      "files": [
+        "../../AutoKassa/ViewModels/ChangePasswordViewModel.cs",
+        "../../AutoKassa/ViewModels/CounterpartyEditViewModel.cs"
+      ],
+      "tags": ["#mvvm"]
     },
     {
       "category": "WPF и конвертеры",

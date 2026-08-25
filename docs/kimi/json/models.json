@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-01T12:00:00+03:00",
+  "lastUpdated": "2026-08-20T20:00:00+03:00",
   "entities": [
     {
       "name": "Transaction",
@@ -1328,6 +1328,11 @@
           "nullable": true
         },
         {
+          "name": "CreditCardId",
+          "type": "int?",
+          "nullable": true
+        },
+        {
           "name": "IsDebtFilter",
           "type": "bool",
           "nullable": false,
@@ -1954,6 +1959,10 @@
     {
       "name": "AddTransactionsFts",
       "file": "AutoKassa/Migrations/20260731181733_AddTransactionsFts.cs"
+    },
+    {
+      "name": "FixIncomeCreditCardPurchases",
+      "file": "AutoKassa/Migrations/20260820203856_FixIncomeCreditCardPurchases.cs"
     }
   ]
 }
