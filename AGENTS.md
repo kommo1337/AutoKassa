@@ -98,4 +98,5 @@ sqlite3 AutoKassa/bin/Debug/net10.0-windows/AutoKassa.db ".schema"
 - При первом запуске требуется установка пароля (`InitialSetupView`).
 - `AppSettings` — single-row таблица, всегда `Id = 1`.
 - Поиск по описанию выполняется через SQLite FTS5 (`TransactionsFts`, unicode61): регистронезависимо, в т.ч. для кириллицы, по префиксам слов.
+- Облачный бэкап на Яндекс Диск (этапы 1–4 из `YandexBackUp.md`, в разработке): подсистема `AutoKassa/Services/Backup/YandexDisk/` (OAuth/PKCE без `client_secret`, DPAPI-хранилище токена, REST-клиент папки `app:/`, локальная очередь и ротация) + координатор расписания `IAutomaticBackupService` (немедленная проверка при старте и раз в час; остановка в `App.OnExit` до Dispose DI). Настройки: `AppSettings.YandexDiskBackupEnabled`/`YandexDiskLastBackupUtc` (миграция `AddYandexDiskBackupSettings`), экспортируется только флаг; UI — раздел «Яндекс Диск» в настройках. Живая проверка OAuth/выгрузки требует `ClientId` пользователя — не выполнялась.
 - Подробный каталог особенностей и ловушек: [`TRAPS.md`](docs/kimi/TRAPS.md), [`13-conventions.md`](docs/kimi/13-conventions.md).

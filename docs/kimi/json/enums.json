@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-06",
+  "lastUpdated": "2026-11-08",
   "enums": [
     {
       "name": "OperationType",
@@ -211,6 +211,27 @@
       "uiMappings": null,
       "usedIn": [
         "AutoKassa/Models/AppSettings.cs"
+      ]
+    },
+    {
+      "name": "CloudBackupStatus",
+      "file": "AutoKassa/Models/Enums/CloudBackupStatus.cs",
+      "namespace": "AutoKassa.Models.Enums",
+      "underlyingType": "int",
+      "purpose": "Состояние облачного резервного копирования на Яндекс Диск (публикуется YandexDiskBackupService).",
+      "values": [
+        { "name": "NotConnected", "value": 0, "description": "Аккаунт Яндекс Диска не подключён" },
+        { "name": "UpToDate", "value": 1, "description": "Копия актуальна, выгружать не требуется" },
+        { "name": "Due", "value": 2, "description": "Подошёл срок очередной облачной копии" },
+        { "name": "Uploading", "value": 3, "description": "Выгрузка выполняется прямо сейчас" },
+        { "name": "PendingRetry", "value": 4, "description": "Выгрузка не удалась, файл оставлен в очереди для повтора" },
+        { "name": "AuthRequired", "value": 5, "description": "Токен недействителен или истёк — требуется повторный вход" },
+        { "name": "Error", "value": 6, "description": "Ошибка, требующая действия пользователя (квота, права и т.п.)" }
+      ],
+      "uiMappings": null,
+      "usedIn": [
+        "AutoKassa/Services/Backup/YandexDisk/IYandexDiskBackupService.cs",
+        "AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs"
       ]
     }
   ]

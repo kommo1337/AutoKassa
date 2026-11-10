@@ -1,6 +1,6 @@
 {
-  "lastUpdated": "2026-08-09T14:30:00+03:00",
-  "totalCount": 31,
+  "lastUpdated": "2026-11-08T19:30:00+03:00",
+  "totalCount": 38,
   "services": [
     {
       "name": "NavigationService",
@@ -149,16 +149,24 @@
           "description": "Импорт настроек из JSON."
         },
         {
-          "signature": "Task<string?> CreateBackupAsync(string backupPath)",
-          "description": "Создание резервной копии БД."
+          "signature": "Task<string?> CreateBackupAsync(string backupPath, CancellationToken ct = default)",
+          "description": "Локальная резервная копия БД: снимок через CreateSqliteSnapshotAsync + ротация сверх BackupKeepCount; ошибки и отмена → null."
         },
         {
-          "signature": "Task<bool> RestoreBackupAsync(string backupFilePath)",
-          "description": "Восстановление БД из бэкапа."
+          "signature": "Task<string> CreateSqliteSnapshotAsync(string targetDirectory, CancellationToken ct = default)",
+          "description": "Согласованный SQLite-снимок без побочных эффектов (без ротации, без глотания ошибок): InvalidOperationException — файл БД не найден, OperationCanceledException — отмена. Общий метод локального и облачного сценариев."
         },
         {
-          "signature": "Task RunAutoBackupIfDueAsync()",
-          "description": "Авто-бэкап по расписанию."
+          "signature": "Task<bool> RestoreBackupAsync(string backupFilePath, CancellationToken ct = default)",
+          "description": "Восстановление БД из бэкапа (ClearAllPools + копия + миграции)."
+        },
+        {
+          "signature": "Task RunAutoBackupIfDueAsync(CancellationToken ct = default)",
+          "description": "Авто-бэкап по расписанию (проверяет BackupEnabled и срок)."
+        },
+        {
+          "signature": "Task SetYandexDiskLastBackupUtcAsync(DateTime? value, CancellationToken ct = default)",
+          "description": "Точечная фиксация даты последней облачной выгрузки (UTC) для фоновых сервисов."
         },
         {
           "signature": "Task<DateTime?> GetLastBackupDateAsync()",
@@ -186,7 +194,8 @@
         "ChangePasswordViewModel",
         "LockScreenViewModel",
         "PasswordRecoveryViewModel",
-        "MainWindowViewModel"
+        "MainWindowViewModel",
+        "AutomaticBackupService"
       ],
       "docFile": "docs/kimi/05-services.md"
     },
@@ -1156,6 +1165,295 @@
       "docFile": "docs/kimi/05-services.md"
     },
     {
+      "name": "DpapiYandexDiskTokenStore",
+      "interface": "IYandexDiskTokenStore",
+      "implementation": "DpapiYandexDiskTokenStore",
+      "file": "AutoKassa/Services/Backup/YandexDisk/DpapiYandexDiskTokenStore.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/IYandexDiskTokenStore.cs",
+      "lifetime": "Singleton",
+      "category": "security",
+      "purpose": "Защищённое хранение access-token Яндекс Диска: JSON + DPAPI (ProtectedData.CurrentUser) с энтропией приложения в %LOCALAPPDATA%\\AutoKassa\\Secrets\\yandex-disk-token.bin, атомарная запись. Повреждённый/чужой файл читается как null без раскрытия данных; токен не логируется.",
+      "dependencies": [
+        "ProtectedData (DPAPI, CurrentUser)"
+      ],
+      "keyMethods": [
+        {
+          "signature": "Task<YandexDiskToken?> GetAsync(CancellationToken ct = default)",
+          "description": "Прочитать токен (null, если файла нет или он повреждён)."
+        },
+        {
+          "signature": "Task SaveAsync(YandexDiskToken token, CancellationToken ct = default)",
+          "description": "Атомарно сохранить токен (шифрование DPAPI)."
+        },
+        {
+          "signature": "Task ClearAsync(CancellationToken ct = default)",
+          "description": "Удалить сохранённый токен (отключение аккаунта)."
+        }
+      ],
+      "usedBy": [
+        "YandexDiskAuthService"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "YandexDiskClientIdStore",
+      "interface": "IYandexDiskClientIdStore",
+      "implementation": "YandexDiskClientIdStore",
+      "file": "AutoKassa/Services/Backup/YandexDisk/YandexDiskClientIdStore.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/IYandexDiskClientIdStore.cs",
+      "lifetime": "Singleton",
+      "category": "security",
+      "purpose": "Хранение ClientId приложения, введённого пользователем через диалог (настройки → Яндекс Диск → «Подключить» при пустом ClientId): %LOCALAPPDATA%\\AutoKassa\\yandex-disk-clientid.txt, атомарная запись через AtomicFile. ClientId не секрет (передаётся в URL авторизации открыто). Сохранённое значение имеет приоритет над appsettings.json (статик ApplyStoredOverride применяется в App.ConfigureServices) и обновляет живой singleton YandexDiskOptions — подключение работает без перезапуска.",
+      "dependencies": [
+        "YandexDiskOptions"
+      ],
+      "keyMethods": [
+        {
+          "signature": "static void ApplyStoredOverride(YandexDiskOptions options)",
+          "description": "Применить сохранённый пользователем ClientId поверх appsettings.json (корень композиции, до создания зависимых сервисов)."
+        },
+        {
+          "signature": "Task<string?> GetAsync(CancellationToken ct = default)",
+          "description": "Сохранённый пользователем ClientId или null."
+        },
+        {
+          "signature": "Task SaveAsync(string clientId, CancellationToken ct = default)",
+          "description": "Сохранить ClientId (атомарно) и применить к живому экземпляру опций. InvalidOperationException — пустое значение."
+        }
+      ],
+      "usedBy": [
+        "YandexClientIdDialogViewModel"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "YandexDiskAuthService",
+      "interface": "IYandexDiskAuthService",
+      "implementation": "YandexDiskAuthService",
+      "file": "AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/IYandexDiskAuthService.cs",
+      "lifetime": "Singleton",
+      "category": "security",
+      "purpose": "OAuth 2.0 + PKCE S256 для Яндекс Диска через системный браузер. Обмен кода на токен выполняется без client_secret (общий секрет не встраивается); refresh-token не сохраняется — при истечении/отзыве требуется повторный вход (AuthRequired). Конечная модель состояний NotConnected/Connected/AuthRequired + транзитное AwaitingCode: CancelAuthorizationAsync и любой неуспешный обмен кодом (invalid_grant, сеть, истёкший verifier) возвращают устойчивое состояние из хранилища токена. Незавершённый code_verifier живёт 10 минут и заменяется при повторной попытке. Токены, коды и заголовки авторизации в логи не попадают.",
+      "dependencies": [
+        "YandexDiskOptions",
+        "IYandexDiskTokenStore",
+        "HttpClient",
+        "TimeProvider"
+      ],
+      "keyMethods": [
+        {
+          "signature": "Task<YandexDiskAuthState> GetStateAsync(CancellationToken ct = default)",
+          "description": "Состояние подключения: NotConnected/Connected/AuthRequired + транзитное AwaitingCode (ленивая загрузка из хранилища; AwaitingCode из хранилища не перезаписывается)."
+        },
+        {
+          "signature": "bool IsClientIdConfigured()",
+          "description": "Задан ли действующий ClientId (appsettings.json или введённый пользователем через IYandexDiskClientIdStore) — UI предлагает диалог ввода при false."
+        },
+        {
+          "signature": "event Action? StateChanged",
+          "description": "Событие смены состояния подключения."
+        },
+        {
+          "signature": "Task<YandexDiskAuthStart> StartAuthorizationAsync(CancellationToken ct = default)",
+          "description": "Сгенерировать PKCE-пару, открыть браузер на oauth.yandex.ru/authorize (scope cloud_api:disk.app_folder), перейти в AwaitingCode. Результат несёт URL и BrowserOpened: false — браузер не открылся, URL открывается вручную (YD-10)."
+        },
+        {
+          "signature": "Task CompleteAuthorizationAsync(string code, CancellationToken ct = default)",
+          "description": "Обменять одноразовый код на access-token и сохранить его (без client_secret); любой неуспешный обмен сбрасывает ожидание и возвращает устойчивое состояние (TRAPS §3.21)."
+        },
+        {
+          "signature": "Task CancelAuthorizationAsync(CancellationToken ct = default)",
+          "description": "Отменить ожидание кода: забыть code_verifier и вернуть NotConnected/AuthRequired по факту токена."
+        },
+        {
+          "signature": "Task DisconnectAsync(CancellationToken ct = default)",
+          "description": "Удалить токен, перейти в NotConnected."
+        },
+        {
+          "signature": "Task<YandexDiskToken?> GetValidAccessTokenAsync(CancellationToken ct = default)",
+          "description": "Действительный токен или null (истёкший токен инвалидируется — refresh без client_secret недоступен)."
+        },
+        {
+          "signature": "Task InvalidateTokenAsync(CancellationToken ct = default)",
+          "description": "Инвалидация токена (HTTP 401/отзыв) → AuthRequired; очередь не затрагивается."
+        }
+      ],
+      "usedBy": [
+        "YandexDiskApiClient",
+        "YandexDiskBackupService"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "YandexDiskApiClient",
+      "interface": "IYandexDiskApiClient",
+      "implementation": "YandexDiskApiClient",
+      "file": "AutoKassa/Services/Backup/YandexDisk/YandexDiskApiClient.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/IYandexDiskApiClient.cs",
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Тонкий REST-клиент Яндекс Диска для папки приложения (app:/): ссылка загрузки, PUT файла, метаданные ресурса, постраничное чтение (limit/offset: список из _embedded.items, контроль полноты по _embedded.total, только нужные поля через fields), удаление. Заголовок OAuth формируется на каждый запрос; коды ошибок маппятся на типизированные исключения (401→Auth, 404→NotFound, 409→Conflict, 403/507→Quota, сеть/429/5xx/таймаут→Transient с RetryAfter). Лимиты применяются per-request через связанные CancellationTokenSource (ApiRequestTimeout 100 с, UploadTimeout 10 мин — опции YandexDiskOptions); общий HttpClient.Timeout отключён, чтобы HTTP-таймаут не маскировался под штатную отмену (TRAPS §3.19, YD-07).",
+      "dependencies": [
+        "HttpClient",
+        "YandexDiskOptions",
+        "IYandexDiskAuthService"
+      ],
+      "keyMethods": [
+        {
+          "signature": "Task<DiskUploadLink> GetUploadLinkAsync(string remotePath, bool overwrite, CancellationToken ct = default)",
+          "description": "Получить ссылку для загрузки (409 при overwrite=false и существующем ресурсе)."
+        },
+        {
+          "signature": "Task<YandexDiskUploadResult> UploadFileAsync(string href, string localFilePath, CancellationToken ct = default)",
+          "description": "PUT файла на выданную ссылку; 201→Created, 202→Accepted."
+        },
+        {
+          "signature": "Task<DiskResourceInfo> GetResourceAsync(string remotePath, CancellationToken ct = default)",
+          "description": "Метаданные ресурса (имя, размер, MD5, дата создания, тип file/dir)."
+        },
+        {
+          "signature": "Task<IReadOnlyList<DiskResourceInfo>> GetAppFolderResourcesAsync(CancellationToken ct = default)",
+          "description": "Все страницы содержимого app:/: список из _embedded.items, остановка по частичной странице или достижении _embedded.total."
+        },
+        {
+          "signature": "Task DeleteResourceAsync(string remotePath, CancellationToken ct = default)",
+          "description": "Удалить ресурс (204/202 считаются успехом)."
+        }
+      ],
+      "usedBy": [
+        "YandexDiskBackupService"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "YandexDiskBackupService",
+      "interface": "IYandexDiskBackupService",
+      "implementation": "YandexDiskBackupService",
+      "file": "AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/IYandexDiskBackupService.cs",
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Цикл облачного копирования SQLite-снимка в app:/ Яндекс Диска: очередь %LOCALAPPDATA%\\AutoKassa\\CloudBackupQueue (повреждённый файл очереди уходит в карантин *.corrupt), свежий снимок создаётся во временной папке .staging и атомарно попадает в очередь только после PRAGMA integrity_check (read-only, Pooling=false) + размер + MD5; загрузка без перезаписи; подтверждение по метаданным Диска с ожиданием появления ресурса после 201 и 202 (404 = NotFound — «ещё не появился»; Auth/Transient/Quota пробрасываются в retry-обработку), идемпотентный 409, повторы транзиентных сбоев включая HTTP-таймауты (макс. 3, Retry-After), 401→повторный вход, ротация только ресурсов type == \"file\" с точным именем AutoKassa_Backup_yyyyMMdd_HHmmss.db сверх BackupKeepCount после успеха. Дата последнего успеха персистентна: читается из AppSettings.YandexDiskLastBackupUtc в начале каждого запуска и фиксируется через ISettingsService.SetYandexDiskLastBackupUtcAsync сразу после подтверждённой выгрузки — до удаления файла очереди (при сбое записи pending остаётся для идемпотентного 409). Запуски сериализованы SemaphoreSlim; событие StateChanged поднимается на потоке операции.",
+      "dependencies": [
+        "ISettingsService",
+        "IYandexDiskAuthService",
+        "IYandexDiskApiClient",
+        "TimeProvider"
+      ],
+      "keyMethods": [
+        {
+          "signature": "CloudBackupState CurrentState { get; }",
+          "description": "Текущее состояние (Status/LastSuccessUtc/HasPendingFile/UserMessage)."
+        },
+        {
+          "signature": "event Action<CloudBackupState>? StateChanged",
+          "description": "Событие изменения состояния."
+        },
+        {
+          "signature": "Task<CloudBackupResult> UploadNowAsync(bool force = false, CancellationToken ct = default)",
+          "description": "Выполнить цикл выгрузки; force=true игнорирует срок AutoBackupDays."
+        }
+      ],
+      "usedBy": [],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "AutomaticBackupService",
+      "interface": "IAutomaticBackupService",
+      "implementation": "AutomaticBackupService",
+      "file": "AutoKassa/Services/Backup/AutomaticBackupService.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/IAutomaticBackupService.cs",
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Координатор расписания резервного копирования: немедленная проверка после открытия MainWindow, затем PeriodicTimer раз в час (CheckInterval). Локальные правила не дублирует — делегирует ISettingsService.RunAutoBackupIfDueAsync; облачную часть выполняет через IYandexDiskBackupService.UploadNowAsync(force: false), когда в настройках включён YandexDiskBackupEnabled. Стартовые и таймерные запуски сериализованы SemaphoreSlim; исключения рабочего цикла логируются внутри, чтобы один сбой не остановил расписание. Внеочередные проверки (RequestCheck после сохранения настроек/подключения) обрабатывает один отслеживаемый worker: повторные запросы во время занятого worker схлопываются в одну ожидающую проверку (coalescing), после остановки новые запросы игнорируются. StopAsync отменяет активную операцию и ограниченно (10 с) ждёт завершения и таймерного цикла, и worker — вызывается из App.OnExit до Dispose DI (TRAPS §3.19).",
+      "dependencies": [
+        "ISettingsService",
+        "IYandexDiskBackupService",
+        "TimeProvider"
+      ],
+      "keyMethods": [
+        {
+          "signature": "void Start()",
+          "description": "Запуск: немедленная проверка + таймер; идемпотентен, не блокирует поток."
+        },
+        {
+          "signature": "void RequestCheck()",
+          "description": "Внеочередная проверка через отслеживаемый worker (сохранение настроек, новое подключение); повторные вызовы во время занятого worker схлопываются в одну ожидающую проверку."
+        },
+        {
+          "signature": "Task StopAsync(TimeSpan? timeout = null)",
+          "description": "Остановка: отмена операции и ожидание завершения (дефолт 10 с)."
+        }
+      ],
+      "usedBy": [
+        "App.xaml.cs",
+        "SettingsViewModel"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "YandexDiskOptions",
+      "interface": "",
+      "implementation": "YandexDiskOptions",
+      "file": "AutoKassa/Services/Backup/YandexDisk/YandexDiskOptions.cs",
+      "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/YandexDiskOptions.cs",
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Публичные опции интеграции с Яндекс Диском (без секретов): ClientId, URL OAuth/API, Redirect URI, scope cloud_api:disk.app_folder, лимиты ApiRequestTimeout (100 с) и UploadTimeout (10 мин — отдельный щедрый лимит для загрузки большой БД). Загрузка из appsettings.json секции YandexDisk через System.Text.Json; отсутствующий файл/секция → дефолты с пустым ClientId. Значение ClientId, введённое пользователем (IYandexDiskClientIdStore), применяется поверх appsettings.json в App.ConfigureServices.",
+      "dependencies": [],
+      "keyMethods": [
+        {
+          "signature": "static YandexDiskOptions Load(string? baseDirectory = null)",
+          "description": "Загрузить опции из appsettings.json рядом со сборкой (лениво, с защитой от битого JSON)."
+        }
+      ],
+      "usedBy": [
+        "YandexDiskAuthService",
+        "YandexDiskApiClient",
+        "YandexDiskClientIdStore"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "HttpClient",
+      "interface": "",
+      "implementation": "HttpClient",
+      "file": "System.Net.Http.HttpClient",
+      "interfaceFile": "System.Net.Http.HttpClient",
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Общий экземпляр HttpClient (Timeout отключён — лимиты применяет YandexDiskApiClient per-request через YandexDiskOptions, чтобы HTTP-таймаут не маскировался под отмену) для OAuth-обмена токена и REST-вызовов Яндекс Диска. Не использовать для других подсистем без согласования.",
+      "dependencies": [],
+      "keyMethods": [],
+      "usedBy": [
+        "YandexDiskAuthService",
+        "YandexDiskApiClient"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
+      "name": "ClipboardService",
+      "interface": "IClipboardService",
+      "implementation": "ClipboardService",
+      "file": "AutoKassa/Services/ClipboardService.cs",
+      "interfaceFile": "AutoKassa/Services/IClipboardService.cs",
+      "lifetime": "Singleton",
+      "category": "infrastructure",
+      "purpose": "Доступ к системному буферу обмена за интерфейсом: ViewModel остаётся тестируемой, реализация (System.Windows.Clipboard, STA/UI-поток, обработка занятого буфера) скрыта. Используется для кнопки «Скопировать ссылку» подключения Яндекс Диска (YD-10).",
+      "dependencies": [],
+      "keyMethods": [
+        {
+          "signature": "bool SetText(string text)",
+          "description": "Поместить текст в буфер обмена; false — не удалось (буфер занят, нет STA-потока)."
+        }
+      ],
+      "usedBy": [
+        "SettingsViewModel"
+      ],
+      "docFile": "docs/kimi/05-services.md"
+    },
+    {
       "name": "CreditCardSettingsService",
       "interface": "ICreditCardSettingsService",
       "implementation": "CreditCardSettingsService",
@@ -1423,6 +1721,13 @@
       "SettingsValidator",
       "AppInfoService",
       "BackupCoordinator",
+      "DpapiYandexDiskTokenStore",
+      "YandexDiskClientIdStore",
+      "YandexDiskAuthService",
+      "YandexDiskApiClient",
+      "YandexDiskBackupService",
+      "YandexDiskOptions",
+      "HttpClient",
       "ReportViewModelFactory",
       "TransactionEditViewModelFactory"
     ],

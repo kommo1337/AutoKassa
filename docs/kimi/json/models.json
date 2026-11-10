@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-20T20:00:00+03:00",
+  "lastUpdated": "2026-11-08T19:30:00+03:00",
   "entities": [
     {
       "name": "Transaction",
@@ -1018,6 +1018,21 @@
           "defaultValue": 7
         },
         {
+          "name": "YandexDiskBackupEnabled",
+          "type": "bool",
+          "nullable": false,
+          "isRequired": true,
+          "default": false,
+          "description": "Включено ли автоматическое облачное копирование на Яндекс Диск (экспортируется в JSON)"
+        },
+        {
+          "name": "YandexDiskLastBackupUtc",
+          "type": "DateTime?",
+          "nullable": true,
+          "default": null,
+          "description": "Дата последней подтверждённой облачной выгрузки (UTC); не экспортируется, фиксируется через ISettingsService.SetYandexDiskLastBackupUtcAsync"
+        },
+        {
           "name": "RequirePasswordOnStartup",
           "type": "bool",
           "nullable": false,
@@ -1963,6 +1978,10 @@
     {
       "name": "FixIncomeCreditCardPurchases",
       "file": "AutoKassa/Migrations/20260820203856_FixIncomeCreditCardPurchases.cs"
+    },
+    {
+      "name": "AddYandexDiskBackupSettings",
+      "file": "AutoKassa/Migrations/20261108164216_AddYandexDiskBackupSettings.cs"
     }
   ]
 }

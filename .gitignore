@@ -264,6 +264,7 @@ ServiceFabricBackup/
 # Исключение: исходники сервисов резервного копирования — часть приложения,
 # а не временные файлы конвертации проекта (правило Backup*/ выше их перехватывает).
 !AutoKassa/Services/Backup/
+!AutoKassa.Tests/Services/Backup/
 
 # SQL Server files
 *.mdf

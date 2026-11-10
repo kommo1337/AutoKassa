@@ -277,6 +277,8 @@ namespace AutoKassa.Services
                 settings.BackupFrequency = "Weekly";
                 settings.BackupKeepCount = 10;
                 settings.BackupPath = null;
+                settings.YandexDiskBackupEnabled = false;
+                settings.YandexDiskLastBackupUtc = null;
                 settings.RequirePasswordOnStartup = true;
                 settings.PasswordExpireDays = 0;
                 settings.Language = "ru-RU";
@@ -338,6 +340,7 @@ namespace AutoKassa.Services
                     BackupFrequency = settings.BackupFrequency,
                     BackupKeepCount = settings.BackupKeepCount,
                     BackupPath = settings.BackupPath,
+                    YandexDiskBackupEnabled = settings.YandexDiskBackupEnabled,
                     RequirePasswordOnStartup = settings.RequirePasswordOnStartup,
                     PasswordExpireDays = settings.PasswordExpireDays,
                     Language = settings.Language,
@@ -397,6 +400,7 @@ namespace AutoKassa.Services
                 settings.BackupFrequency = NormalizeImportedString(nameof(AppSettings.BackupFrequency), importData.BackupFrequency, "Weekly", "Daily", "Weekly", "Monthly");
                 settings.BackupKeepCount = NormalizeImportedValue(nameof(AppSettings.BackupKeepCount), importData.BackupKeepCount, 1, 100, 10);
                 settings.BackupPath = SanitizeBackupPath(importData.BackupPath);
+                settings.YandexDiskBackupEnabled = importData.YandexDiskBackupEnabled;
                 settings.RequirePasswordOnStartup = importData.RequirePasswordOnStartup;
                 settings.PasswordExpireDays = NormalizeImportedValue(nameof(AppSettings.PasswordExpireDays), importData.PasswordExpireDays, 0, 365, 0);
                 settings.Language = NormalizeImportedString(nameof(AppSettings.Language), importData.Language, "ru-RU", "ru-RU");
@@ -508,62 +512,80 @@ namespace AutoKassa.Services
         }
 
         /// <summary>
-        /// Создать резервную копию базы данных через SQLite Online Backup API.
-        /// Корректно обрабатывает WAL-режим без закрытия соединений и без SQL-инъекций.
+        /// Создать резервную копию базы данных: снимок через <see cref="CreateSqliteSnapshotAsync"/>
+        /// плюс локальная ротация сверх лимита. Контракт локального сценария — ошибки в null.
         /// </summary>
-        public async Task<string?> CreateBackupAsync(string backupPath)
+        public async Task<string?> CreateBackupAsync(string backupPath, CancellationToken ct = default)
         {
             try
             {
-                string dbPath;
-                string sourceConnectionString;
-                using (var context = _contextFactory.CreateDbContext())
-                {
-                    dbPath = context.Database.GetDbConnection().DataSource;
-                    sourceConnectionString = context.Database.GetDbConnection().ConnectionString;
-                }
+                var backupFilePath = await CreateSqliteSnapshotAsync(backupPath, ct).ConfigureAwait(false);
 
-                if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
-                {
-                    _log.Warning("CreateBackupAsync: файл БД не найден по пути {DbPath}", dbPath);
-                    return null;
-                }
-
-                if (!Directory.Exists(backupPath))
-                    Directory.CreateDirectory(backupPath);
-
-                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var backupFilePath = Path.Combine(backupPath, $"AutoKassa_Backup_{timestamp}.db");
-                await Task.Run(() =>
-                {
-                    using var source = new SqliteConnection(sourceConnectionString);
-                    using var dest = new SqliteConnection($"Data Source={backupFilePath}");
-                    source.Open();
-                    dest.Open();
-                    source.BackupDatabase(dest);
-                });
-
-                _log.Information("Бэкап создан: {BackupFile}", backupFilePath);
-
-                // Удаляем старые бэкапы сверх лимита
+                // Локальная ротация — ответственность локального бэкапа, а не фабрики снимка:
+                // облачная очередь получает снимок без чужих побочных эффектов (раздел 5 аудита).
                 CleanupOldBackups(backupPath, GetSettings().BackupKeepCount);
-
                 return backupFilePath;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _log.Error(ex, "Ошибка создания резервной копии в {BackupPath}", backupPath);
                 return null;
             }
         }
 
+        /// <inheritdoc />
+        /// <summary>
+        /// Создать согласованный снимок базы данных через SQLite Online Backup API.
+        /// Корректно обрабатывает WAL-режим без закрытия соединений и без SQL-инъекций.
+        /// Без локальной ротации; ошибки пробрасываются вызывающему коду.
+        /// </summary>
+        public async Task<string> CreateSqliteSnapshotAsync(string targetDirectory, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            string dbPath;
+            string sourceConnectionString;
+            using (var context = _contextFactory.CreateDbContext())
+            {
+                dbPath = context.Database.GetDbConnection().DataSource;
+                sourceConnectionString = context.Database.GetDbConnection().ConnectionString;
+            }
+
+            if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
+            {
+                _log.Warning("CreateSqliteSnapshotAsync: файл БД не найден по пути {DbPath}", dbPath);
+                throw new InvalidOperationException("Не удалось создать резервную копию: файл базы данных не найден.");
+            }
+
+            if (!Directory.Exists(targetDirectory))
+                Directory.CreateDirectory(targetDirectory);
+
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+            var backupFilePath = Path.Combine(targetDirectory, $"AutoKassa_Backup_{timestamp}.db");
+            await Task.Run(() =>
+            {
+                ct.ThrowIfCancellationRequested();
+                using var source = new SqliteConnection(sourceConnectionString);
+                using var dest = new SqliteConnection($"Data Source={backupFilePath}");
+                source.Open();
+                dest.Open();
+                source.BackupDatabase(dest);
+                ct.ThrowIfCancellationRequested();
+            }, ct).ConfigureAwait(false);
+
+            _log.Information("Снимок базы создан: {BackupFile}", backupFilePath);
+            return backupFilePath;
+        }
+
         /// <summary>
         /// Восстановить базу данных из резервной копии
         /// </summary>
-        public async Task<bool> RestoreBackupAsync(string backupFilePath)
+        public async Task<bool> RestoreBackupAsync(string backupFilePath, CancellationToken ct = default)
         {
             try
             {
+                ct.ThrowIfCancellationRequested();
+
                 if (!File.Exists(backupFilePath))
                 {
                     _log.Warning("RestoreBackupAsync: файл бэкапа не найден {BackupFile}", backupFilePath);
@@ -582,7 +604,8 @@ namespace AutoKassa.Services
                 // Сбрасываем пул соединений Microsoft.Data.Sqlite — закрывает все открытые хендлы на файл
                 SqliteConnection.ClearAllPools();
 
-                await Task.Run(() => File.Copy(backupFilePath, dbPath, overwrite: true));
+                await Task.Run(() => File.Copy(backupFilePath, dbPath, overwrite: true), ct);
+                ct.ThrowIfCancellationRequested();
 
                 // Восстановленная копия может иметь устаревшую схему (например, отсутствуют столбцы кредитной карты).
                 // Применяем pending-миграции, чтобы схема соответствовала текущей версии приложения.
@@ -637,8 +660,10 @@ namespace AutoKassa.Services
         /// <summary>
         /// Запустить авто-бэкап, если подошёл срок
         /// </summary>
-        public async Task RunAutoBackupIfDueAsync()
+        public async Task RunAutoBackupIfDueAsync(CancellationToken ct = default)
         {
+            ct.ThrowIfCancellationRequested();
+
             var settings = GetSettings();
             if (!settings.BackupEnabled || string.IsNullOrWhiteSpace(settings.BackupPath))
                 return;
@@ -647,7 +672,19 @@ namespace AutoKassa.Services
             var daysSinceLast = GetDaysSinceLastBackup(backupDir);
 
             if (daysSinceLast >= settings.AutoBackupDays)
-                await CreateBackupAsync(backupDir);
+                await CreateBackupAsync(backupDir, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Зафиксировать дату последней успешной облачной выгрузки (UTC).
+        /// </summary>
+        public async Task SetYandexDiskLastBackupUtcAsync(DateTime? value, CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var settings = GetSettings();
+            settings.YandexDiskLastBackupUtc = value;
+            await SaveSettingsAsync(settings).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -756,6 +793,8 @@ namespace AutoKassa.Services
                 AutoBackupDays = 7,
                 BackupFrequency = "Weekly",
                 BackupKeepCount = 10,
+                YandexDiskBackupEnabled = false,
+                YandexDiskLastBackupUtc = null,
                 RequirePasswordOnStartup = true,
                 PasswordExpireDays = 0,
                 Language = "ru-RU",
@@ -798,6 +837,7 @@ namespace AutoKassa.Services
         public string? BackupFrequency { get; set; }
         public int BackupKeepCount { get; set; }
         public string? BackupPath { get; set; }
+        public bool YandexDiskBackupEnabled { get; set; }
         public bool RequirePasswordOnStartup { get; set; }
         public int PasswordExpireDays { get; set; }
         public string? Language { get; set; }

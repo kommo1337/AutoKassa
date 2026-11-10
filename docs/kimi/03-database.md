@@ -380,7 +380,7 @@ erDiagram
 
 ### AppSettings
 
-Создаётся одна запись с `Id = 1` и значениями по умолчанию (светлая тема, таймаут блокировки 10 минут, начальный баланс 0 и т.д.).
+Создаётся одна запись с `Id = 1` и значениями по умолчанию (светлая тема, таймаут блокировки 10 минут, начальный баланс 0 и т.д.). Облачное копирование на Яндекс Диск по умолчанию выключено: `YandexDiskBackupEnabled = false`, `YandexDiskLastBackupUtc = null`.
 
 ---
 
@@ -407,6 +407,8 @@ EF Core миграции применяются автоматически пр�
 | CreditCardPaymentCascadeDelete | Каскадное удаление погашений |
 | CreditCardPaymentNavigationFix | Исправление навигации погашений |
 | AddTransactionsFts | FTS5-поиск по описаниям операций: виртуальная таблица `TransactionsFts` + триггеры синхронизации |
+| FixIncomeCreditCardPurchases | Исправление ошибочных покупок для доходов на кредитную карту |
+| AddYandexDiskBackupSettings | Облачный бэкап на Яндекс Диск: `AppSettings.YandexDiskBackupEnabled` (NOT NULL, default `false` — существующие строки получают выключенную облачную функцию) и `AppSettings.YandexDiskLastBackupUtc` (nullable, UTC) |
 
 ### Полнотекстовый поиск (FTS5)
 

@@ -3,11 +3,13 @@ using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 using AutoKassa.Services;
 using AutoKassa.Services.Backup;
+using AutoKassa.Services.Backup.YandexDisk;
 using AutoKassa.Services.CreditCards;
 using AutoKassa.Services.Settings;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -25,6 +27,14 @@ namespace AutoKassa.ViewModels
         private readonly IAppInfoService _appInfoService;
         private readonly ICreditCardSettingsService _creditCardSettingsService;
         private readonly ILockService _lockService;
+        private readonly IYandexDiskAuthService _yandexAuthService;
+        private readonly IYandexDiskBackupService _yandexBackupService;
+        private readonly IAutomaticBackupService _automaticBackupService;
+        private readonly IClipboardService _clipboardService;
+
+        // Контекст UI-потока для маршалинга событий фоновых сервисов (Singleton-VM создаётся на UI-потоке).
+        private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
+        private bool _isDisposed;
 
         private AppSettings _currentSettings;
         private AppSettings _originalSettings;
@@ -61,6 +71,17 @@ namespace AutoKassa.ViewModels
         private int _autoBackupDays;
         private string _backupPath;
         private int _backupKeepCount;
+
+        // Яндекс Диск
+        private bool _yandexDiskBackupEnabled;
+        private YandexDiskAuthState _yandexAuthState = YandexDiskAuthState.NotConnected;
+        private string? _cloudStatusMessage;
+        private DateTime? _cloudLastSuccessUtc;
+        private bool _cloudHasPendingFile;
+        private bool _cloudIsBusy;
+        private bool _cloudAwaitingCode;
+        private string _cloudAuthCode = string.Empty;
+        private string? _cloudAuthUrl;
 
         // Безопасность
         private bool _requirePasswordOnStartup;
@@ -122,7 +143,11 @@ namespace AutoKassa.ViewModels
             IBackupCoordinator backupCoordinator,
             IAppInfoService appInfoService,
             ICreditCardSettingsService creditCardSettingsService,
-            ILockService lockService)
+            ILockService lockService,
+            IYandexDiskAuthService yandexAuthService,
+            IYandexDiskBackupService yandexBackupService,
+            IAutomaticBackupService automaticBackupService,
+            IClipboardService clipboardService)
         {
             _settingsService = settingsService;
             _dialogService = dialogService;
@@ -135,6 +160,10 @@ namespace AutoKassa.ViewModels
             _appInfoService = appInfoService;
             _creditCardSettingsService = creditCardSettingsService;
             _lockService = lockService;
+            _yandexAuthService = yandexAuthService;
+            _yandexBackupService = yandexBackupService;
+            _automaticBackupService = automaticBackupService;
+            _clipboardService = clipboardService;
 
             SaveCommand = new AsyncRelayCommand(SaveAsync, () => HasUnsavedChanges);
             CancelCommand = new RelayCommand(_ => Cancel());
@@ -145,7 +174,16 @@ namespace AutoKassa.ViewModels
             SelectBackupPathCommand = new RelayCommand(_ => SelectBackupPath());
             CreateBackupCommand = new AsyncRelayCommand(CreateBackupAsync);
             RestoreBackupCommand = new AsyncRelayCommand(RestoreBackupAsync);
+            ConnectYandexCommand = new AsyncRelayCommand(ConnectYandexAsync, CanConnectYandex);
+            ConfirmYandexCodeCommand = new AsyncRelayCommand(ConfirmYandexCodeAsync, CanConfirmYandexCode);
+            CancelYandexInputCommand = new AsyncRelayCommand(CancelYandexInputAsync, CanCancelYandexInput);
+            CopyYandexAuthLinkCommand = new RelayCommand(_ => CopyYandexAuthLink(), _ => CanCopyYandexAuthLink());
+            DisconnectYandexCommand = new AsyncRelayCommand(DisconnectYandexAsync, CanDisconnectYandex);
+            UploadNowCommand = new AsyncRelayCommand(UploadNowAsync, CanUploadNow);
 
+            // События фоновых сервисов поднимаются на рабочем потоке — маршалим на UI-поток.
+            _yandexAuthService.StateChanged += OnYandexAuthStateChanged;
+            _yandexBackupService.StateChanged += OnCloudBackupStateChanged;
             _dataChangeService.DataChanged += OnDataChanged;
         }
 
@@ -312,6 +350,83 @@ namespace AutoKassa.ViewModels
 
         #endregion
 
+        #region Яндекс Диск
+
+        public bool YandexDiskBackupEnabled
+        {
+            get => _yandexDiskBackupEnabled;
+            set { if (SetProperty(ref _yandexDiskBackupEnabled, value)) MarkAsChanged(); }
+        }
+
+        /// <summary>Состояние подключения аккаунта (для доступности кнопок и подписей).</summary>
+        public YandexDiskAuthState YandexAuthState
+        {
+            get => _yandexAuthState;
+            private set { if (SetProperty(ref _yandexAuthState, value)) RefreshCloudCommandStates(); }
+        }
+
+        /// <summary>Понятное пользователю состояние облачной копии (без технических деталей и секретов).</summary>
+        public string CloudStatusMessage
+        {
+            get => _cloudStatusMessage ?? "Яндекс Диск не подключён.";
+            private set => SetProperty(ref _cloudStatusMessage, value);
+        }
+
+        /// <summary>Дата последней подтверждённой облачной выгрузки (UTC) или null.</summary>
+        public DateTime? CloudLastSuccessUtc
+        {
+            get => _cloudLastSuccessUtc;
+            private set => SetProperty(ref _cloudLastSuccessUtc, value);
+        }
+
+        /// <summary>В локальной очереди остался незагруженный файл.</summary>
+        public bool CloudHasPendingFile
+        {
+            get => _cloudHasPendingFile;
+            private set => SetProperty(ref _cloudHasPendingFile, value);
+        }
+
+        /// <summary>Идёт облачная операция (загрузка или подключение) — блокирует кнопки.</summary>
+        public bool CloudIsBusy
+        {
+            get => _cloudIsBusy;
+            private set { if (SetProperty(ref _cloudIsBusy, value)) RefreshCloudCommandStates(); }
+        }
+
+        /// <summary>Браузер открыт, ожидается ввод одноразового кода.</summary>
+        public bool CloudAwaitingCode
+        {
+            get => _cloudAwaitingCode;
+            private set { if (SetProperty(ref _cloudAwaitingCode, value)) RefreshCloudCommandStates(); }
+        }
+
+        /// <summary>Одноразовый код, введённый пользователем после разрешения доступа в браузере.</summary>
+        public string CloudAuthCode
+        {
+            get => _cloudAuthCode;
+            set
+            {
+                if (SetProperty(ref _cloudAuthCode, value))
+                    (ConfirmYandexCodeCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// URL страницы разрешения доступа текущей попытки входа. Действителен, даже если
+        /// браузер не открылся автоматически, — пользователь может открыть его вручную (YD-10).
+        /// </summary>
+        public string? CloudAuthUrl
+        {
+            get => _cloudAuthUrl;
+            private set { if (SetProperty(ref _cloudAuthUrl, value)) (CopyYandexAuthLinkCommand as RelayCommand)?.RaiseCanExecuteChanged(); }
+        }
+
+        /// <summary>Форматированная дата последнего успеха для UI.</summary>
+        public string CloudLastSuccessText
+            => CloudLastSuccessUtc == null ? "—" : CloudLastSuccessUtc.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+
+        #endregion
+
         #region Безопасность
 
         public bool RequirePasswordOnStartup
@@ -415,6 +530,12 @@ namespace AutoKassa.ViewModels
         public ICommand SelectBackupPathCommand { get; }
         public ICommand CreateBackupCommand { get; }
         public ICommand RestoreBackupCommand { get; }
+        public ICommand ConnectYandexCommand { get; }
+        public ICommand ConfirmYandexCodeCommand { get; }
+        public ICommand CancelYandexInputCommand { get; }
+        public ICommand CopyYandexAuthLinkCommand { get; }
+        public ICommand DisconnectYandexCommand { get; }
+        public ICommand UploadNowCommand { get; }
 
         #endregion
 
@@ -438,6 +559,7 @@ namespace AutoKassa.ViewModels
                 foreach (var c in expense) ExpenseCategories.Add(c);
 
                 await LoadAboutDataAsync();
+                await RefreshCloudStatusAsync();
                 HasUnsavedChanges = false;
             }
             catch (Exception ex)
@@ -486,6 +608,9 @@ namespace AutoKassa.ViewModels
                 _originalSettings = _mapper.Clone(_currentSettings);
                 HasUnsavedChanges = false;
                 _dataChangeService?.NotifyDataChanged();
+
+                // Сроки бэкапа могли измениться — пробуждаем координатор для внеочередной проверки в фоне.
+                _automaticBackupService.RequestCheck();
 
                 // Применяем настройки автоблокировки к таймеру сразу,
                 // не дожидаясь перезапуска приложения
@@ -637,6 +762,306 @@ namespace AutoKassa.ViewModels
 
         private async Task RestoreBackupAsync() => await _backupCoordinator.RestoreBackupAsync();
 
+        #region Яндекс Диск
+
+        private bool CanConnectYandex() => !CloudIsBusy && !CloudAwaitingCode && YandexAuthState != YandexDiskAuthState.Connected;
+
+        private bool CanConfirmYandexCode() => CloudAwaitingCode && !string.IsNullOrWhiteSpace(CloudAuthCode);
+
+        private bool CanCancelYandexInput() => CloudAwaitingCode && !CloudIsBusy;
+
+        private bool CanCopyYandexAuthLink() => CloudAwaitingCode && !string.IsNullOrEmpty(CloudAuthUrl);
+
+        private bool CanDisconnectYandex() => !CloudIsBusy && YandexAuthState != YandexDiskAuthState.NotConnected;
+
+        private bool CanUploadNow() => !CloudIsBusy && YandexAuthState == YandexDiskAuthState.Connected;
+
+        /// <summary>
+        /// Единая точка применения состояния подключения: транзитное AwaitingCode
+        /// отображается через CloudAwaitingCode, а не как самостоятельный экран.
+        /// </summary>
+        private void ApplyAuthState(YandexDiskAuthState state)
+        {
+            YandexAuthState = state;
+            CloudAwaitingCode = state == YandexDiskAuthState.AwaitingCode;
+        }
+
+        private void RefreshCloudCommandStates()
+        {
+            (ConnectYandexCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (ConfirmYandexCodeCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (CancelYandexInputCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (CopyYandexAuthLinkCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (DisconnectYandexCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+            (UploadNowCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        }
+
+        /// <summary>Начальная загрузка облачного состояния: состояние копии через общий ApplyCloudState
+        /// (дата из настроек подставляется только если сервис её ещё не знает), затем авторитетное
+        /// состояние подключения из сервиса авторизации (YD-11).</summary>
+        private async Task RefreshCloudStatusAsync()
+        {
+            try
+            {
+                var state = _yandexBackupService.CurrentState;
+                ApplyCloudState(state with
+                {
+                    LastSuccessUtc = state.LastSuccessUtc ?? _currentSettings.YandexDiskLastBackupUtc
+                });
+                ApplyAuthState(await _yandexAuthService.GetStateAsync());
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка загрузки состояния Яндекс Диска");
+            }
+        }
+
+        private async Task ConnectYandexAsync()
+        {
+            try
+            {
+                CloudIsBusy = true;
+
+                // ClientId не задан ни в appsettings.json, ни ранее пользователем —
+                // предлагаем ввести его (значение сохраняется на этом компьютере).
+                if (!_yandexAuthService.IsClientIdConfigured())
+                {
+                    var entered = _dialogService.ShowDialog<YandexClientIdDialogViewModel>();
+                    if (entered != true)
+                        return;
+
+                    if (!_yandexAuthService.IsClientIdConfigured())
+                    {
+                        _dialogService.ShowWarning("ClientId не сохранён. Подключение отменено.");
+                        return;
+                    }
+                }
+
+                // Открывает системный браузер на странице разрешения доступа;
+                // пользователь вводит показанный одноразовый код в поле ниже.
+                var start = await _yandexAuthService.StartAuthorizationAsync();
+                CloudAuthUrl = start.AuthorizationUrl;
+                YandexAuthState = YandexDiskAuthState.AwaitingCode;
+                CloudAwaitingCode = true;
+                if (!start.BrowserOpened)
+                {
+                    // Автооткрытие не сработало, но URL действителен — пользователь открывает его вручную (YD-10).
+                    _dialogService.ShowWarning("Не удалось автоматически открыть браузер. Скопируйте ссылку для подключения, откройте её в браузере и введите показанный код.");
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса — текст уже понятен пользователю
+                _dialogService.ShowWarning(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка начала подключения Яндекс Диска");
+                _dialogService.ShowError("Не удалось подключить Яндекс Диск. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
+            }
+            finally
+            {
+                CloudIsBusy = false;
+            }
+        }
+
+        private async Task ConfirmYandexCodeAsync()
+        {
+            try
+            {
+                CloudIsBusy = true;
+                await _yandexAuthService.CompleteAuthorizationAsync(CloudAuthCode);
+
+                // Новая учётная запись должна сразу получить актуальную копию:
+                // сбрасываем дату последнего успеха и будим координатор.
+                await _settingsService.SetYandexDiskLastBackupUtcAsync(null);
+                ApplyAuthState(YandexDiskAuthState.Connected);
+                CloudAuthCode = string.Empty;
+                CloudAuthUrl = null;
+                CloudLastSuccessUtc = null;
+                _toastService.ShowSuccess("Яндекс Диск подключён");
+                _automaticBackupService.RequestCheck();
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Бизнес-правило из сервиса (нет попытки входа, истёк код, отказ Яндекса) — текст уже понятен пользователю.
+                // Неуспешный обмен сбрасывает ожидание кода — «Подключить» снова доступно без перезапуска (YD-03).
+                CloudAwaitingCode = false;
+                CloudAuthCode = string.Empty;
+                CloudAuthUrl = null;
+                try
+                {
+                    YandexAuthState = await _yandexAuthService.GetStateAsync();
+                }
+                catch (Exception stateEx)
+                {
+                    Serilog.Log.Error(stateEx, "Ошибка чтения состояния подключения Яндекс Диска после неуспешного обмена кодом");
+                }
+                _dialogService.ShowWarning(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка подключения Яндекс Диска по одноразовому коду");
+                _dialogService.ShowError("Не удалось подключить Яндекс Диск. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
+            }
+            finally
+            {
+                CloudIsBusy = false;
+            }
+        }
+
+        private async Task CancelYandexInputAsync()
+        {
+            try
+            {
+                await _yandexAuthService.CancelAuthorizationAsync();
+                CloudAuthCode = string.Empty;
+                CloudAuthUrl = null;
+                CloudAwaitingCode = false;
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка отмены подключения Яндекс Диска");
+                _dialogService.ShowError("Не удалось отменить подключение. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
+            }
+        }
+
+        private void CopyYandexAuthLink()
+        {
+            if (string.IsNullOrEmpty(CloudAuthUrl))
+                return;
+
+            if (_clipboardService.SetText(CloudAuthUrl))
+            {
+                _toastService.ShowSuccess("Ссылка для подключения скопирована");
+            }
+            else
+            {
+                _dialogService.ShowError("Не удалось скопировать ссылку. Попробуйте ещё раз.");
+            }
+        }
+
+        private async Task DisconnectYandexAsync()
+        {
+            try
+            {
+                CloudIsBusy = true;
+                await _yandexAuthService.DisconnectAsync();
+                await _settingsService.SetYandexDiskLastBackupUtcAsync(null);
+
+                ApplyAuthState(YandexDiskAuthState.NotConnected);
+                CloudAuthCode = string.Empty;
+                CloudAuthUrl = null;
+                CloudLastSuccessUtc = null;
+                // Признак pending не сбрасываем вручную: файл очереди при отключении намеренно
+                // не удаляется — индикатор обязан совпадать с фактическим состоянием (YD-11).
+                CloudStatusMessage = "Яндекс Диск не подключён.";
+                _toastService.ShowSuccess("Яндекс Диск отключён");
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка отключения Яндекс Диска");
+                _dialogService.ShowError("Не удалось отключить Яндекс Диск. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
+            }
+            finally
+            {
+                CloudIsBusy = false;
+            }
+        }
+
+        private async Task UploadNowAsync()
+        {
+            try
+            {
+                CloudIsBusy = true;
+                var result = await _yandexBackupService.UploadNowAsync(force: true);
+
+                if (result.Success)
+                {
+                    ApplyCloudState(result.State);
+                    _toastService.ShowSuccess("Копия загружена на Яндекс Диск");
+                }
+                else
+                {
+                    // Сервис возвращает только понятные пользователю сообщения без технических деталей и секретов.
+                    ApplyCloudState(result.State);
+                    _dialogService.ShowWarning(result.State.UserMessage ?? "Не удалось загрузить копию на Яндекс Диск.");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Штатная отмена (закрытие приложения) — состояние уже обновлено сервисом.
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Ошибка загрузки копии на Яндекс Диск");
+                _dialogService.ShowError("Не удалось загрузить копию на Яндекс Диск. Попробуйте ещё раз. Подробности — в файле журнала (папка logs).");
+            }
+            finally
+            {
+                CloudIsBusy = false;
+            }
+        }
+
+        /// <summary>Обновление отображаемого состояния из состояния облачного сервиса.</summary>
+        private void ApplyCloudState(CloudBackupState state)
+        {
+            if (state.UserMessage != null)
+                CloudStatusMessage = state.UserMessage;
+            CloudHasPendingFile = state.HasPendingFile;
+            if (state.LastSuccessUtc != null)
+                CloudLastSuccessUtc = state.LastSuccessUtc;
+            OnPropertyChanged(nameof(CloudLastSuccessText));
+
+            if (state.Status == CloudBackupStatus.AuthRequired)
+                YandexAuthState = YandexDiskAuthState.AuthRequired;
+        }
+
+        private void OnYandexAuthStateChanged()
+        {
+            MarshalToUi(async () =>
+            {
+                try
+                {
+                    ApplyAuthState(await _yandexAuthService.GetStateAsync());
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(ex, "Ошибка чтения состояния подключения Яндекс Диска");
+                }
+            });
+        }
+
+        private void OnCloudBackupStateChanged(CloudBackupState state)
+        {
+            MarshalToUi(() => ApplyCloudState(state));
+        }
+
+        /// <summary>События сервисов поднимаются на рабочем потоке — возвращаемся на захваченный UI-поток.</summary>
+        private void MarshalToUi(Func<Task> action)
+        {
+            if (_isDisposed)
+                return;
+
+            if (_uiContext != null)
+                _uiContext.Post(_ => _ = action(), null);
+            else
+                _ = action();
+        }
+
+        private void MarshalToUi(Action action)
+        {
+            if (_isDisposed)
+                return;
+
+            if (_uiContext != null)
+                _uiContext.Post(_ => action(), null);
+            else
+                action();
+        }
+
+        #endregion
+
         private void MarkAsChanged()
         {
             if (!IsLoading)
@@ -645,7 +1070,10 @@ namespace AutoKassa.ViewModels
 
         protected override void OnDispose()
         {
+            _isDisposed = true;
             _dataChangeService.DataChanged -= OnDataChanged;
+            _yandexAuthService.StateChanged -= OnYandexAuthStateChanged;
+            _yandexBackupService.StateChanged -= OnCloudBackupStateChanged;
 
             base.OnDispose();
         }

@@ -34,4 +34,14 @@
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Публичные настройки Яндекс Диска (client_id, URL OAuth/API). Секретов в файле нет. -->
+    <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Доступ к internal-конструкторам (тестовые пути DPAPI-хранилища и т.п.). -->
+    <InternalsVisibleTo Include="AutoKassa.Tests" />
+  </ItemGroup>
+
 </Project>

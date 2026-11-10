@@ -226,5 +226,79 @@ namespace AutoKassa.Tests.Services
                 File.Delete(path);
             }
         }
+
+        [Fact]
+        public async Task ImportSettingsAsync_AppliesYandexDiskBackupEnabled()
+        {
+            var result = await ImportJsonAsync("""{ "YandexDiskBackupEnabled": true }""");
+
+            result.Should().BeTrue();
+            _svc.GetSettings().YandexDiskBackupEnabled.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task ExportSettings_IncludesYandexDiskEnabled_WithoutSecretsAndLastBackupDate()
+        {
+            var settings = _svc.GetSettings();
+            settings.YandexDiskBackupEnabled = true;
+            settings.YandexDiskLastBackupUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
+            settings.PasswordHash = "secret-hash";
+            await _svc.SaveSettingsAsync(settings);
+
+            var path = Path.Combine(Path.GetTempPath(), $"autokassa_export_{Guid.NewGuid():N}.json");
+            try
+            {
+                (await _svc.ExportSettingsAsync(path)).Should().BeTrue();
+                var json = await File.ReadAllTextAsync(path);
+
+                json.Should().Contain("\"YandexDiskBackupEnabled\": true");
+                json.Should().NotContain("YandexDiskLastBackupUtc",
+                    "дата последнего облачного успеха не переносится между установками");
+                json.Should().NotContain("secret-hash", "пароль и его хеш никогда не экспортируются");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [Fact]
+        public async Task SetYandexDiskLastBackupUtc_UpdatesCacheAndPersists()
+        {
+            var value = new DateTime(2026, 11, 8, 10, 30, 0, DateTimeKind.Utc);
+
+            await _svc.SetYandexDiskLastBackupUtcAsync(value);
+
+            _svc.GetSettings().YandexDiskLastBackupUtc.Should().Be(value);
+
+            // Проверяем через новый экземпляр — значение реально записано в БД.
+            var svc2 = new SettingsService(_factory);
+            svc2.GetSettings().YandexDiskLastBackupUtc.Should().Be(value);
+        }
+
+        [Fact]
+        public async Task SetYandexDiskLastBackupUtc_WithNull_ResetsDate()
+        {
+            await _svc.SetYandexDiskLastBackupUtcAsync(new DateTime(2026, 11, 8, 10, 30, 0, DateTimeKind.Utc));
+
+            await _svc.SetYandexDiskLastBackupUtcAsync(null);
+
+            _svc.GetSettings().YandexDiskLastBackupUtc.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task ResetToDefaultsAsync_ClearsYandexDiskCloudSettings()
+        {
+            var settings = _svc.GetSettings();
+            settings.YandexDiskBackupEnabled = true;
+            settings.YandexDiskLastBackupUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
+            await _svc.SaveSettingsAsync(settings);
+
+            await _svc.ResetToDefaultsAsync();
+
+            var reset = _svc.GetSettings();
+            reset.YandexDiskBackupEnabled.Should().BeFalse();
+            reset.YandexDiskLastBackupUtc.Should().BeNull();
+        }
     }
 }

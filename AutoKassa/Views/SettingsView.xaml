@@ -443,7 +443,7 @@
                             </Style>
                         </ContentControl.Style>
                         <StackPanel>
-                            <TextBlock Text="Резервное копирование" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="Локальное резервное копирование" Style="{StaticResource SectionHeaderStyle}"/>
 
                             <Grid Style="{StaticResource SettingRowStyle}">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -486,6 +486,73 @@
                                         Command="{Binding RestoreBackupCommand}"
                                         Style="{StaticResource ActionButtonStyle}"/>
                             </StackPanel>
+
+                            <Rectangle Height="1" Fill="{StaticResource BorderLightBrush}" Margin="0,20,0,16"/>
+
+                            <TextBlock Text="Яндекс Диск" Style="{StaticResource SectionHeaderStyle}"/>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Облачное резервное копирование" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Копии выгружаются в папку приложения на Яндекс Диске"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" IsChecked="{Binding YandexDiskBackupEnabled}" Style="{StaticResource GreenCheckBoxStyle}"/>
+                            </Grid>
+
+                            <Grid Style="{StaticResource SettingRowStyle}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Состояние" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding CloudStatusMessage}"
+                                               FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding CloudLastSuccessText}"
+                                           FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <TextBlock Text="В очереди ожидает выгрузки сохранённая копия — она будет отправлена при следующей попытке."
+                                       FontSize="12" Foreground="#f59e0b"
+                                       TextWrapping="Wrap" Margin="0,0,0,12"
+                                       Visibility="{Binding CloudHasPendingFile, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <Button Content="Подключить"
+                                        Command="{Binding ConnectYandexCommand}"
+                                        Style="{StaticResource ActionButtonStyle}"
+                                        Margin="0,0,10,0"/>
+                                <Button Content="Отключить"
+                                        Command="{Binding DisconnectYandexCommand}"
+                                        Style="{StaticResource ActionButtonStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,0,12"
+                                        Visibility="{Binding CloudAwaitingCode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <TextBlock Text="В браузере открылась страница Яндекса. Разрешите доступ и введите показанный одноразовый код:"
+                                           FontSize="12" Foreground="{StaticResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Text="{Binding CloudAuthCode, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="280" Padding="10,8" Margin="0,0,10,0"/>
+                                    <Button Content="Подтвердить"
+                                            Command="{Binding ConfirmYandexCodeCommand}"
+                                            Style="{StaticResource ActionButtonStyle}"
+                                            Margin="0,0,10,0"/>
+                                    <Button Content="Скопировать ссылку"
+                                            Command="{Binding CopyYandexAuthLinkCommand}"
+                                            Style="{StaticResource ActionButtonStyle}"
+                                            Margin="0,0,10,0"/>
+                                    <Button Content="Отмена"
+                                            Command="{Binding CancelYandexInputCommand}"
+                                            Style="{StaticResource ActionButtonStyle}"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <Button Content="Загрузить сейчас"
+                                    Command="{Binding UploadNowCommand}"
+                                    Style="{StaticResource ActionButtonStyle}"
+                                    HorizontalAlignment="Left"/>
                         </StackPanel>
                     </ContentControl>
 

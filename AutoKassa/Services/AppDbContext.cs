@@ -447,6 +447,8 @@ namespace AutoKassa.Services
                     BackupPath = null,
                     BackupKeepCount = 10,
                     AutoBackupDays = 7,
+                    YandexDiskBackupEnabled = false,
+                    YandexDiskLastBackupUtc = null,
                     RequirePasswordOnStartup = true,
                     PasswordExpireDays = 0,
                     Language = "ru-RU",

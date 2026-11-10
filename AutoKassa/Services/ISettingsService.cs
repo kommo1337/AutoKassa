@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models;
+using AutoKassa.Models;
 using AutoKassa.Models.Enums;
 
 
@@ -101,23 +101,44 @@ namespace AutoKassa.Services
         Task<bool> ImportSettingsAsync(string filePath);
 
         /// <summary>
-        /// Создать резервную копию базы данных
+        /// Создать резервную копию базы данных (снимок + локальная ротация сверх BackupKeepCount).
+        /// Ошибки и отмена превращаются в null — контракт для локального сценария;
+        /// для облачного снимка без побочных эффектов используйте <see cref="CreateSqliteSnapshotAsync"/>.
         /// </summary>
         /// <param name="backupPath">Путь для сохранения</param>
-        /// <returns>Путь к созданному файлу или null при ошибке</returns>
-        Task<string?> CreateBackupAsync(string backupPath);
+        /// <param name="ct">Токен отмены</param>
+        /// <returns>Путь к созданному файлу или null при ошибке/отмене</returns>
+        Task<string?> CreateBackupAsync(string backupPath, CancellationToken ct = default);
+
+        /// <summary>
+        /// Создать согласованный SQLite-снимок базы (SQLite Online Backup API) в указанном каталоге.
+        /// Общая часть <see cref="CreateBackupAsync"/> без локальной ротации и глотания ошибок:
+        /// <see cref="InvalidOperationException"/> — файл базы данных не найден;
+        /// <see cref="OperationCanceledException"/> — отмена; IOException и прочие — ошибки записи.
+        /// </summary>
+        Task<string> CreateSqliteSnapshotAsync(string targetDirectory, CancellationToken ct = default);
 
         /// <summary>
         /// Восстановить базу данных из резервной копии
         /// </summary>
         /// <param name="backupFilePath">Путь к файлу резервной копии</param>
+        /// <param name="ct">Токен отмены</param>
         /// <returns>true если восстановление успешно</returns>
-        Task<bool> RestoreBackupAsync(string backupFilePath);
+        Task<bool> RestoreBackupAsync(string backupFilePath, CancellationToken ct = default);
 
         /// <summary>
         /// Запустить авто-бэкап, если подошёл срок (проверяет BackupEnabled и AutoBackupDays)
         /// </summary>
-        Task RunAutoBackupIfDueAsync();
+        /// <param name="ct">Токен отмены</param>
+        Task RunAutoBackupIfDueAsync(CancellationToken ct = default);
+
+        /// <summary>
+        /// Зафиксировать дату последней успешной облачной выгрузки (UTC).
+        /// Точечный сеттер для фоновых сервисов — не мутирует кешированный объект снаружи сервиса.
+        /// </summary>
+        /// <param name="value">Дата успеха (UTC) или null (сброс, например при новом подключении).</param>
+        /// <param name="ct">Токен отмены</param>
+        Task SetYandexDiskLastBackupUtcAsync(DateTime? value, CancellationToken ct = default);
 
         /// <summary>
         /// Получить дату последнего резервного копирования (async)

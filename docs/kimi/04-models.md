@@ -482,6 +482,10 @@
 - `Id` всегда 1.
 - `AutoLockTimeout` ≥ 0.
 - `DefaultPageSize` > 0.
+- `AutoBackupDays` и `BackupKeepCount` — общие для локальных и облачных копий.
+- `YandexDiskBackupEnabled` (`bool`, default `false`) — включено ли автоматическое облачное копирование на Яндекс Диск; экспортируется в JSON настроек.
+- `YandexDiskLastBackupUtc` (`DateTime?`, UTC) — дата последней подтверждённой облачной выгрузки; **не экспортируется**, фиксируется только через `ISettingsService.SetYandexDiskLastBackupUtcAsync` (см. TRAPS.md §3.18); сбрасывается при новом подключении/отключении аккаунта.
+- `BackupPath` — только локальный путь; облачный путь фиксирован в папке приложения Яндекс Диска (`app:/`).
 
 ---
 

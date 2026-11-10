@@ -138,6 +138,12 @@ namespace AutoKassa.Migrations
                     b.Property<double>("WindowWidth")
                         .HasColumnType("REAL");
 
+                    b.Property<bool>("YandexDiskBackupEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("YandexDiskLastBackupUtc")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.ToTable("AppSettings");
@@ -172,7 +178,8 @@ namespace AutoKassa.Migrations
                             ShowOperationsInSidebar = false,
                             Theme = "Light",
                             WindowHeight = 700.0,
-                            WindowWidth = 1200.0
+                            WindowWidth = 1200.0,
+                            YandexDiskBackupEnabled = false
                         });
                 });
 

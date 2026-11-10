@@ -31,6 +31,7 @@ namespace AutoKassa.Services.Settings
             target.AutoBackupDays = source.AutoBackupDays;
             target.BackupPath = source.BackupPath ?? string.Empty;
             target.BackupKeepCount = source.BackupKeepCount;
+            target.YandexDiskBackupEnabled = source.YandexDiskBackupEnabled;
 
             target.RequirePasswordOnStartup = source.RequirePasswordOnStartup;
             target.PasswordExpireDays = source.PasswordExpireDays;
@@ -61,6 +62,7 @@ namespace AutoKassa.Services.Settings
             target.RaisePropertyChanged(nameof(target.AutoBackupDays));
             target.RaisePropertyChanged(nameof(target.BackupPath));
             target.RaisePropertyChanged(nameof(target.BackupKeepCount));
+            target.RaisePropertyChanged(nameof(target.YandexDiskBackupEnabled));
             target.RaisePropertyChanged(nameof(target.RequirePasswordOnStartup));
             target.RaisePropertyChanged(nameof(target.PasswordExpireDays));
             target.RaisePropertyChanged(nameof(target.CreditCardLimit));
@@ -95,6 +97,7 @@ namespace AutoKassa.Services.Settings
             target.AutoBackupDays = source.AutoBackupDays;
             target.BackupPath = SettingsService.SanitizeBackupPath(source.BackupPath);
             target.BackupKeepCount = source.BackupKeepCount;
+            target.YandexDiskBackupEnabled = source.YandexDiskBackupEnabled;
 
             target.RequirePasswordOnStartup = source.RequirePasswordOnStartup;
             target.PasswordExpireDays = source.PasswordExpireDays;
@@ -131,6 +134,8 @@ namespace AutoKassa.Services.Settings
                 BackupFrequency = source.BackupFrequency,
                 BackupKeepCount = source.BackupKeepCount,
                 BackupPath = source.BackupPath,
+                YandexDiskBackupEnabled = source.YandexDiskBackupEnabled,
+                YandexDiskLastBackupUtc = source.YandexDiskLastBackupUtc,
                 RequirePasswordOnStartup = source.RequirePasswordOnStartup,
                 PasswordExpireDays = source.PasswordExpireDays,
                 Language = source.Language,

@@ -1,5 +1,6 @@
 using AutoKassa.Services;
 using AutoKassa.Services.Backup;
+using AutoKassa.Services.Backup.YandexDisk;
 using AutoKassa.Services.CreditCards;
 using AutoKassa.Services.Dashboard;
 using AutoKassa.Services.Settings;
@@ -10,6 +11,7 @@ using AutoKassa.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -143,11 +145,9 @@ namespace AutoKassa
             ShutdownMode = ShutdownMode.OnLastWindowClose;
             Log.Information("Главное окно открыто");
 
-            // Авто-бэкап в фоне (не блокирует запуск);
-            // ошибки логируем явно, иначе они потеряются в fire-and-forget задаче
-            _ = settingsService.RunAutoBackupIfDueAsync().ContinueWith(
-                t => Log.Error(t.Exception, "Ошибка авто-бэкапа при запуске"),
-                TaskContinuationOptions.OnlyOnFaulted);
+            // Координатор автобэкапа: немедленная проверка после открытия главного окна,
+            // затем периодическая (раз в час). Исключения рабочего цикла логируются внутри.
+            _serviceProvider.GetRequiredService<IAutomaticBackupService>().Start();
         }
 
         /// <summary>
@@ -223,6 +223,26 @@ namespace AutoKassa
             services.AddSingleton<IBackupCoordinator, BackupCoordinator>();
             services.AddTransient<ICreditCardSettingsService, CreditCardSettingsService>();
 
+            // Облачное резервное копирование на Яндекс Диск (OAuth/PKCE, папка приложения app:/).
+            // Состояние (токен, очередь) — Singleton; координатор сериализует расписание проверок.
+            // Общий HttpClient без встроенного Timeout: лимиты запросов и загрузки применяет
+            // YandexDiskApiClient через связанные CancellationTokenSource (YD-07) — таймаут
+            // превращается в повторяемый YandexDiskTransientException, а не в ложную отмену.
+            services.AddSingleton<HttpClient>(_ => new HttpClient { Timeout = Timeout.InfiniteTimeSpan });
+            var yandexOptions = YandexDiskOptions.Load();
+            // ClientId, введённый пользователем (IYandexDiskClientIdStore), имеет приоритет
+            // над appsettings.json — портативная установка может лежать в каталоге без прав записи.
+            YandexDiskClientIdStore.ApplyStoredOverride(yandexOptions);
+            services.AddSingleton<YandexDiskOptions>(yandexOptions);
+            services.AddSingleton<IYandexDiskClientIdStore, YandexDiskClientIdStore>();
+            services.AddSingleton<IYandexDiskTokenStore, DpapiYandexDiskTokenStore>();
+            services.AddSingleton<IYandexDiskAuthService, YandexDiskAuthService>();
+            services.AddSingleton<IYandexDiskApiClient, YandexDiskApiClient>();
+            services.AddSingleton<IYandexDiskBackupService, YandexDiskBackupService>();
+            services.AddSingleton<IAutomaticBackupService, AutomaticBackupService>();
+            // Буфер обмена за интерфейсом: команды VM выполняются на UI-потоке (STA), тесты подменяют фейком.
+            services.AddSingleton<IClipboardService, ClipboardService>();
+
             // Регистрация фабрики отчётных ViewModel (убирает static Service Locator)
             services.AddSingleton<IReportViewModelFactory, ReportViewModelFactory>();
 
@@ -262,10 +282,13 @@ namespace AutoKassa
             services.AddTransient<ChangePasswordViewModel>();
             services.AddTransient<LockScreenViewModel>();
             services.AddTransient<PasswordRecoveryViewModel>();
+            // Диалог ввода ClientId Яндекс Диска (открывается из облачного региона настроек).
+            services.AddTransient<YandexClientIdDialogViewModel>();
 
             // Регистрация Views
             services.AddTransient<ChangePasswordView>();
             services.AddTransient<LockScreenView>();
+            services.AddTransient<YandexClientIdDialogView>();
 
             services.AddSingleton<MainWindow>(provider =>
             {
@@ -281,6 +304,22 @@ namespace AutoKassa
         protected override void OnExit(ExitEventArgs e)
         {
             Log.Information("=== AutoKassa завершение ===");
+
+            // Останавливаем координатор автобэкапа: отменяем активную операцию и ограниченно
+            // ждём её завершения, чтобы не рвать выгрузку посреди записи файла.
+            var automaticBackup = _serviceProvider?.GetService<IAutomaticBackupService>();
+            if (automaticBackup != null)
+            {
+                try
+                {
+                    automaticBackup.StopAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Ошибка остановки координатора автобэкапа при выходе");
+                }
+            }
+
             Log.CloseAndFlush();
             _serviceProvider?.Dispose();
             base.OnExit(e);

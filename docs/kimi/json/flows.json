@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-20T20:00:00+03:00",
+  "lastUpdated": "2026-11-08T19:30:00+03:00",
   "flows": [
     {
       "name": "Запуск приложения",
@@ -975,6 +975,101 @@
           "method": "LoadDataAsync",
           "notes": "Обновляет список и сводку после восстановления."
         }
+      ]
+    },
+    {
+      "name": "Облачное резервное копирование на Яндекс Диск",
+      "trigger": "Подключение аккаунта, сохранение настроек с включённым облачным бэкапом, запуск приложения (немедленная проверка) и тики таймера раз в час; ручная команда «Загрузить сейчас»",
+      "steps": [
+        {
+          "order": 1,
+          "actor": "User",
+          "action": "«Подключить» в настройках (раздел «Яндекс Диск»)",
+          "file": "ViewModels/SettingsViewModel.cs",
+          "method": "ConnectYandexCommand",
+          "description": "Старт OAuth: PKCE-пара и открытие системного браузера."
+        },
+        {
+          "order": 2,
+          "actor": "User",
+          "action": "Разрешение доступа и ввод одноразового кода",
+          "file": "Views/SettingsView.xaml",
+          "method": "",
+          "description": "Пользователь вставляет код, показанный браузером после разрешения доступа."
+        },
+        {
+          "order": 3,
+          "actor": "VM",
+          "action": "Обмен кода на токен и сброс даты успеха",
+          "file": "ViewModels/SettingsViewModel.cs",
+          "method": "ConfirmYandexCodeAsync",
+          "description": "CompleteAuthorizationAsync сохраняет токен в DPAPI-хранилище; SetYandexDiskLastBackupUtcAsync(null) — новая учётная запись сразу получит актуальную копию; RequestCheck будит координатора. Неуспешный обмен (invalid_grant/сеть/истёкший verifier) сбрасывает транзитное AwaitingCode в устойчивое состояние — повторное подключение доступно без перезапуска (TRAPS §3.21); отмена — CancelYandexInputCommand → CancelAuthorizationAsync."
+        },
+        {
+          "order": 4,
+          "actor": "Service",
+          "action": "Координатор: немедленная проверка и таймер раз в час",
+          "file": "Services/Backup/AutomaticBackupService.cs",
+          "method": "Start / TimerLoopAsync",
+          "description": "Сериализация запусков через SemaphoreSlim; исключения цикла не останавливают расписание."
+        },
+        {
+          "order": 5,
+          "actor": "Service",
+          "action": "Локальная проверка по сроку",
+          "file": "Services/SettingsService.cs",
+          "method": "RunAutoBackupIfDueAsync",
+          "description": "Правила BackupEnabled/AutoBackupDays внутри метода — координатор не дублирует."
+        },
+        {
+          "order": 6,
+          "actor": "Service",
+          "action": "Облачный цикл (только при YandexDiskBackupEnabled)",
+          "file": "Services/Backup/YandexDisk/YandexDiskBackupService.cs",
+          "method": "UploadNowAsync",
+          "description": "Очередь → свежий снимок во временной папке .staging (ISettingsService.CreateSqliteSnapshotAsync — без побочных эффектов локального бэкапа) → integrity_check + размер + MD5 → атомарный перевод в очередь → загрузка без перезаписи → ожидание появления ресурса (201/202, 404 = «ещё не появился») и сверка метаданных Диска → дата успеха фиксируется до удаления pending → ротация файлов (type == \"file\") с точным именем AutoKassa_Backup_yyyyMMdd_HHmmss.db сверх BackupKeepCount; файл очереди переиспользуется после сбоев и перезапуска вне срока, повреждённый уходит в карантин *.corrupt (TRAPS §3.20)."
+        },
+        {
+          "order": 7,
+          "actor": "Service",
+          "action": "Фиксация даты успеха",
+          "file": "Services/Backup/YandexDisk/YandexDiskBackupService.cs",
+          "method": "CompleteSuccessAsync",
+          "description": "ISettingsService.SetYandexDiskLastBackupUtcAsync — срок следующей копии считается от сохранённой даты."
+        },
+        {
+          "order": 8,
+          "actor": "Service",
+          "action": "Публикация состояния",
+          "file": "Services/Backup/YandexDisk/IYandexDiskBackupService.cs",
+          "method": "StateChanged",
+          "description": "Событие на потоке операции; SettingsViewModel маршалит на захваченный UI SynchronizationContext."
+        },
+        {
+          "order": 9,
+          "actor": "User",
+          "action": "«Загрузить сейчас» (не блокирует AutoBackupDays)",
+          "file": "ViewModels/SettingsViewModel.cs",
+          "method": "UploadNowCommand",
+          "description": "UploadNowAsync(force: true) через общий SemaphoreSlim сервиса."
+        },
+        {
+          "order": 10,
+          "actor": "UI",
+          "action": "Выход из приложения",
+          "file": "App.xaml.cs",
+          "method": "OnExit",
+          "description": "IAutomaticBackupService.StopAsync() — отмена активной операции и ожидание до 10 с до Log.CloseAndFlush() и Dispose DI."
+        }
+      ],
+      "servicesInvolved": [
+        "YandexDiskAuthService",
+        "YandexDiskBackupService",
+        "AutomaticBackupService",
+        "SettingsService"
+      ],
+      "viewModelsInvolved": [
+        "SettingsViewModel"
       ]
     }
   ]

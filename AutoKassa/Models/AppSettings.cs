@@ -1,4 +1,4 @@
-﻿using AutoKassa.Models.Enums;
+using AutoKassa.Models.Enums;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -156,6 +156,17 @@ namespace AutoKassa.Models
         /// </summary>
         [Required]
         public int AutoBackupDays { get; set; } = 7;
+
+        /// <summary>
+        /// Включено ли автоматическое облачное копирование на Яндекс Диск
+        /// </summary>
+        [Required]
+        public bool YandexDiskBackupEnabled { get; set; } = false;
+
+        /// <summary>
+        /// Дата последней подтверждённой облачной выгрузки (UTC) или null
+        /// </summary>
+        public DateTime? YandexDiskLastBackupUtc { get; set; }
 
         #endregion
 

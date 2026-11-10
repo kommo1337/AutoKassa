@@ -27,7 +27,7 @@
 | 7 | Асинхронная инициализация БД | `Task.Run(() => InitializeAsync(_serviceProvider)).GetAwaiter().GetResult()` в `try/catch` | Миграции + WAL + разогрев кеша настроек (см. §2.1) | Ошибка миграций/БД → `Log.Fatal` + `MessageBox` + `Shutdown(1)` |
 | 8 | Проверка пароля | `settingsService.IsPasswordSet()` | Перед диалогами `ShutdownMode` переводится в `OnExplicitShutdown`; если пароль **не установлен** → `InitialSetupView.ShowDialog()`; если установлен → сразу главное окно | См. §4 |
 | 9 | Главное окно | `_serviceProvider.GetRequiredService<MainWindow>(); mainWindow.Show()` | Разрешение Singleton `MainWindow` (в конструкторе `MainWindowViewModel` стартуют таймер автоблокировки и навигация на дашборд); после `Show()` восстанавливается `ShutdownMode.OnLastWindowClose` | — |
-| 10 | Авто-бэкап в фоне | `_ = settingsService.RunAutoBackupIfDueAsync();` | Fire-and-forget: бэкап, если включён в настройках и подошёл срок. **Не блокирует запуск** | — |
+| 10 | Координатор автобэкапа | `_serviceProvider.GetRequiredService<IAutomaticBackupService>().Start()` | Немедленная проверка локального и облачного бэкапа, затем `PeriodicTimer` раз в час. Исключения рабочего цикла логируются внутри сервиса | — |
 
 На каждом критическом шаге (4, 6, 7) исключение обрабатывается одинаково: `Log.Fatal` → `ShowFatalError(ex)` (MessageBox с текстом ошибки и ссылкой на `logs/autokassa-*.log`) → `Shutdown(1)`.
 
@@ -74,6 +74,8 @@
 | `IDataChangeService` | `DataChangeService` — шина уведомлений об изменении данных |
 | `ISettingsMapper`, `ISettingsValidator`, `IAppInfoService` | сервисы настроек |
 | `IBackupCoordinator` | `BackupCoordinator` |
+| `IYandexDiskAuthService`, `IYandexDiskBackupService`, `IYandexDiskApiClient`, `IYandexDiskTokenStore`, `YandexDiskOptions` + общий `HttpClient` | облачный бэкап на Яндекс Диск (состояние OAuth/очереди) |
+| `IAutomaticBackupService` | `AutomaticBackupService` — координатор расписания автобэкапа (таймер + сериализация запусков) |
 | `IReportViewModelFactory` | `ReportViewModelFactory` |
 | `ITransactionEditViewModelFactory` | `TransactionEditViewModelFactory` |
 | `MainWindow` | через фабрику: разрешает `MainWindowViewModel` + `IToastNotificationService` и вызывает `new MainWindow(viewModel, toastService)` |
@@ -176,7 +178,7 @@ sequenceDiagram
 
 ## 8. Завершение работы
 
-`OnExit(ExitEventArgs)` ([`App.xaml.cs`](../../AutoKassa/App.xaml.cs)): пишет в лог «=== AutoKassa завершение ===», вызывает `Log.CloseAndFlush()` (дозапись буферов Serilog) и `_serviceProvider?.Dispose()` (освобождает Singleton-сервисы, включая `LockService` с его таймером).
+`OnExit(ExitEventArgs)` ([`App.xaml.cs`](../../AutoKassa/App.xaml.cs)): пишет в лог «=== AutoKassa завершение ===», останавливает координатор автобэкапа — `IAutomaticBackupService.StopAsync()` (отмена активной операции и ожидание её завершения до 10 с; см. [`TRAPS.md`](TRAPS.md) §3.19) — затем вызывает `Log.CloseAndFlush()` (дозапись буферов Serilog) и `_serviceProvider?.Dispose()` (освобождает Singleton-сервисы, включая `LockService` с его таймером).
 
 ---
 

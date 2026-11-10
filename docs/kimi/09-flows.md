@@ -164,6 +164,24 @@
 | 10 | User | Восстановление | [`SettingsViewModel.cs`](../../AutoKassa/ViewModels/SettingsViewModel.cs) `RestoreBackupCommand` |
 | 11 | Service | Замена БД | [`BackupCoordinator.cs`](../../AutoKassa/Services/Backup/BackupCoordinator.cs) → [`SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs) `RestoreBackupAsync` |
 
+### 7.1. Облачное резервное копирование на Яндекс Диск
+
+**Триггер:** сохранение настроек с включённым `YandexDiskBackupEnabled`, новое подключение аккаунта, запуск приложения (немедленная проверка), тик таймера раз в час, ручная «Загрузить сейчас». Локальный бэкап (шаги 8–11) продолжает работать независимо.
+
+| Шаг | Actor | Действие | Файл/метод |
+|-----|-------|----------|------------|
+| 1 | User | «Подключить» в настройках | [`SettingsViewModel.cs`](../../AutoKassa/ViewModels/SettingsViewModel.cs) `ConnectYandexCommand` |
+| 2 | Service | Старт OAuth/PKCE, браузер | [`YandexDiskAuthService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs) `StartAuthorizationAsync` |
+| 3 | User | Разрешение доступа + ввод одноразового кода (либо «Отмена» — `CancelYandexInputCommand` → `CancelAuthorizationAsync`) | [`SettingsView.xaml`](../../AutoKassa/Views/SettingsView.xaml) |
+| 4 | VM | Обмен кода на токен, сброс даты успеха; неуспешный обмен сбрасывает ожидание — повторное подключение доступно сразу | `ConfirmYandexCodeCommand` → `CompleteAuthorizationAsync` + `SetYandexDiskLastBackupUtcAsync(null)` |
+| 5 | Service | Координатор: немедленная проверка + раз в час; внеочередные запросы — один worker с coalescing | [`AutomaticBackupService.cs`](../../AutoKassa/Services/Backup/AutomaticBackupService.cs) `Start`/`TimerLoopAsync` |
+| 6 | Service | Локальная часть по сроку | [`SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs) `RunAutoBackupIfDueAsync` |
+| 7 | Service | Облачный цикл: очередь/карантин → снимок в `.staging` → integrity_check + MD5 → атомарно в очередь → загрузка → ожидание ресурса (201/202) → сверка метаданных → ротация | [`YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs) `UploadNowAsync` |
+| 8 | Service | Фиксация даты успеха | `CompleteSuccessAsync` → `ISettingsService.SetYandexDiskLastBackupUtcAsync` |
+| 9 | Service | Состояние → UI | `StateChanged` → [`SettingsViewModel.cs`](../../AutoKassa/ViewModels/SettingsViewModel.cs) `OnCloudBackupStateChanged` (маршалинг на UI-поток) |
+| 10 | User | Ручная «Загрузить сейчас» | `UploadNowCommand` → `UploadNowAsync(force: true)` |
+| 11 | App | Выход: остановка координатора | [`App.xaml.cs`](../../AutoKassa/App.xaml.cs) `OnExit` → `IAutomaticBackupService.StopAsync` |
+
 ---
 
 ## 8. Автоблокировка и восстановление пароля

@@ -346,6 +346,55 @@
 - **Файлы:** [`../../AutoKassa/App.xaml.cs`](../../AutoKassa/App.xaml.cs), [`../../AutoKassa/Services/AppDbContext.cs`](../../AutoKassa/Services/AppDbContext.cs).
 - **Теги:** #ef-core #sqlite
 
+### 3.15. Закрытое в пул соединение SQLite удерживает хендл файла
+- **Запрет:** не открывай файл БД через `SqliteConnection` с пулингом (в Microsoft.Data.Sqlite он включён по умолчанию), если сразу после этого файл удаляется или пересоздаётся.
+- **Почему:** `Dispose` возвращает соединение в пул, нативный хендл остаётся открытым: `File.Delete` падает с `IOException` («файл занят другим процессом», на части машин — вплоть до AccessViolation в нативном sqlite3). Так сломались тесты очереди облачного бэкапа, пока проверка снимка не перешла на `Pooling=false`.
+- **Правильно:** для разовых операций над файлом-копией (`PRAGMA integrity_check` снимка в очереди облачного бэкапа) открывай соединение с `Pooling=false`; глобальный `SqliteConnection.ClearAllPools()` — только для восстановления БД (`RestoreBackupAsync`), где это осознанная операция.
+- **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs) (`TryVerifyLocalSnapshotAsync`).
+- **Теги:** #sqlite
+
+### 3.16. Токены, коды OAuth и Authorization-заголовки не попадают в логи и настройки
+- **Запрет:** не передавай access-token, одноразовый код, `code_verifier` или тело ответа OAuth в Serilog, `AppSettings`, экспорт настроек или сообщения UI.
+- **Почему:** токен — единственный ключ к Диску пользователя: общий `client_secret` в WPF встраивать нельзя, поэтому украденный из лога токен = полный доступ до истечения срока.
+- **Правильно:** логируй факты операций (токен сохранён/инвалидирован, HTTP-код ошибки), OAuth-ошибки — только поле `error`, без `error_description` и тел ответов; URL авторизации с `code_challenge` в логи не пишется — при неоткрывшемся браузере URL возвращается вызывающему для ручного открытия/копирования (YD-10). Регрессионно проверяется `YandexDiskLogRedactionTests` через собственный Serilog-sink (YD-12).
+- **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs), [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskApiClient.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskApiClient.cs).
+- **Теги:** #security
+
+### 3.17. Облачная ротация удаляет только файлы `AutoKassa_Backup_yyyyMMdd_HHmmss.db` в `app:/` и только после успеха загрузки
+- **Запрет:** не удаляй из `app:/` ресурсы без точного управляемого имени и не удаляй старые копии раньше подтверждённой выгрузки новой.
+- **Почему:** `app:/` — пользовательская зона Яндекс Диска; безвозвратное удаление чужого файла, папки с похожим именем или единственной копии до загрузки — потеря данных.
+- **Правильно:** фильтр `type == "file"` (папки не считаются копиями) + точный формат имени `AutoKassa_Backup_yyyyMMdd_HHmmss.db` (широкая маска `AutoKassa_Backup_*.db` не допускается), сортировка по `created`, удаление сверх `BackupKeepCount` только после сверки размера/MD5 новой копии; ошибка ротации не отменяет уже подтверждённый успех загрузки. Список ресурсов читается из `_embedded.items` с контролем полноты по `_embedded.total`.
+- **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs) (`RotateCloudBackupsAsync`).
+- **Теги:** #security #business
+
+### 3.18. Дата облачного успеха — только через `SetYandexDiskLastBackupUtcAsync`
+- **Запрет:** не мутируй `AppSettings.YandexDiskLastBackupUtc` у объекта из `GetSettings()` снаружи `SettingsService` и не переноси дату в экспорт настроек.
+- **Почему:** кешированный объект общий: прямая мутация не попадёт в БД, и после перезапуска облачная копия посчитается просроченной и будет выгружена заново. Дата успеха привязана к локальному аккаунту Яндекса и не должна переноситься между установками.
+- **Правильно:** фоновые сервисы и ViewModel вызывают `ISettingsService.SetYandexDiskLastBackupUtcAsync(value)`; в `SettingsExportData` экспортируется только флаг `YandexDiskBackupEnabled`; сброс даты (новое подключение/отключение) — тем же методом с null.
+- **Файлы:** [`../../AutoKassa/Services/SettingsService.cs`](../../AutoKassa/Services/SettingsService.cs), [`../../AutoKassa/Services/Settings/SettingsMapper.cs`](../../AutoKassa/Services/Settings/SettingsMapper.cs), [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs).
+- **Теги:** #architecture #security
+
+### 3.19. Координатор автобэкапа останавливается до `Dispose` DI
+- **Запрет:** не запускай фоновые проверки бэкапа неотменяемым fire-and-forget и не оставляй `AutomaticBackupService` без остановки в `App.OnExit`.
+- **Почему:** активная выгрузка после `Dispose` DI получит disposed `HttpClient`/фабрику контекста и упадёт фоновым исключением; приложение при выходе может быть прервано посреди записи файла очереди.
+- **Правильно:** `App.OnStartup` вызывает `IAutomaticBackupService.Start()`; `App.OnExit` вызывает `StopAsync()` (отмена операции + ожидание до 10 с) до `Log.CloseAndFlush()` и `_serviceProvider.Dispose()`. Внеочередные проверки идут через `RequestCheck`: их обрабатывает один отслеживаемый worker — повторные запросы во время занятого worker схлопываются в одну ожидающую проверку (coalescing), а `StopAsync` ожидает и таймерный цикл, и worker в пределах общего таймаута; исключения перехвачены внутри рабочего цикла.
+- **Файлы:** [`../../AutoKassa/App.xaml.cs`](../../AutoKassa/App.xaml.cs), [`../../AutoKassa/Services/Backup/AutomaticBackupService.cs`](../../AutoKassa/Services/Backup/AutomaticBackupService.cs).
+- **Теги:** #async #architecture
+
+### 3.20. Облачный снимок проходит проверку до очереди; повреждённый файл очереди уходит в карантин
+- **Запрет:** не пиши снимок сразу в очередь и не оставляй повреждённый или частичный файл в активной маске `AutoKassa_Backup_*.db`; не маскируй отмену создания снимка под «ошибку создания копии».
+- **Почему:** частичный файл в очереди навсегда блокирует облачные копии — каждая следующая попытка выбирает его и падает до сетевой части; отмена, превращённая в Error, ломает честное состояние очереди при выходе.
+- **Правильно:** снимок создаётся во временной папке `.staging` внутри каталога очереди и переименованием (атомарно, один том) попадает в очередь только после `PRAGMA integrity_check`; при ошибке частичный снимок удаляется, исходная БД не затрагивается, а `OperationCanceledException` пробрасывается как есть. Повреждённый файл очереди переименовывается в `*.corrupt` (вне активной маски), и следующая попытка создаёт новый снимок.
+- **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs) (`CreateVerifiedSnapshotAsync`, `QuarantineCorruptQueueFile`).
+- **Теги:** #security #async
+
+### 3.21. Состояние ожидания OAuth-кода живёт только в `IYandexDiskAuthService`
+- **Запрет:** не храни в ViewModel собственное расходящееся с сервисом представление «ждём код» и не оставляй зависшее ожидание после неуспешного обмена кодом.
+- **Почему:** расхождение блокирует повторное подключение до перезапуска приложения — кнопка «Подключить» недоступна, хотя активной попытки входа уже нет.
+- **Правильно:** `YandexDiskAuthState.AwaitingCode` — транзитное состояние сервиса (в памяти, в хранилище не сохраняется); VM отображает его через `CloudAwaitingCode` (единый `ApplyAuthState`) и предлагает команды «Подтвердить»/«Отмена» (`CancelAuthorizationAsync`). Любой неуспешный обмен (`invalid_grant`, сеть, истёкший `code_verifier`) или отмена возвращают сервис в устойчивое состояние (NotConnected/AuthRequired по факту токена) и поднимают `StateChanged`.
+- **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs), [`../../AutoKassa/Services/Backup/YandexDisk/IYandexDiskAuthService.cs`](../../AutoKassa/Services/Backup/YandexDisk/IYandexDiskAuthService.cs), [`../../AutoKassa/ViewModels/SettingsViewModel.cs`](../../AutoKassa/ViewModels/SettingsViewModel.cs).
+- **Теги:** #architecture #mvvm
+
 ---
 
 ## 4. MVVM и команды
@@ -532,4 +581,4 @@
 
 ---
 
-> Последнее обновление: 2026-08-20 — добавлена ловушка 2.23 «Доход на кредитную карту — пополнение, а не покупка». Ранее: 2026-08-09 — добавлена ловушка 4.3 «Не показывай сырые `ex.Message` пользователю» (конвенция дружелюбных сообщений об ошибках). Этап 7 — добавлена легенда тегов, теги у всех ловушек, новые ловушки из аудита кода (навигация, диалоги, настройки, команды, конвертеры, seed-данные) и раздел «Тестовые ловушки». Формат `### N.N. Заголовок` сохранён для синхронизации с `json/traps.json` (DocValidator `TrapSyncValidator`).
+> Последнее обновление: 2026-11-10 — ловушка 3.16 дополнена: URL авторизации с code_challenge не логируется, регрессионная проверка отсутствия секретов в логах — `YandexDiskLogRedactionTests` через собственный Serilog-sink (исправления YD-08…YD-12 из аудита `YandexBackUp.md`: атомарная запись токена через `Helpers/AtomicFile` + `File.Replace`, изоляция локальной/облачной ошибок координатора, неоткрывшийся браузер → ручное открытие/копирование ссылки через `IClipboardService`, единый `ApplyCloudState` и честный индикатор очереди в UI). Ранее: 2026-11-10 — ловушки 3.20 «Облачный снимок проходит проверку до очереди; повреждённый файл очереди уходит в карантин» и 3.21 «Состояние ожидания OAuth-кода живёт только в IYandexDiskAuthService»; ловушка 3.19 дополнена отслеживаемым worker с coalescing (YD-03…YD-06). Ранее: 2026-11-10 — ловушка 3.17 уточнена: ротация удаляет только файлы (`type == "file"`) с точным именем `AutoKassa_Backup_yyyyMMdd_HHmmss.db`; список ресурсов читается из `_embedded.items` с контролем полноты по `_embedded.total` (исправления YD-01/YD-02 из аудита `YandexBackUp.md`). Ранее: 2026-11-08 — добавлены ловушки 3.18 «Дата облачного успеха — только через SetYandexDiskLastBackupUtcAsync» и 3.19 «Координатор автобэкапа останавливается до Dispose DI» (облачный бэкап на Яндекс Диск, этапы 3–4 из YandexBackUp.md). Ранее: 2026-11-08 — добавлены ловушки 3.15 «Закрытое в пул соединение SQLite удерживает хендл файла», 3.16 «Токены, коды OAuth и Authorization-заголовки не попадают в логи и настройки», 3.17 «Облачная ротация удаляет только AutoKassa_Backup_*.db в app:/ и только после успеха загрузки» (облачный бэкап на Яндекс Диск, этапы 1–2 из YandexBackUp.md). Ранее: 2026-08-20 — добавлена ловушка 2.23 «Доход на кредитную карту — пополнение, а не покупка». Ранее: 2026-08-09 — добавлена ловушка 4.3 «Не показывай сырые `ex.Message` пользователю» (конвенция дружелюбных сообщений об ошибках). Этап 7 — добавлена легенда тегов, теги у всех ловушек, новые ловушки из аудита кода (навигация, диалоги, настройки, команды, конвертеры, seed-данные) и раздел «Тестовые ловушки». Формат `### N.N. Заголовок` сохранён для синхронизации с `json/traps.json` (DocValidator `TrapSyncValidator`).

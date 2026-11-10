@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-08-09",
+  "lastUpdated": "2026-11-08T19:30:00+03:00",
   "totalCount": 35,
   "viewModels": [
     {
@@ -11,7 +11,14 @@
       "registeredInDi": false,
       "dependencies": [],
       "interfaces": [],
-      "keyCommands": ["ToggleCommand", "DigitCommand", "OpCommand", "EqualsCommand", "ClearCommand", "BackspaceCommand"],
+      "keyCommands": [
+        "ToggleCommand",
+        "DigitCommand",
+        "OpCommand",
+        "EqualsCommand",
+        "ClearCommand",
+        "BackspaceCommand"
+      ],
       "purpose": "Изолированный калькулятор для ввода суммы, вынесенный из TransactionEditViewModel."
     },
     {
@@ -22,9 +29,22 @@
       "screen": "Справочник категорий",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ICategoryService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["LoadCommand", "OpenManagerCommand", "DeleteCommand", "FilterCommand"],
+      "dependencies": [
+        "ICategoryService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "LoadCommand",
+        "OpenManagerCommand",
+        "DeleteCommand",
+        "FilterCommand"
+      ],
       "purpose": "ViewModel экрана справочника категорий: загружает доходы/расходы, открывает менеджер и удаляет категории."
     },
     {
@@ -34,9 +54,18 @@
       "view": "AutoKassa/Views/CategoryManagerView.xaml",
       "screen": "Строка категории в менеджере",
       "registeredInDi": false,
-      "dependencies": ["ICategoryService"],
+      "dependencies": [
+        "ICategoryService"
+      ],
       "interfaces": [],
-      "keyCommands": ["StartRenameCommand", "CommitRenameCommand", "CancelRenameCommand", "ToggleColorPickerCommand", "SelectColorCommand", "DeleteCommand"],
+      "keyCommands": [
+        "StartRenameCommand",
+        "CommitRenameCommand",
+        "CancelRenameCommand",
+        "ToggleColorPickerCommand",
+        "SelectColorCommand",
+        "DeleteCommand"
+      ],
       "purpose": "ViewModel одной строки категории в менеджере с переименованием, выбором цвета и удалением."
     },
     {
@@ -46,9 +75,16 @@
       "view": "AutoKassa/Views/CategoryManagerView.xaml",
       "screen": "Менеджер категорий (модальный диалог)",
       "registeredInDi": true,
-      "dependencies": ["ICategoryService", "IToastNotificationService"],
+      "dependencies": [
+        "ICategoryService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["AddIncomeCategoryCommand", "AddExpenseCategoryCommand", "CloseCommand"],
+      "keyCommands": [
+        "AddIncomeCategoryCommand",
+        "AddExpenseCategoryCommand",
+        "CloseCommand"
+      ],
       "purpose": "Модальный ViewModel управления категориями: добавление, переименование, сортировка и удаление."
     },
     {
@@ -64,15 +100,40 @@
       "purpose": "Позиция в топе категорий на дашборде."
     },
     {
+      "name": "YandexClientIdDialogViewModel",
+      "file": "AutoKassa/ViewModels/YandexClientIdDialogViewModel.cs",
+      "category": "dialog",
+      "view": "AutoKassa/Views/YandexClientIdDialogView.xaml",
+      "screen": "Ввод ClientId Яндекс Диска (модальный диалог)",
+      "registeredInDi": true,
+      "lifetime": "Transient",
+      "dependencies": [
+        "IYandexDiskClientIdStore"
+      ],
+      "interfaces": [],
+      "keyCommands": [
+        "SaveCommand",
+        "CancelCommand"
+      ],
+      "purpose": "Диалог ввода ClientId приложения Яндекс Диска: открывается из настроек по «Подключить», когда ClientId не задан (ни в appsettings.json, ни сохранён пользователем). Валидация непустого значения, сохранение через IYandexDiskClientIdStore (подключение продолжается без перезапуска), OnClose(true/false) по паттерну ChangePasswordViewModel."
+    },
+    {
       "name": "ChangePasswordViewModel",
       "file": "AutoKassa/ViewModels/ChangePasswordViewModel.cs",
       "category": "dialog",
       "view": "AutoKassa/Views/ChangePasswordView.xaml",
       "screen": "Смена пароля (модальный диалог)",
       "registeredInDi": true,
-      "dependencies": ["ISettingsService", "IDialogService", "IToastNotificationService"],
+      "dependencies": [
+        "ISettingsService",
+        "IDialogService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SaveCommand", "CancelCommand"],
+      "keyCommands": [
+        "SaveCommand",
+        "CancelCommand"
+      ],
       "purpose": "ViewModel диалога смены пароля с валидацией и BCrypt-хешированием."
     },
     {
@@ -83,9 +144,24 @@
       "screen": "Справочник контрагентов",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ICounterpartyService", "IDebtService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["AddCommand", "RefreshCommand", "FilterByTypeCommand", "DeleteCommand", "EditCommand"],
+      "dependencies": [
+        "ICounterpartyService",
+        "IDebtService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "AddCommand",
+        "RefreshCommand",
+        "FilterByTypeCommand",
+        "DeleteCommand",
+        "EditCommand"
+      ],
       "purpose": "ViewModel экрана справочника контрагентов с фильтрами, поиском и долгами."
     },
     {
@@ -95,9 +171,15 @@
       "view": "AutoKassa/Views/CounterpartyEditView.xaml",
       "screen": "Создание/редактирование контрагента",
       "registeredInDi": true,
-      "dependencies": ["ICounterpartyService", "IDialogService"],
+      "dependencies": [
+        "ICounterpartyService",
+        "IDialogService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SaveCommand", "CancelCommand"],
+      "keyCommands": [
+        "SaveCommand",
+        "CancelCommand"
+      ],
       "purpose": "ViewModel формы создания/редактирования контрагента.",
       "notes": "Создаётся вручную из CounterpartiesViewModel из-за параметра Counterparty? existingCounterparty; DI-регистрация формальная."
     },
@@ -110,7 +192,10 @@
       "registeredInDi": false,
       "dependencies": [],
       "interfaces": [],
-      "keyCommands": ["EditCommand", "DeleteCommand"],
+      "keyCommands": [
+        "EditCommand",
+        "DeleteCommand"
+      ],
       "purpose": "ViewModel строки контрагента в списке с суммой активного долга."
     },
     {
@@ -120,9 +205,16 @@
       "view": "AutoKassa/Views/CreditCardEditView.xaml",
       "screen": "Создание/редактирование кредитной карты",
       "registeredInDi": true,
-      "dependencies": ["ICreditCardService", "IDialogService", "IToastNotificationService"],
+      "dependencies": [
+        "ICreditCardService",
+        "IDialogService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SaveCommand", "CancelCommand"],
+      "keyCommands": [
+        "SaveCommand",
+        "CancelCommand"
+      ],
       "purpose": "ViewModel создания/редактирования кредитной карты."
     },
     {
@@ -132,9 +224,17 @@
       "view": "AutoKassa/Views/CreditCardRepaymentView.xaml",
       "screen": "Погашение кредитной карты",
       "registeredInDi": true,
-      "dependencies": ["ICreditCardService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
+      "dependencies": [
+        "ICreditCardService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService"
+      ],
       "interfaces": [],
-      "keyCommands": ["RepayCommand", "CancelCommand"],
+      "keyCommands": [
+        "RepayCommand",
+        "CancelCommand"
+      ],
       "purpose": "ViewModel формы погашения кредитной карты."
     },
     {
@@ -145,9 +245,23 @@
       "screen": "Кредитные карты",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ICreditCardService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["LoadCommand", "AddCommand", "EditCommand", "DeleteCommand", "RepayCommand"],
+      "dependencies": [
+        "ICreditCardService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "LoadCommand",
+        "AddCommand",
+        "EditCommand",
+        "DeleteCommand",
+        "RepayCommand"
+      ],
       "purpose": "ViewModel экрана кредитных карт: список, итоги, покупки и погашение.",
       "nestedClasses": [
         {
@@ -165,9 +279,36 @@
       "screen": "Главная (дашборд)",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ITransactionService", "ICategoryService", "IDialogService", "IToastNotificationService", "IDataChangeService", "INavigationService", "IDashboardService", "ITransactionEditViewModelFactory", "IDashboardPeriodCoordinator", "IDashboardTransactionCoordinator"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["SelectPeriodCommand", "ApplyCustomPeriodCommand", "TogglePeriodPickerCommand", "OpenAddTransactionCommand", "RefreshCommand", "CloseModalCommand", "SelectTransactionCommand", "OpenTransactionCommand", "EditTransactionCommand", "DeleteTransactionCommand", "NavigateToAllTransactionsCommand", "OpenFullReportCommand"],
+      "dependencies": [
+        "ITransactionService",
+        "ICategoryService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService",
+        "INavigationService",
+        "IDashboardService",
+        "ITransactionEditViewModelFactory",
+        "IDashboardPeriodCoordinator",
+        "IDashboardTransactionCoordinator"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "SelectPeriodCommand",
+        "ApplyCustomPeriodCommand",
+        "TogglePeriodPickerCommand",
+        "OpenAddTransactionCommand",
+        "RefreshCommand",
+        "CloseModalCommand",
+        "SelectTransactionCommand",
+        "OpenTransactionCommand",
+        "EditTransactionCommand",
+        "DeleteTransactionCommand",
+        "NavigateToAllTransactionsCommand",
+        "OpenFullReportCommand"
+      ],
       "purpose": "ViewModel главного экрана (дашборда) со сводкой, последними операциями и быстрым добавлением."
     },
     {
@@ -189,9 +330,17 @@
       "view": "AutoKassa/Views/DebtRepaymentView.xaml",
       "screen": "Погашение долга",
       "registeredInDi": false,
-      "dependencies": ["IDebtService", "IDialogService", "IToastNotificationService", "IDataChangeService"],
+      "dependencies": [
+        "IDebtService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService"
+      ],
       "interfaces": [],
-      "keyCommands": ["RepayCommand", "CancelCommand"],
+      "keyCommands": [
+        "RepayCommand",
+        "CancelCommand"
+      ],
       "purpose": "ViewModel формы погашения долга.",
       "notes": "Создаётся вручную из DebtReportViewModel; DI-регистрация отсутствует."
     },
@@ -214,9 +363,15 @@
       "view": "AutoKassa/Views/InitialSetupView.xaml",
       "screen": "Первоначальная настройка",
       "registeredInDi": true,
-      "dependencies": ["IPasswordService", "ISettingsService", "IDialogService"],
+      "dependencies": [
+        "IPasswordService",
+        "ISettingsService",
+        "IDialogService"
+      ],
       "interfaces": [],
-      "keyCommands": ["ContinueCommand"],
+      "keyCommands": [
+        "ContinueCommand"
+      ],
       "purpose": "ViewModel экрана первоначальной настройки пароля и секретного вопроса."
     },
     {
@@ -238,9 +393,17 @@
       "view": "AutoKassa/Views/LockScreenView.xaml",
       "screen": "Экран блокировки",
       "registeredInDi": true,
-      "dependencies": ["IPasswordService", "ISettingsService", "PasswordRecoveryViewModel"],
+      "dependencies": [
+        "IPasswordService",
+        "ISettingsService",
+        "PasswordRecoveryViewModel"
+      ],
       "interfaces": [],
-      "keyCommands": ["UnlockCommand", "ShowPasswordRecoveryCommand", "CancelPasswordRecoveryCommand"],
+      "keyCommands": [
+        "UnlockCommand",
+        "ShowPasswordRecoveryCommand",
+        "CancelPasswordRecoveryCommand"
+      ],
       "purpose": "ViewModel экрана блокировки с разблокировкой и восстановлением пароля."
     },
     {
@@ -250,9 +413,23 @@
       "view": "AutoKassa/MainWindow.xaml",
       "screen": "Главное окно",
       "registeredInDi": true,
-      "dependencies": ["INavigationService", "ILockService", "ISettingsService"],
+      "dependencies": [
+        "INavigationService",
+        "ILockService",
+        "ISettingsService"
+      ],
       "interfaces": [],
-      "keyCommands": ["NavigateToDashboardCommand", "NavigateToTransactionsCommand", "NavigateToReportsCommand", "NavigateToCategoriesCommand", "NavigateToCounterpartiesCommand", "NavigateToCreditCardsCommand", "NavigateToReconciliationCommand", "NavigateToSettingsCommand", "LockCommand"],
+      "keyCommands": [
+        "NavigateToDashboardCommand",
+        "NavigateToTransactionsCommand",
+        "NavigateToReportsCommand",
+        "NavigateToCategoriesCommand",
+        "NavigateToCounterpartiesCommand",
+        "NavigateToCreditCardsCommand",
+        "NavigateToReconciliationCommand",
+        "NavigateToSettingsCommand",
+        "LockCommand"
+      ],
       "purpose": "ViewModel главного окна: навигация, активная страница и автоблокировка. Публичный метод NotifyUserActivity() (троттлинг 15 с, ActivityResetInterval) сбрасывает таймер автоблокировки по вводу пользователя — вызывается из MainWindow.xaml.cs (InputManager.PreProcessInput)."
     },
     {
@@ -263,9 +440,17 @@
       "screen": "Восстановление пароля",
       "registeredInDi": true,
       "lifetime": "Transient",
-      "dependencies": ["IPasswordService", "ISettingsService", "IDialogService"],
+      "dependencies": [
+        "IPasswordService",
+        "ISettingsService",
+        "IDialogService"
+      ],
       "interfaces": [],
-      "keyCommands": ["VerifyAnswerCommand", "ResetPasswordCommand", "CancelCommand"],
+      "keyCommands": [
+        "VerifyAnswerCommand",
+        "ResetPasswordCommand",
+        "CancelCommand"
+      ],
       "purpose": "ViewModel восстановления пароля через секретный вопрос. Публичный метод Reset() очищает состояние и перезагружает вопрос при каждом открытии панели.",
       "notes": "Используется как дочерняя панель (свойство Recovery) внутри LockScreenViewModel; события OnPasswordReset / OnCancelled возвращают экран блокировки к панели входа."
     },
@@ -276,9 +461,13 @@
       "view": "AutoKassa/Views/ReconciliationView.xaml",
       "screen": "Сверка кассы",
       "registeredInDi": true,
-      "dependencies": ["IReportService"],
+      "dependencies": [
+        "IReportService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SetTodayCommand"],
+      "keyCommands": [
+        "SetTodayCommand"
+      ],
       "purpose": "ViewModel окна «Сверка кассы» с расчётом наличных, безналичных и кредитного долга."
     },
     {
@@ -288,9 +477,23 @@
       "view": "AutoKassa/Views/Reports/BalanceReportView.xaml",
       "screen": "Отчёт «Баланс за период»",
       "registeredInDi": true,
-      "dependencies": ["IReportService", "IExportService", "IDialogService", "IToastNotificationService"],
+      "dependencies": [
+        "IReportService",
+        "IExportService",
+        "IDialogService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": [
+        "SetPeriodCommand",
+        "SetPaymentAllCommand",
+        "SetPaymentCashCommand",
+        "SetPaymentNonCashCommand",
+        "SetPaymentCreditCardCommand",
+        "GenerateCommand",
+        "ExportToPdfCommand",
+        "ExportToExcelCommand"
+      ],
       "purpose": "ViewModel отчёта «Баланс за период» с графиком и экспортом PDF/Excel."
     },
     {
@@ -300,9 +503,21 @@
       "view": null,
       "screen": "Базовая ViewModel отчётов",
       "registeredInDi": false,
-      "dependencies": ["IDialogService", "IToastNotificationService"],
+      "dependencies": [
+        "IDialogService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand", "SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand"],
+      "keyCommands": [
+        "GenerateCommand",
+        "ExportToPdfCommand",
+        "ExportToExcelCommand",
+        "SetPeriodCommand",
+        "SetPaymentAllCommand",
+        "SetPaymentCashCommand",
+        "SetPaymentNonCashCommand",
+        "SetPaymentCreditCardCommand"
+      ],
       "purpose": "Базовая абстрактная ViewModel для всех отчётов: период (DateFrom/DateTo, SetPeriod), фильтр типа оплаты, автообновление, команды экспорта и общий тост ShowExportedToast."
     },
     {
@@ -312,9 +527,31 @@
       "view": "AutoKassa/Views/Reports/CategoryReportView.xaml",
       "screen": "Отчёт «Структура по категориям»",
       "registeredInDi": true,
-      "dependencies": ["IReportService", "IExportService", "IDialogService", "IToastNotificationService", "ITransactionService", "IDataChangeService", "ITransactionEditViewModelFactory"],
+      "dependencies": [
+        "IReportService",
+        "IExportService",
+        "IDialogService",
+        "IToastNotificationService",
+        "ITransactionService",
+        "IDataChangeService",
+        "ITransactionEditViewModelFactory"
+      ],
       "interfaces": [],
-      "keyCommands": ["ShowExpensesCommand", "ShowIncomeCommand", "SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "ToggleCategoryCommand", "EditTransactionCommand", "DeleteTransactionCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": [
+        "ShowExpensesCommand",
+        "ShowIncomeCommand",
+        "SetPeriodCommand",
+        "SetPaymentAllCommand",
+        "SetPaymentCashCommand",
+        "SetPaymentNonCashCommand",
+        "SetPaymentCreditCardCommand",
+        "ToggleCategoryCommand",
+        "EditTransactionCommand",
+        "DeleteTransactionCommand",
+        "GenerateCommand",
+        "ExportToPdfCommand",
+        "ExportToExcelCommand"
+      ],
       "purpose": "ViewModel отчёта «Структура по категориям» с donut-диаграммой и раскрываемыми операциями.",
       "nestedClasses": [
         {
@@ -336,9 +573,31 @@
       "view": "AutoKassa/Views/Reports/DebtReportView.xaml",
       "screen": "Отчёт по долгам",
       "registeredInDi": true,
-      "dependencies": ["IReportService", "IExportService", "IDialogService", "IToastNotificationService", "INavigationService", "IDebtService", "IDataChangeService"],
+      "dependencies": [
+        "IReportService",
+        "IExportService",
+        "IDialogService",
+        "IToastNotificationService",
+        "INavigationService",
+        "IDebtService",
+        "IDataChangeService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SetDirectionAllCommand", "SetDirectionIncomeCommand", "SetDirectionExpenseCommand", "SetStatusAllCommand", "SetStatusActiveCommand", "SetStatusRepaidCommand", "SetStatusWrittenOffCommand", "SetPeriodCommand", "NavigateToCounterpartyCommand", "RepayDebtCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": [
+        "SetDirectionAllCommand",
+        "SetDirectionIncomeCommand",
+        "SetDirectionExpenseCommand",
+        "SetStatusAllCommand",
+        "SetStatusActiveCommand",
+        "SetStatusRepaidCommand",
+        "SetStatusWrittenOffCommand",
+        "SetPeriodCommand",
+        "NavigateToCounterpartyCommand",
+        "RepayDebtCommand",
+        "GenerateCommand",
+        "ExportToPdfCommand",
+        "ExportToExcelCommand"
+      ],
       "purpose": "ViewModel отчёта по долгам с фильтрами, группировкой по дням и погашением."
     },
     {
@@ -372,7 +631,9 @@
       "view": null,
       "screen": "Фабрика отчётных ViewModel",
       "registeredInDi": true,
-      "dependencies": ["IServiceProvider"],
+      "dependencies": [
+        "IServiceProvider"
+      ],
       "interfaces": [],
       "keyCommands": [],
       "purpose": "Реализация фабрики отчётных ViewModel на основе DI-контейнера."
@@ -384,9 +645,27 @@
       "view": "AutoKassa/Views/Reports/TransactionDetailReportView.xaml",
       "screen": "Детальный отчёт по операциям",
       "registeredInDi": true,
-      "dependencies": ["IReportService", "ICategoryService", "IExportService", "IDialogService", "IToastNotificationService"],
+      "dependencies": [
+        "IReportService",
+        "ICategoryService",
+        "IExportService",
+        "IDialogService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["ShowAllCommand", "ShowExpensesCommand", "ShowIncomeCommand", "SetPeriodCommand", "SetPaymentAllCommand", "SetPaymentCashCommand", "SetPaymentNonCashCommand", "SetPaymentCreditCardCommand", "GenerateCommand", "ExportToPdfCommand", "ExportToExcelCommand"],
+      "keyCommands": [
+        "ShowAllCommand",
+        "ShowExpensesCommand",
+        "ShowIncomeCommand",
+        "SetPeriodCommand",
+        "SetPaymentAllCommand",
+        "SetPaymentCashCommand",
+        "SetPaymentNonCashCommand",
+        "SetPaymentCreditCardCommand",
+        "GenerateCommand",
+        "ExportToPdfCommand",
+        "ExportToExcelCommand"
+      ],
       "purpose": "ViewModel детального отчёта по операциям с ежедневной группировкой и фильтрами."
     },
     {
@@ -397,9 +676,20 @@
       "screen": "Отчёты",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["IDataChangeService", "IReportViewModelFactory"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["ShowBalanceReportCommand", "ShowCategoryReportCommand", "ShowTransactionDetailReportCommand", "ShowDebtReportCommand"],
+      "dependencies": [
+        "IDataChangeService",
+        "IReportViewModelFactory"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "ShowBalanceReportCommand",
+        "ShowCategoryReportCommand",
+        "ShowTransactionDetailReportCommand",
+        "ShowDebtReportCommand"
+      ],
       "purpose": "ViewModel хаба «Отчёты», переключающего отчётные под-ViewModel."
     },
     {
@@ -429,10 +719,45 @@
       "screen": "Настройки",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ISettingsService", "IDialogService", "IToastNotificationService", "ICategoryService", "IDataChangeService", "ISettingsMapper", "ISettingsValidator", "IBackupCoordinator", "IAppInfoService", "ICreditCardSettingsService", "ILockService"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["SaveCommand", "CancelCommand", "ResetCommand", "ExportCommand", "ImportCommand", "ChangePasswordCommand", "SelectBackupPathCommand", "CreateBackupCommand", "RestoreBackupCommand"],
-      "purpose": "ViewModel экрана настроек: параметры, резервное копирование, экспорт/импорт и «О программе»."
+      "dependencies": [
+        "ISettingsService",
+        "IDialogService",
+        "IToastNotificationService",
+        "ICategoryService",
+        "IDataChangeService",
+        "ISettingsMapper",
+        "ISettingsValidator",
+        "IBackupCoordinator",
+        "IAppInfoService",
+        "ICreditCardSettingsService",
+        "ILockService",
+        "IYandexDiskAuthService",
+        "IYandexDiskBackupService",
+        "IAutomaticBackupService",
+        "IClipboardService"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "SaveCommand",
+        "CancelCommand",
+        "ResetCommand",
+        "ExportCommand",
+        "ImportCommand",
+        "ChangePasswordCommand",
+        "SelectBackupPathCommand",
+        "CreateBackupCommand",
+        "RestoreBackupCommand",
+        "ConnectYandexCommand",
+        "ConfirmYandexCodeCommand",
+        "CancelYandexInputCommand",
+        "CopyYandexAuthLinkCommand",
+        "DisconnectYandexCommand",
+        "UploadNowCommand"
+      ],
+      "purpose": "ViewModel экрана настроек: параметры, локальное и облачное (Яндекс Диск) резервное копирование (подключение OAuth, ввод одноразового кода, ручная загрузка), экспорт/импорт и «О программе». События облачных сервисов маршалит на захваченный UI SynchronizationContext, отписка в OnDispose."
     },
     {
       "name": "TransactionEditViewModel",
@@ -441,9 +766,34 @@
       "view": "AutoKassa/Views/TransactionEditView.xaml",
       "screen": "Создание/редактирование операции",
       "registeredInDi": true,
-      "dependencies": ["ITransactionService", "ICategoryService", "ICreditCardService", "ICounterpartyService", "IDialogService", "ISettingsService", "IToastNotificationService"],
+      "dependencies": [
+        "ITransactionService",
+        "ICategoryService",
+        "ICreditCardService",
+        "ICounterpartyService",
+        "IDialogService",
+        "ISettingsService",
+        "IToastNotificationService"
+      ],
       "interfaces": [],
-      "keyCommands": ["SaveCommand", "SaveAndAddNextCommand", "CancelCommand", "SelectCashCommand", "SelectNonCashCommand", "SelectCreditCardPaymentCommand", "SelectDebtCommand", "SelectCreditCardCommand", "SelectCounterpartyCommand", "SelectExpenseTypeCommand", "SelectIncomeTypeCommand", "ToggleShowAllCategoriesCommand", "SelectCategoryCommand", "OpenCategoryManagerCommand", "ConfirmCancelCommand", "DismissCancelToastCommand"],
+      "keyCommands": [
+        "SaveCommand",
+        "SaveAndAddNextCommand",
+        "CancelCommand",
+        "SelectCashCommand",
+        "SelectNonCashCommand",
+        "SelectCreditCardPaymentCommand",
+        "SelectDebtCommand",
+        "SelectCreditCardCommand",
+        "SelectCounterpartyCommand",
+        "SelectExpenseTypeCommand",
+        "SelectIncomeTypeCommand",
+        "ToggleShowAllCategoriesCommand",
+        "SelectCategoryCommand",
+        "OpenCategoryManagerCommand",
+        "ConfirmCancelCommand",
+        "DismissCancelToastCommand"
+      ],
       "purpose": "ViewModel создания/редактирования операции с выбором категории, типа оплаты, кредитной карты и контрагента."
     },
     {
@@ -454,9 +804,59 @@
       "screen": "Операции",
       "registeredInDi": true,
       "lifetime": "Singleton",
-      "dependencies": ["ITransactionService", "ITransactionListService", "ITransactionGroupingService", "IInlineTransactionService", "ITransactionSelectionService", "ICategoryService", "ICreditCardService", "ICounterpartyService", "IDialogService", "IToastNotificationService", "IDataChangeService", "ITransactionEditViewModelFactory"],
-      "interfaces": ["INavigationAware", "IPageViewModel"],
-      "keyCommands": ["LoadCommand", "AddCommand", "EditCommand", "DeleteCommand", "SelectTransactionCommand", "ApplyFiltersCommand", "ResetFiltersCommand", "LoadMoreCommand", "SelectAllPaymentCommand", "SelectCashFilterCommand", "SelectNonCashFilterCommand", "SelectCreditCardFilterCommand", "SelectDebtFilterCommand", "SelectDebtStatusFilterCommand", "FilterByIncomeCommand", "FilterByExpenseCommand", "ResetTypeFilterCommand", "TogglePeriodPickerCommand", "SelectPeriodCommand", "ToggleCategoryPickerCommand", "SelectCategoryCommand", "DeleteSelectedCommand", "ClearSelectionCommand", "OpenInlineCommand", "InlineSaveCommand", "InlineCancelCommand", "InlineToggleTypeCommand", "InlineSelectExpenseCommand", "InlineSelectIncomeCommand", "InlineSelectCashCommand", "InlineSelectNonCashCommand", "InlineSelectCreditCardCommand", "InlineTogglePaymentTypeCommand"],
+      "dependencies": [
+        "ITransactionService",
+        "ITransactionListService",
+        "ITransactionGroupingService",
+        "IInlineTransactionService",
+        "ITransactionSelectionService",
+        "ICategoryService",
+        "ICreditCardService",
+        "ICounterpartyService",
+        "IDialogService",
+        "IToastNotificationService",
+        "IDataChangeService",
+        "ITransactionEditViewModelFactory"
+      ],
+      "interfaces": [
+        "INavigationAware",
+        "IPageViewModel"
+      ],
+      "keyCommands": [
+        "LoadCommand",
+        "AddCommand",
+        "EditCommand",
+        "DeleteCommand",
+        "SelectTransactionCommand",
+        "ApplyFiltersCommand",
+        "ResetFiltersCommand",
+        "LoadMoreCommand",
+        "SelectAllPaymentCommand",
+        "SelectCashFilterCommand",
+        "SelectNonCashFilterCommand",
+        "SelectCreditCardFilterCommand",
+        "SelectDebtFilterCommand",
+        "SelectDebtStatusFilterCommand",
+        "FilterByIncomeCommand",
+        "FilterByExpenseCommand",
+        "ResetTypeFilterCommand",
+        "TogglePeriodPickerCommand",
+        "SelectPeriodCommand",
+        "ToggleCategoryPickerCommand",
+        "SelectCategoryCommand",
+        "DeleteSelectedCommand",
+        "ClearSelectionCommand",
+        "OpenInlineCommand",
+        "InlineSaveCommand",
+        "InlineCancelCommand",
+        "InlineToggleTypeCommand",
+        "InlineSelectExpenseCommand",
+        "InlineSelectIncomeCommand",
+        "InlineSelectCashCommand",
+        "InlineSelectNonCashCommand",
+        "InlineSelectCreditCardCommand",
+        "InlineTogglePaymentTypeCommand"
+      ],
       "purpose": "ViewModel экрана операций: фильтры, постраничная загрузка, группировка, массовое выделение и инлайн-добавление."
     }
   ],
@@ -478,7 +878,8 @@
     "CreditCardRepaymentViewModel",
     "InitialSetupViewModel",
     "LockScreenViewModel",
-    "TransactionEditViewModel"
+    "TransactionEditViewModel",
+    "YandexClientIdDialogViewModel"
   ],
   "registeredInDi": [
     "MainWindowViewModel",
@@ -502,6 +903,7 @@
     "SettingsViewModel",
     "ChangePasswordViewModel",
     "LockScreenViewModel",
-    "PasswordRecoveryViewModel"
+    "PasswordRecoveryViewModel",
+    "YandexClientIdDialogViewModel"
   ]
 }

@@ -50,8 +50,9 @@ Single-row таблица, `Id = 1`. Основные группы полей:
 | `SetPasswordAsync` / `UpdatePasswordAsync` | Управление паролем. |
 | `ResetToDefaultsAsync` | Сброс с сохранением пароля. |
 | `ExportSettingsAsync` / `ImportSettingsAsync` | JSON экспорт/импорт. |
-| `CreateBackupAsync` / `RestoreBackupAsync` | Резервное копирование БД. |
-| `RunAutoBackupIfDueAsync` | Авто-бэкап по расписанию. |
+| `CreateBackupAsync` / `RestoreBackupAsync` | Резервное копирование БД (проброс `CancellationToken`). |
+| `RunAutoBackupIfDueAsync` | Авто-бэкап по расписанию (проброс `CancellationToken`). |
+| `SetYandexDiskLastBackupUtcAsync(DateTime?, CancellationToken)` | Точечная фиксация даты последней облачной выгрузки (UTC) для фоновых сервисов; сброс — `null`. |
 
 ### 2.3. Миграции
 
@@ -68,6 +69,7 @@ Single-row таблица, `Id = 1`. Основные группы полей:
 ### 3.1. `SettingsExportData`
 
 - Содержит копию всех настроек, **кроме паролей и секретных вопросов**.
+- Облачный флаг `YandexDiskBackupEnabled` экспортируется/импортируется; `YandexDiskLastBackupUtc` — **нет** (дата привязана к локальному аккаунту Яндекса, между установками не переносится, TRAPS §3.18). OAuth-файл токена никогда не экспортируется.
 - `ExportDate` — дата экспорта.
 
 ### 3.2. Экспорт
@@ -97,12 +99,13 @@ UI-координатор:
 - `CreateBackupAsync(targetPath)` — если путь пуст, открывает диалог.
 - `RestoreBackupAsync()` — диалог выбора `.db`, при успехе перезапускает приложение.
 
-### 4.2. `SettingsService.CreateBackupAsync`
+### 4.2. `SettingsService.CreateBackupAsync` / `CreateSqliteSnapshotAsync`
 
-- Использует `SqliteConnection.BackupDatabase` (SQLite Online Backup API).
-- Не закрывает соединения, не использует SQL-инъекций.
+- Используют `SqliteConnection.BackupDatabase` (SQLite Online Backup API).
+- Не закрывают соединения, не используют SQL-инъекций.
 - Имя файла: `AutoKassa_Backup_{yyyyMMdd_HHmmss}.db`.
-- Очищает старые бэкапы сверх `BackupKeepCount`.
+- `CreateSqliteSnapshotAsync` — общая фабрика снимка без побочных эффектов: ошибки пробрасываются (`InvalidOperationException` — файл БД не найден, отмена — `OperationCanceledException`); её использует и облачная очередь (`.staging`).
+- `CreateBackupAsync` — локальный сценарий: снимок + ротация старых бэкапов сверх `BackupKeepCount`; ошибки и отмена → null.
 
 ### 4.3. `SettingsService.RestoreBackupAsync`
 
@@ -113,8 +116,25 @@ UI-координатор:
 
 ### 4.4. Автобэкап
 
+- Координатор расписания — `IAutomaticBackupService`/`AutomaticBackupService` (Singleton): немедленная проверка после открытия главного окна, затем `PeriodicTimer` раз в час; локальная часть делегируется `RunAutoBackupIfDueAsync` (правила `BackupEnabled`/`AutoBackupDays` внутри неё), облачная выполняется только при `YandexDiskBackupEnabled`.
 - `RunAutoBackupIfDueAsync` проверяет `BackupEnabled` и `AutoBackupDays`.
 - Дата последнего бэкапа определяется по имени файла.
+- Стартовые, таймерные и внеочередные запуски сериализованы `SemaphoreSlim`; исключения цикла логируются внутри и не останавливают расписание.
+- При выходе `App.OnExit` вызывает `StopAsync()` (отмена активной операции + ожидание до 10 с) до `Log.CloseAndFlush()` и Dispose DI (TRAPS §3.19).
+
+### 4.5. Облачный бэкап на Яндекс Диск (этапы 1–5 из `YandexBackUp.md`)
+
+Отдельная подсистема в [`AutoKassa/Services/Backup/YandexDisk/`](../../AutoKassa/Services/Backup/YandexDisk/); локальный бэкап продолжает работать независимо. Регистрация в DI: все сервисы + общий `HttpClient` — Singleton.
+
+- **OAuth/PKCE.** `YandexDiskAuthService` открывает системный браузер на `oauth.yandex.ru/authorize` с `scope=cloud_api:disk.app_folder` (только папка приложения `app:/`), генерирует PKCE S256-пару; одноразовый код обменивается на access-token **без `client_secret`** (общий секрет в WPF не встраивается). Refresh-token не сохраняется — Яндекс требует `client_secret` для refresh grant, поэтому при истечении/отзыве токена (`AuthRequired`) пользователь выполняет повторный вход. Конечная модель состояний: `NotConnected`/`Connected`/`AuthRequired` + транзитное `AwaitingCode` — неуспешный обмен или отмена (`CancelAuthorizationAsync`, кнопка «Отмена» в настройках) возвращают устойчивое состояние, повторное подключение доступно без перезапуска (TRAPS §3.21). Незавершённый `code_verifier` живёт 10 минут.
+- **Хранение токена.** `DpapiYandexDiskTokenStore` шифрует JSON токена через DPAPI `CurrentUser` (привязка к Windows-пользователю и машине) и атомарно пишет в `%LOCALAPPDATA%\AutoKassa\Secrets\yandex-disk-token.bin`: временный файл с уникальным именем + `File.Replace` (общий помощник `Helpers/AtomicFile`), сбой замены не лишает сохранённого токена (YD-08). Токен, коды и заголовки авторизации не попадают в логи, `AppSettings` и экспорт (TRAPS §3.16); регрессионно проверяется тестом `YandexDiskLogRedactionTests` (YD-12).
+- **Выгрузка.** `YandexDiskBackupService`: локальная очередь `%LOCALAPPDATA%\AutoKassa\CloudBackupQueue` (один `AutoKassa_Backup_*.db`, переиспользуется после сбоев и перезапуска; повреждённый файл очереди уходит в карантин `*.corrupt`, TRAPS §3.20); свежий снимок создаётся существующим `ISettingsService.CreateSqliteSnapshotAsync` во временной папке `.staging` и атомарно попадает в очередь только после `PRAGMA integrity_check` (read-only, `Pooling=false`, TRAPS §3.15); успех подтверждается сверкой имени/размера/MD5 через метаданные Диска с ожиданием появления ресурса после 201 и 202 (404 — штатное «ещё не появился», до 10 с). HTTP 409 с совпавшими метаданными = идемпотентный успех; с другим содержимым — ошибка без перезаписи. Дата успеха фиксируется до удаления файла очереди: при сбое её записи pending остаётся для идемпотентного подтверждения без повторной передачи.
+- **Повторы и ошибки.** Сеть/429/5xx и HTTP-таймауты (собственные лимиты `ApiRequestTimeout` 100 с и `UploadTimeout` 10 мин — общий `HttpClient.Timeout` отключён, чтобы таймаут не маскировался под штатную отмену) — до 3 попыток с задержками 1/2 с и уважением `Retry-After`, исчерпание → `PendingRetry` с сохранением очереди; 401 на любой стадии (включая чтение метаданных после загрузки) → инвалидация токена (`AuthRequired`), очередь не удаляется; 403/507 — сообщение о необходимости действия пользователя без частых повторов.
+- **Ротация.** После подтверждённой выгрузки из `app:/` удаляются только ресурсы `type == "file"` с точным именем `AutoKassa_Backup_yyyyMMdd_HHmmss.db` (папки и файлы с похожими именами не трогаются) сверх `BackupKeepCount` (общая настройка с локальным бэкапом); ошибка ротации не отменяет успех загрузки (TRAPS §3.17).
+- **Состояние.** `CloudBackupStatus` (`NotConnected`/`UpToDate`/`Due`/`Uploading`/`PendingRetry`/`AuthRequired`/`Error`) публикуется через `CloudBackupState` и событие `StateChanged` (на потоке операции — UI подписчик обязан маршалить). Дата последнего успеха персистентна: сервис перечитывает `AppSettings.YandexDiskLastBackupUtc` в начале каждого запуска и фиксирует её через `ISettingsService.SetYandexDiskLastBackupUtcAsync` после подтверждённой выгрузки; без даты копия считается просроченной. Сброс даты (новое подключение/отключение аккаунта) выполняет `SettingsViewModel` тем же методом (TRAPS §3.18).
+- **UI.** Во вкладке «Резервное копирование» раздел «Яндекс Диск»: включение облачного бэкапа (`YandexDiskBackupEnabled`, сохраняется общим «Сохранить»), статус, дата последнего успеха, признак ожидающей копии, «Подключить»/«Отключить», поле одноразового кода и «Загрузить сейчас» (`UploadNowAsync(force: true)` через общий `SemaphoreSlim` сервиса). Если ClientId не задан, «Подключить» открывает диалог ввода (`YandexClientIdDialogViewModel`): значение сохраняется через `IYandexDiskClientIdStore` в профиль пользователя и применяется сразу — без ручной правки файлов.
+- **Конфигурация.** Публичный `YandexDisk:ClientId` и URL OAuth/API — в `appsettings.json` (копируется в output); секретов в файле нет. ClientId, введённый пользователем в диалоге, хранится в `%LOCALAPPDATA%\AutoKassa\yandex-disk-clientid.txt` и имеет приоритет над appsettings.json — портативная установка может лежать в каталоге без прав записи. ClientId не секрет: он передаётся в URL авторизации открыто.
+- **Ограничения (явно).** Копии создаются только при запущенном приложении: проверка при старте и раз в час координатором, службы Windows и планировщик задач не используются. Облачный `.db` **не шифруется дополнительно**: в папке приложения Диска лежит обычный файл SQLite-базы (передача по HTTPS), включая финансовые данные и хеши настроек. При истечении или отзыве токена облачные запуски приостанавливаются до повторного входа пользователя (`AuthRequired`), очередь не удаляется. DPAPI-привязка токена к Windows-пользователю означает: токен недоступен другим пользователям машины, но при смене профиля Windows подключение нужно выполнить заново. Восстановление из облака — только ручное: скачать `.db` и восстановить существующей командой из раздела «Локальное резервное копирование».
 
 ---
 
@@ -216,3 +236,8 @@ UI-координатор:
 2. После изменения настроек вызывайте `DataChangeService.NotifyDataChanged()`.
 3. Backup-путь всегда санитизируйте через `SanitizeBackupPath()`.
 4. Пароли и ответы на секретные вопросы никогда не храните в открытом виде — только BCrypt-хеши.
+5. Облачные токены и коды OAuth не логируйте и не сохраняйте в `AppSettings` — только DPAPI-хранилище (TRAPS §3.16); дату облачного успеха меняйте только через `SetYandexDiskLastBackupUtcAsync` (TRAPS §3.18).
+
+---
+
+> Последнее обновление: 2026-11-08 — этап 5 из `YandexBackUp.md`: §4.5 дополнен явными ограничениями облачного бэкапа (копии только при запущенном приложении; облачный `.db` не шифруется дополнительно; повторный вход при истечении/отзыве токена; DPAPI привязан к Windows-пользователю; восстановление — только ручное). Ранее: 2026-11-08 — этапы 3–4: `AutomaticBackupService`, `YandexDiskLastBackupUtc` + миграция, `SetYandexDiskLastBackupUtcAsync`, UI «Яндекс Диск». Ранее: 2026-11-08 — этапы 1–2: подсистема `Services/Backup/YandexDisk/` (OAuth/PKCE, DPAPI-хранилище, REST-клиент `app:/`, очередь + ротация), `CloudBackupStatus`.

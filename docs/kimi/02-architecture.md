@@ -93,6 +93,8 @@ public class TransactionEditViewModel : ViewModelBase
 | Lifetime | Когда использовать | Примеры |
 |----------|-------------------|---------|
 | `Singleton` | Сервисы с состоянием приложения, событийные шины | `NavigationService`, `SettingsService`, `ToastNotificationService`, `LockService`, `DataChangeService`, `ReferenceDataCache` |
+| `Singleton` | Облачное резервное копирование (состояние OAuth/очереди) + общий `HttpClient` | `YandexDiskAuthService`, `YandexDiskApiClient`, `YandexDiskBackupService`, `DpapiYandexDiskTokenStore`, `YandexDiskOptions`, `HttpClient` |
+| `Singleton` | Координатор расписания автобэкапа (таймер + сериализация запусков) | `AutomaticBackupService` |
 | `Singleton` | Page ViewModel вкладок главного окна (маркер [`IPageViewModel`](../../AutoKassa/ViewModels/IPageViewModel.cs)) | `DashboardViewModel`, `TransactionsViewModel`, `CategoriesViewModel`, `CounterpartiesViewModel`, `CreditCardsViewModel`, `ReportsViewModel`, `SettingsViewModel` |
 | `Transient` | Сервисы без состояния, доменная логика | `TransactionService`, `CategoryService`, `ReportService`, `DashboardService`, `CreditCardService` |
 | `Transient` | Модальные/диалоговые ViewModel | `TransactionEditViewModel`, `CounterpartyEditViewModel`, `ReconciliationViewModel` и др. |

@@ -1,6 +1,8 @@
 using AutoKassa.Services;
 using AutoKassa.Services.Settings;
 using AutoKassa.Tests.Infrastructure;
+using AutoKassa.Tests.Services.Backup;
+using AutoKassa.Tests.Services.Backup.YandexDisk;
 using AutoKassa.ViewModels;
 using FluentAssertions;
 using Xunit;
@@ -11,9 +13,13 @@ namespace AutoKassa.Tests.Services
     {
         private static SettingsViewModel CreateValidViewModel()
         {
+            // Конструктор SettingsViewModel подписывается на события облачных сервисов —
+            // передаём фейки вместо null, подписка на null бросила бы исключение.
             return new SettingsViewModel(
                 null!, null!, null!, null!, new FakeDataChangeService(),
-                null!, null!, null!, null!, null!, null!)
+                null!, null!, null!, null!, null!, null!,
+                new FakeYandexDiskAuthService(), new FakeYandexDiskBackupService(),
+                new FakeAutomaticBackupService(), null!)
             {
                 AutoLockMinutes = 5,
                 DefaultPageSize = 50,

@@ -2,6 +2,8 @@ using AutoKassa.Models;
 using AutoKassa.Services;
 using AutoKassa.Services.Settings;
 using AutoKassa.Tests.Infrastructure;
+using AutoKassa.Tests.Services.Backup;
+using AutoKassa.Tests.Services.Backup.YandexDisk;
 using AutoKassa.ViewModels;
 using FluentAssertions;
 using Xunit;
@@ -12,9 +14,13 @@ namespace AutoKassa.Tests.Services
     {
         private static SettingsViewModel CreateViewModel()
         {
+            // Конструктор SettingsViewModel подписывается на события облачных сервисов —
+            // передаём фейки вместо null, подписка на null бросила бы исключение.
             return new SettingsViewModel(
                 null!, null!, null!, null!, new FakeDataChangeService(),
-                null!, null!, null!, null!, null!, null!);
+                null!, null!, null!, null!, null!, null!,
+                new FakeYandexDiskAuthService(), new FakeYandexDiskBackupService(),
+                new FakeAutomaticBackupService(), null!);
         }
 
         [Fact]
@@ -41,6 +47,7 @@ namespace AutoKassa.Tests.Services
                 AutoBackupDays = 14,
                 BackupPath = @"C:\Backups",
                 BackupKeepCount = 5,
+                YandexDiskBackupEnabled = true,
                 RequirePasswordOnStartup = true,
                 PasswordExpireDays = 90,
                 CreditCardLimit = 200000,
@@ -70,6 +77,7 @@ namespace AutoKassa.Tests.Services
             vm.AutoBackupDays.Should().Be(14);
             vm.BackupPath.Should().Be(@"C:\Backups");
             vm.BackupKeepCount.Should().Be(5);
+            vm.YandexDiskBackupEnabled.Should().BeTrue();
             vm.RequirePasswordOnStartup.Should().BeTrue();
             vm.PasswordExpireDays.Should().Be(90);
             vm.CreditCardLimit.Should().Be(200000);
@@ -90,6 +98,7 @@ namespace AutoKassa.Tests.Services
             vm.DefaultPageSize = 100;
             vm.BackupPath = AppDomain.CurrentDomain.BaseDirectory;
             vm.CreditCardLimit = 300000;
+            vm.YandexDiskBackupEnabled = true;
 
             var settings = new AppSettings();
             mapper.MapToModel(vm, settings);
@@ -99,6 +108,7 @@ namespace AutoKassa.Tests.Services
             settings.DefaultPageSize.Should().Be(100);
             settings.BackupPath.Should().Be(Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory));
             settings.CreditCardLimit.Should().Be(300000);
+            settings.YandexDiskBackupEnabled.Should().BeTrue();
         }
 
         [Fact]
@@ -121,7 +131,9 @@ namespace AutoKassa.Tests.Services
             {
                 Id = 1,
                 AutoLockTimeout = 10,
-                BackupPath = @"E:\Backups"
+                BackupPath = @"E:\Backups",
+                YandexDiskBackupEnabled = true,
+                YandexDiskLastBackupUtc = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc)
             };
 
             var copy = mapper.Clone(original);
@@ -130,6 +142,8 @@ namespace AutoKassa.Tests.Services
             copy.Id.Should().Be(original.Id);
             copy.AutoLockTimeout.Should().Be(original.AutoLockTimeout);
             copy.BackupPath.Should().Be(original.BackupPath);
+            copy.YandexDiskBackupEnabled.Should().BeTrue();
+            copy.YandexDiskLastBackupUtc.Should().Be(original.YandexDiskLastBackupUtc);
 
             copy.AutoLockTimeout = 99;
             original.AutoLockTimeout.Should().Be(10);

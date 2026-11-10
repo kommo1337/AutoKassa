@@ -9,8 +9,10 @@
 | Категория | Описание | Сервисы |
 |-----------|----------|---------|
 | Доменные | Бизнес-логика операций, категорий, долгов, кредиток, отчётов, дашборда | `TransactionService`, `CategoryService`, `CounterpartyService`, `DebtService`, `CreditCardService`, `ReportService`, `DashboardService`, `DashboardPeriodCoordinator`, `DashboardTransactionCoordinator` |
-| Инфраструктурные | Навигация, диалоги, уведомления, блокировка, экспорт, события данных | `NavigationService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService` |
+| Инфраструктурные | Навигация, диалоги, уведомления, блокировка, экспорт, события данных, буфер обмена | `NavigationService`, `DialogService`, `ToastNotificationService`, `LockService`, `ExportService`, `DataChangeService`, `ClipboardService` |
 | Настройки и безопасность | Настройки, backup, пароли, инфо о программе | `SettingsService`, `PasswordService`, `SettingsMapper`, `SettingsValidator`, `AppInfoService`, `BackupCoordinator`, `CreditCardSettingsService` |
+| Облачное резервное копирование | Выгрузка SQLite-снимков в папку приложения на Яндекс Диске (OAuth/PKCE, REST API) | `YandexDiskAuthService`, `YandexDiskApiClient`, `YandexDiskBackupService`, `DpapiYandexDiskTokenStore`, `YandexDiskOptions` |
+| Расписание автобэкапа | Координатор: немедленная проверка при старте и раз в час, сериализация запусков, остановка при выходе | `AutomaticBackupService` |
 | Фабрики | Создание VM через DI | `ReportViewModelFactory`, `TransactionEditViewModelFactory` |
 | База данных | EF Core DbContext | `AppDbContext` |
 
@@ -461,6 +463,102 @@
 **Зависимости:** `ICreditCardService`
 
 **Ответственность:** Синхронизация основной кредитной карты из `AppSettings`.
+
+### 4.8. YandexDiskOptions
+
+**Файл:** [`AutoKassa/Services/Backup/YandexDisk/YandexDiskOptions.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskOptions.cs)
+
+**Интерфейс:** — (POCO-опции)
+
+**Lifetime:** Singleton
+
+**Зависимости:** `appsettings.json` (секция `YandexDisk`)
+
+**Ответственность:** Публичные настройки интеграции с Яндекс Диском: `ClientId`, URL OAuth/API, Redirect URI, scope `cloud_api:disk.app_folder`. Секретов не содержит; загрузка через `System.Text.Json` (`Load()`), отсутствующий файл/секция → дефолты с пустым `ClientId`.
+
+### 4.9. DpapiYandexDiskTokenStore
+
+**Файл:** [`AutoKassa/Services/Backup/YandexDisk/DpapiYandexDiskTokenStore.cs`](../../AutoKassa/Services/Backup/YandexDisk/DpapiYandexDiskTokenStore.cs)
+
+**Интерфейс:** `IYandexDiskTokenStore`
+
+**Lifetime:** Singleton
+
+**Зависимости:** DPAPI (`ProtectedData.CurrentUser`)
+
+**Ответственность:** Защищённое хранение access-token в `%LOCALAPPDATA%\AutoKassa\Secrets\yandex-disk-token.bin`: JSON + DPAPI-шифрование с энтропией приложения, атомарная запись (temp + move). Повреждённый/чужой файл → `null` без раскрытия данных. Токен никогда не логируется.
+
+### 4.10. YandexDiskAuthService
+
+**Файл:** [`AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskAuthService.cs)
+
+**Интерфейс:** `IYandexDiskAuthService`
+
+**Lifetime:** Singleton
+
+**Зависимости:** `YandexDiskOptions`, `IYandexDiskTokenStore`, `HttpClient`, `TimeProvider`
+
+**Ответственность:** OAuth 2.0 + PKCE S256 через системный браузер: генерация `code_verifier`/`code_challenge`, обмен одноразового кода на access-token **без `client_secret`** (общий секрет не встраивается), конечная модель состояний `NotConnected`/`Connected`/`AuthRequired` + транзитное `AwaitingCode` (ожидание кода — только в памяти; `CancelAuthorizationAsync` и любой неуспешный обмен возвращают устойчивое состояние, TRAPS §3.21), повторный вход при истечении/отзыве токена (refresh-token не сохраняется — Яндекс требует `client_secret` для refresh grant). Если браузер не открылся (политика ОС), вход не отменяется: `YandexDiskAuthStart.BrowserOpened = false`, URL действителен и открывается вручную (YD-10). Незавершённый `code_verifier` живёт 10 минут и заменяется при повторной попытке. Токены/коды/заголовки авторизации в логи не попадают.
+
+### 4.11. YandexDiskApiClient
+
+**Файл:** [`AutoKassa/Services/Backup/YandexDisk/YandexDiskApiClient.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskApiClient.cs)
+
+**Интерфейс:** `IYandexDiskApiClient`
+
+**Lifetime:** Singleton
+
+**Зависимости:** `HttpClient`, `YandexDiskOptions`, `IYandexDiskAuthService`
+
+**Ответственность:** Тонкий REST-клиент папки приложения (`app:/`): ссылка на загрузку (`GET /v1/disk/resources/upload`), PUT файла, метаданные ресурса, постраничное чтение содержимого (`limit`/`offset`: список берётся из `_embedded.items`, полнота контролируется по `_embedded.total`; запрашиваются только нужные поля через `fields`), удаление. Заголовок `Authorization: OAuth <token>` формируется отдельно для каждого запроса; HTTP-коды маппятся на типизированные исключения (`YandexDiskAuthException` для 401, `YandexDiskConflictException` для 409, `YandexDiskQuotaException` для 403/507, `YandexDiskTransientException` с `RetryAfter` для сети/429/5xx).
+
+### 4.12. YandexDiskBackupService
+
+**Файл:** [`AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs)
+
+**Интерфейс:** `IYandexDiskBackupService`
+
+**Lifetime:** Singleton
+
+**Зависимости:** `ISettingsService`, `IYandexDiskAuthService`, `IYandexDiskApiClient`, `TimeProvider`
+
+**Ответственность:** Цикл облачного копирования: переиспользование файла из локальной очереди `%LOCALAPPDATA%\AutoKassa\CloudBackupQueue` (повреждённый файл очереди уходит в карантин `*.corrupt`, TRAPS §3.20) или создание снимка во временной папке `.staging` через `ISettingsService.CreateSqliteSnapshotAsync` (без побочных эффектов локального бэкапа) с атомарным переводом в очередь только после проверки (`PRAGMA integrity_check` read-only с `Pooling=false`, размер, MD5); загрузка без перезаписи; подтверждение через метаданные Диска (имя/размер/MD5, ожидание появления ресурса после 201 и 202; `YandexDiskNotFoundException` = «ещё не появился», ошибки Auth/Transient/Quota пробрасываются в retry-обработку); идемпотентный 409; повторы транзиентных сбоев, включая таймауты HTTP (макс. 3, с `Retry-After`) с сохранением очереди; 401 → `InvalidateTokenAsync`; ротация удаляет только ресурсы `type == "file"` с точным именем `AutoKassa_Backup_yyyyMMdd_HHmmss.db` в `app:/` сверх `BackupKeepCount` после подтверждённой выгрузки. Дата последнего успеха персистентна: перечитывается из `AppSettings.YandexDiskLastBackupUtc` в начале каждого запуска и фиксируется через `ISettingsService.SetYandexDiskLastBackupUtcAsync` сразу после подтверждённой выгрузки — до удаления файла очереди, чтобы при сбое записи pending остался для идемпотентного подтверждения 409 без повторной передачи (без даты копия считается просроченной). Состояние публикуется через `CloudBackupState`/`StateChanged`; событие поднимается на потоке операции — UI-подписчики маршалят на свой `SynchronizationContext`. Запуски сериализованы `SemaphoreSlim` (общая блокировка для расписания и ручной «Загрузить сейчас»).
+
+### 4.13. AutomaticBackupService
+
+**Файл:** [`AutoKassa/Services/Backup/AutomaticBackupService.cs`](../../AutoKassa/Services/Backup/AutomaticBackupService.cs)
+
+**Интерфейс:** `IAutomaticBackupService`
+
+**Lifetime:** `Singleton` (регистрация в `App.ConfigureServices`)
+
+**Зависимости:** `ISettingsService`, `IYandexDiskBackupService`, `TimeProvider` (интервал проверки инжектится для тестов)
+
+**Ответственность:** Координатор расписания резервного копирования. `Start()` (из `App.OnStartup` после открытия `MainWindow`) выполняет немедленную проверку и запускает `PeriodicTimer` с проверкой раз в час (`CheckInterval`). Локальные правила не дублирует — делегирует `ISettingsService.RunAutoBackupIfDueAsync`; облачную часть выполняет через `IYandexDiskBackupService.UploadNowAsync(force: false)`, когда в настройках включён `YandexDiskBackupEnabled`. Локальный и облачный сроки проверяются независимо; наличие файла в очереди повторяет облачную попытку вне срока. Стартовые, таймерные и внеочередные запуски сериализованы `SemaphoreSlim`; исключения рабочего цикла логируются внутри, чтобы один сбой не остановил расписание. `RequestCheck()` будит внеочередную проверку без блокирования UI (после сохранения настроек и нового подключения): её обрабатывает один отслеживаемый worker — повторные запросы во время занятого worker схлопываются в одну ожидающую проверку (coalescing), новые запросы после остановки игнорируются (TRAPS §3.19). `StopAsync()` отменяет активную операцию и ограниченно (10 с) ждёт завершения и таймерного цикла, и worker — вызывается из `App.OnExit` до `Log.CloseAndFlush()` и Dispose DI.
+
+### 4.14. ClipboardService
+
+**Файл:** [`AutoKassa/Services/ClipboardService.cs`](../../AutoKassa/Services/ClipboardService.cs)
+
+**Интерфейс:** `IClipboardService`
+
+**Lifetime:** Singleton
+
+**Зависимости:** —
+
+**Ответственность:** Доступ к системному буферу обмена за интерфейсом: `SetText` возвращает false при занятом буфере (COM-ошибка `CLIPBRD_E_CANT_OPEN`) или отсутствии STA-потока. Реализация выполняется на UI-потоке (команды ViewModel); интерфейс позволяет тестам подменять фейком. Используется кнопкой «Скопировать ссылку» подключения Яндекс Диска: если системный браузер не открылся автоматически, пользователь копирует URL авторизации и открывает его вручную (YD-10).
+
+### 4.15. YandexDiskClientIdStore
+
+**Файл:** [`AutoKassa/Services/Backup/YandexDisk/YandexDiskClientIdStore.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskClientIdStore.cs)
+
+**Интерфейс:** `IYandexDiskClientIdStore`
+
+**Lifetime:** Singleton
+
+**Зависимости:** `YandexDiskOptions`
+
+**Ответственность:** Хранение ClientId приложения, введённого пользователем через диалог (настройки → Яндекс Диск → «Подключить», когда ClientId пуст): `%LOCALAPPDATA%\AutoKassa\yandex-disk-clientid.txt`, атомарная запись через `AtomicFile`. ClientId не секрет — передаётся в URL авторизации открыто. Статик `ApplyStoredOverride` применяет сохранённое значение поверх `appsettings.json` в `App.ConfigureServices` (портативная установка может лежать в каталоге без прав записи); `SaveAsync` обновляет живой singleton-экземпляр `YandexDiskOptions` — подключение работает без перезапуска приложения.
 
 ---
 

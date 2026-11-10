@@ -20,6 +20,12 @@ namespace AutoKassa.Tests.Infrastructure
         /// <summary>Результат, возвращаемый ShowDialog.</summary>
         public bool? DialogResult { get; set; }
 
+        /// <summary>Тип последнего запрошенного диалога ShowDialog.</summary>
+        public Type? LastDialogViewModelType { get; private set; }
+
+        /// <summary>Вызывается перед возвратом результата ShowDialog (эмуляция действий диалога).</summary>
+        public Action? OnShowDialog { get; set; }
+
         /// <summary>Результат, возвращаемый ShowLockScreen.</summary>
         public bool? LockScreenResult { get; set; }
 
@@ -38,9 +44,19 @@ namespace AutoKassa.Tests.Infrastructure
             return ConfirmationResult;
         }
 
-        public bool? ShowDialog<TViewModel>() where TViewModel : ViewModelBase => DialogResult;
+        public bool? ShowDialog<TViewModel>() where TViewModel : ViewModelBase
+        {
+            LastDialogViewModelType = typeof(TViewModel);
+            OnShowDialog?.Invoke();
+            return DialogResult;
+        }
 
-        public bool? ShowDialog<TViewModel>(TViewModel viewModel) where TViewModel : ViewModelBase => DialogResult;
+        public bool? ShowDialog<TViewModel>(TViewModel viewModel) where TViewModel : ViewModelBase
+        {
+            LastDialogViewModelType = typeof(TViewModel);
+            OnShowDialog?.Invoke();
+            return DialogResult;
+        }
 
         public bool? ShowLockScreen(LockScreenViewModel viewModel) => LockScreenResult;
     }
