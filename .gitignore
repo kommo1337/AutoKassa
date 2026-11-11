@@ -381,3 +381,13 @@ publish_portable/
 
 # Temporary seed scripts
 seed_transactions.py
+
+# Служебные/локальные файлы, не публикуемые в репозитории
+.github/workflows/
+.kimi/
+docs/
+screenshots/
+AGENTS.md
+.gitattributes
+YandexBackUp.md
+autokassalogo.ico
