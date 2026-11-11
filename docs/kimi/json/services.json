@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-11-08T19:30:00+03:00",
+  "lastUpdated": "2026-11-12T00:45:00+03:00",
   "totalCount": 38,
   "services": [
     {
@@ -154,7 +154,7 @@
         },
         {
           "signature": "Task<string> CreateSqliteSnapshotAsync(string targetDirectory, CancellationToken ct = default)",
-          "description": "Согласованный SQLite-снимок без побочных эффектов (без ротации, без глотания ошибок): InvalidOperationException — файл БД не найден, OperationCanceledException — отмена. Общий метод локального и облачного сценариев."
+          "description": "Согласованный SQLite-снимок без побочных эффектов (без ротации, без глотания ошибок): InvalidOperationException — файл БД не найден, OperationCanceledException — отмена. Общий метод локального и облачного сценариев. Соединение назначения открывается с Pooling=false: снимок сразу переносится/удаляется, а закрытое в пул соединение удерживало бы хендл файла (TRAPS §3.15)."
         },
         {
           "signature": "Task<bool> RestoreBackupAsync(string backupFilePath, CancellationToken ct = default)",
@@ -1276,7 +1276,11 @@
         },
         {
           "signature": "Task InvalidateTokenAsync(CancellationToken ct = default)",
-          "description": "Инвалидация токена (HTTP 401/отзыв) → AuthRequired; очередь не затрагивается."
+          "description": "Инвалидация токена (HTTP 401/отзыв) → AuthRequired; очередь не затрагивается. Каждая смена токена (успешный вход, инвалидация, отключение) инкрементирует ConnectionGeneration."
+        },
+        {
+          "signature": "long ConnectionGeneration { get; }",
+          "description": "Поколение подключения: длинная операция (выгрузка копии) сравнивает его до и после и не инвалидирует вновь сохранённый токен, если подключение изменилось посреди операции (раздел 6 аудита)."
         }
       ],
       "usedBy": [
@@ -1334,7 +1338,7 @@
       "interfaceFile": "AutoKassa/Services/Backup/YandexDisk/IYandexDiskBackupService.cs",
       "lifetime": "Singleton",
       "category": "infrastructure",
-      "purpose": "Цикл облачного копирования SQLite-снимка в app:/ Яндекс Диска: очередь %LOCALAPPDATA%\\AutoKassa\\CloudBackupQueue (повреждённый файл очереди уходит в карантин *.corrupt), свежий снимок создаётся во временной папке .staging и атомарно попадает в очередь только после PRAGMA integrity_check (read-only, Pooling=false) + размер + MD5; загрузка без перезаписи; подтверждение по метаданным Диска с ожиданием появления ресурса после 201 и 202 (404 = NotFound — «ещё не появился»; Auth/Transient/Quota пробрасываются в retry-обработку), идемпотентный 409, повторы транзиентных сбоев включая HTTP-таймауты (макс. 3, Retry-After), 401→повторный вход, ротация только ресурсов type == \"file\" с точным именем AutoKassa_Backup_yyyyMMdd_HHmmss.db сверх BackupKeepCount после успеха. Дата последнего успеха персистентна: читается из AppSettings.YandexDiskLastBackupUtc в начале каждого запуска и фиксируется через ISettingsService.SetYandexDiskLastBackupUtcAsync сразу после подтверждённой выгрузки — до удаления файла очереди (при сбое записи pending остаётся для идемпотентного 409). Запуски сериализованы SemaphoreSlim; событие StateChanged поднимается на потоке операции.",
+      "purpose": "Цикл облачного копирования SQLite-снимка в app:/ Яндекс Диска: очередь %LOCALAPPDATA%\\AutoKassa\\CloudBackupQueue (повреждённый файл очереди уходит в карантин *.corrupt), свежий снимок создаётся во временной папке .staging и атомарно попадает в очередь только после PRAGMA integrity_check (read-only, Pooling=false) + размер + MD5; загрузка без перезаписи; подтверждение по метаданным Диска с ожиданием появления ресурса после 201 и 202 (404 = NotFound — «ещё не появился»; Auth/Transient/Quota пробрасываются в retry-обработку), идемпотентный 409, повторы транзиентных сбоев включая HTTP-таймауты (макс. 3, Retry-After), 401→повторный вход, ротация только ресурсов type == \"file\" с точным именем AutoKassa_Backup_yyyyMMdd_HHmmss.db сверх BackupKeepCount после успеха. Дата последнего успеха персистентна: читается из AppSettings.YandexDiskLastBackupUtc в начале каждого запуска и фиксируется через ISettingsService.SetYandexDiskLastBackupUtcAsync сразу после подтверждённой выгрузки — до удаления файла очереди (при сбое записи pending остаётся для идемпотентного 409). Защита от гонок с подключением: поколение IYandexDiskAuthService.ConnectionGeneration захватывается на старте — при его смене посреди выгрузки (отключение/новый вход) успех не фиксируется и файл очереди остаётся; 401 инвалидирует токен только при неизменном поколении (единая обработка 401 на всех стадиях, включая ротацию: успех загрузки при этом сохраняется, статус — AuthRequired). Состояние CloudBackupState несёт метаданные ожидающего файла очереди (PendingQueueFileInfo: имя/дата/размер) и время последней неудачной попытки. DiscardPendingAndUploadAsync удаляет ожидающий файл (только производный снимок, не исходную БД) и сразу выгружает новый — снятие постоянного 409 с чужим файлом. Запуски сериализованы SemaphoreSlim; событие StateChanged поднимается на потоке операции.",
       "dependencies": [
         "ISettingsService",
         "IYandexDiskAuthService",
@@ -1344,7 +1348,7 @@
       "keyMethods": [
         {
           "signature": "CloudBackupState CurrentState { get; }",
-          "description": "Текущее состояние (Status/LastSuccessUtc/HasPendingFile/UserMessage)."
+          "description": "Текущее состояние: Status/LastSuccessUtc/HasPendingFile/UserMessage + PendingFile (метаданные ожидающего файла очереди) и LastFailureUtc (время последней неудачной попытки)."
         },
         {
           "signature": "event Action<CloudBackupState>? StateChanged",
@@ -1353,6 +1357,10 @@
         {
           "signature": "Task<CloudBackupResult> UploadNowAsync(bool force = false, CancellationToken ct = default)",
           "description": "Выполнить цикл выгрузки; force=true игнорирует срок AutoBackupDays."
+        },
+        {
+          "signature": "Task<CloudBackupResult> DiscardPendingAndUploadAsync(CancellationToken ct = default)",
+          "description": "Удалить ожидающий файл из очереди и сразу выполнить новую выгрузку (команда «Удалить ожидающую копию и создать новую»); удаляется только производный файл очереди, исходная БД не затрагивается."
         }
       ],
       "usedBy": [],

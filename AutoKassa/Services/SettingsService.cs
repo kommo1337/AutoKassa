@@ -566,7 +566,10 @@ namespace AutoKassa.Services
             {
                 ct.ThrowIfCancellationRequested();
                 using var source = new SqliteConnection(sourceConnectionString);
-                using var dest = new SqliteConnection($"Data Source={backupFilePath}");
+                // Pooling=false: снимок — разовый файл, который сразу после создания переносится
+                // (облачная очередь) или удаляется (ротация); закрытое в пул соединение
+                // удерживало бы хендл файла и ломало File.Move/File.Delete (TRAPS §3.15).
+                using var dest = new SqliteConnection($"Data Source={backupFilePath};Pooling=false");
                 source.Open();
                 dest.Open();
                 source.BackupDatabase(dest);

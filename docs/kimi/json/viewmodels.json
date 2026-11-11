@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-11-08T19:30:00+03:00",
+  "lastUpdated": "2026-11-12T02:10:00+03:00",
   "totalCount": 35,
   "viewModels": [
     {
@@ -734,7 +734,8 @@
         "IYandexDiskAuthService",
         "IYandexDiskBackupService",
         "IAutomaticBackupService",
-        "IClipboardService"
+        "IClipboardService",
+        "IYandexDiskClientIdStore"
       ],
       "interfaces": [
         "INavigationAware",
@@ -755,9 +756,10 @@
         "CancelYandexInputCommand",
         "CopyYandexAuthLinkCommand",
         "DisconnectYandexCommand",
-        "UploadNowCommand"
+        "UploadNowCommand",
+        "DiscardPendingCopyCommand"
       ],
-      "purpose": "ViewModel экрана настроек: параметры, локальное и облачное (Яндекс Диск) резервное копирование (подключение OAuth, ввод одноразового кода, ручная загрузка), экспорт/импорт и «О программе». События облачных сервисов маршалит на захваченный UI SynchronizationContext, отписка в OnDispose."
+      "purpose": "ViewModel экрана настроек: параметры, локальное и облачное (Яндекс Диск) резервное копирование (подключение OAuth, ввод одноразового кода, ручная загрузка, удаление ожидающей копии с созданием новой), экспорт/импорт и «О программе». Облачное состояние отображает метаданные ожидающего файла очереди (CloudPendingFileText: имя/дата/размер) и время последней неудачной попытки (CloudLastFailureText). События облачных сервисов маршалит на захваченный UI SynchronizationContext, отписка в OnDispose."
     },
     {
       "name": "TransactionEditViewModel",

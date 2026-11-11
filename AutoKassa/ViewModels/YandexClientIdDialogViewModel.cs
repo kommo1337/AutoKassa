@@ -1,5 +1,6 @@
 using AutoKassa.Helpers;
 using AutoKassa.Services.Backup.YandexDisk;
+using System.Threading;
 using System.Windows.Input;
 
 namespace AutoKassa.ViewModels
@@ -13,6 +14,9 @@ namespace AutoKassa.ViewModels
     public class YandexClientIdDialogViewModel : ViewModelBase
     {
         private readonly IYandexDiskClientIdStore _clientIdStore;
+        // Сохранение завершается на пуле потоков (ConfigureAwait(false) в хранилище) —
+        // закрытие диалога обязано вернуться на UI-поток: подписчик трогает привязанные свойства.
+        private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
         private string _clientId = string.Empty;
         private string? _clientIdError;
 
@@ -23,8 +27,17 @@ namespace AutoKassa.ViewModels
             CancelCommand = new RelayCommand(_ => OnClose?.Invoke(false));
         }
 
-        /// <summary>Обратный вызов закрытия диалога: true — сохранено, false — отмена.</summary>
+        /// <summary>Обратный вызов закрытия диалога (на UI-потоке): true — сохранено, false — отмена.</summary>
         public Action<bool>? OnClose { get; set; }
+
+        /// <summary>Поднять закрытие диалога, вернувшись на UI-поток, если он захвачен.</summary>
+        private void RaiseClose(bool result)
+        {
+            if (_uiContext != null)
+                _uiContext.Post(_ => OnClose?.Invoke(result), null);
+            else
+                OnClose?.Invoke(result);
+        }
 
         public string ClientId
         {
@@ -63,7 +76,7 @@ namespace AutoKassa.ViewModels
                     return;
 
                 await _clientIdStore.SaveAsync(ClientId.Trim()).ConfigureAwait(false);
-                OnClose?.Invoke(true);
+                RaiseClose(true);
             }
             catch (InvalidOperationException ex)
             {

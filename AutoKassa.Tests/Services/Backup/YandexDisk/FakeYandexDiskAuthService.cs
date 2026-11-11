@@ -10,6 +10,12 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
     {
         public YandexDiskAuthState State { get; set; } = YandexDiskAuthState.NotConnected;
 
+        /// <summary>Токен, возвращаемый GetValidAccessTokenAsync; null — «не подключён».</summary>
+        public YandexDiskToken? ValidToken { get; set; }
+
+        /// <summary>Поколение подключения: тесты меняют вручную, имитируя отключение/новый вход посреди операции.</summary>
+        public long ConnectionGeneration { get; set; }
+
         /// <summary>Значение BrowserOpened для результата StartAuthorizationAsync (YD-10).</summary>
         public bool BrowserOpened { get; set; } = true;
 
@@ -28,6 +34,7 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
         public int CompleteCallCount { get; private set; }
         public int CancelCallCount { get; private set; }
         public int DisconnectCallCount { get; private set; }
+        public int InvalidateCallCount { get; private set; }
         public string? LastCompletedCode { get; private set; }
 
         public event Action? StateChanged;
@@ -77,16 +84,19 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
         public Task DisconnectAsync(CancellationToken ct = default)
         {
             DisconnectCallCount++;
+            ConnectionGeneration++;
             State = YandexDiskAuthState.NotConnected;
             StateChanged?.Invoke();
             return Task.CompletedTask;
         }
 
         public Task<YandexDiskToken?> GetValidAccessTokenAsync(CancellationToken ct = default)
-            => Task.FromResult<YandexDiskToken?>(null);
+            => Task.FromResult(State == YandexDiskAuthState.Connected ? ValidToken : null);
 
         public Task InvalidateTokenAsync(CancellationToken ct = default)
         {
+            InvalidateCallCount++;
+            ConnectionGeneration++;
             State = YandexDiskAuthState.AuthRequired;
             StateChanged?.Invoke();
             return Task.CompletedTask;

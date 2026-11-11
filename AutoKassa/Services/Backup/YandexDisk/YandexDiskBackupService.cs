@@ -43,6 +43,7 @@ namespace AutoKassa.Services.Backup.YandexDisk
         // настроек в начале каждого запуска и сохраняется через SetYandexDiskLastBackupUtcAsync
         // после подтверждённой выгрузки (переживает перезапуск приложения).
         private DateTime? _lastSuccessUtc;
+        private DateTime? _lastFailureUtc;
         private CloudBackupState _state = new(CloudBackupStatus.NotConnected, null, false, "Яндекс Диск не подключён.");
 
         public YandexDiskBackupService(
@@ -81,6 +82,28 @@ namespace AutoKassa.Services.Backup.YandexDisk
             }
         }
 
+        /// <inheritdoc />
+        public async Task<CloudBackupResult> DiscardPendingAndUploadAsync(CancellationToken ct = default)
+        {
+            await _gate.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                var pending = FindNewestQueueFile();
+                if (pending != null)
+                {
+                    // Только производный файл очереди — исходная БД не затрагивается.
+                    DeleteQueueFile(pending);
+                    _log.Information("Ожидающая облачная копия удалена по команде пользователя: {PendingFile}", pending);
+                }
+
+                return await RunCoreAsync(force: true, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+
         private async Task<CloudBackupResult> RunCoreAsync(bool force, CancellationToken ct)
         {
             // Дата последнего успеха персистентна: синхронизируем зеркало из настроек
@@ -105,6 +128,10 @@ namespace AutoKassa.Services.Backup.YandexDisk
                     "Требуется повторный вход в Яндекс Диск. Подключите аккаунт заново.");
                 return new CloudBackupResult(false, authRequired);
             }
+
+            // Поколение подключения на старте: если оно изменится посреди выгрузки
+            // (отключение или новый вход), операция не заденет уже сохранённый токен (раздел 6 аудита).
+            var generation = _authService.ConnectionGeneration;
 
             try
             {
@@ -153,12 +180,12 @@ namespace AutoKassa.Services.Backup.YandexDisk
                 var fileMd5 = await ComputeMd5Async(queueFile, ct).ConfigureAwait(false);
 
                 // 4–7. Загрузка с ограниченными повторами; 409 и 401 — отдельные ветки.
-                var outcome = await UploadWithRetriesAsync(queueFile, remotePath, fileSize, fileMd5, ct).ConfigureAwait(false);
+                var outcome = await UploadWithRetriesAsync(queueFile, remotePath, fileSize, fileMd5, generation, ct).ConfigureAwait(false);
                 if (outcome != null)
                     return outcome; // терминальное состояние уже установлено
 
                 // 8. Подтверждённый успех: убираем файл очереди, фиксируем дату, ротируем облако.
-                return await CompleteSuccessAsync(queueFile, ct).ConfigureAwait(false);
+                return await CompleteSuccessAsync(queueFile, generation, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -169,7 +196,9 @@ namespace AutoKassa.Services.Backup.YandexDisk
                     hasPending ? CloudBackupStatus.PendingRetry : _state.Status,
                     _lastSuccessUtc,
                     hasPending,
-                    hasPending ? "Выгрузка прервана — копия осталась в очереди." : _state.UserMessage);
+                    hasPending ? "Выгрузка прервана — копия осталась в очереди." : _state.UserMessage,
+                    BuildPendingFileInfo(),
+                    _lastFailureUtc);
                 StateChanged?.Invoke(_state);
                 throw;
             }
@@ -184,7 +213,7 @@ namespace AutoKassa.Services.Backup.YandexDisk
 
         /// <summary>Цикл загрузки. Возвращает не-null результат для терминальных исходов; null = успех.</summary>
         private async Task<CloudBackupResult?> UploadWithRetriesAsync(
-            string queueFile, string remotePath, long fileSize, string fileMd5, CancellationToken ct)
+            string queueFile, string remotePath, long fileSize, string fileMd5, long generation, CancellationToken ct)
         {
             for (var attempt = 1; attempt <= MaxTransientAttempts; attempt++)
             {
@@ -210,7 +239,7 @@ namespace AutoKassa.Services.Backup.YandexDisk
                 }
                 catch (YandexDiskAuthException ex)
                 {
-                    await _authService.InvalidateTokenAsync(ct).ConfigureAwait(false);
+                    await HandleAuthFailureAsync(generation, ct).ConfigureAwait(false);
                     var state = Fail(CloudBackupStatus.AuthRequired,
                         "Доступ к Яндекс Диску утерян. Подключите аккаунт заново.", ex);
                     return new CloudBackupResult(false, state);
@@ -240,6 +269,7 @@ namespace AutoKassa.Services.Backup.YandexDisk
             }
 
             // Повторы исчерпаны — файл остаётся в очереди для следующего запуска.
+            _lastFailureUtc = _time.GetUtcNow().UtcDateTime;
             var pending = SetState(CloudBackupStatus.PendingRetry,
                 "Не удалось выгрузить копию на Яндекс Диск. Повторная попытка будет выполнена позже.");
             return new CloudBackupResult(false, pending);
@@ -305,8 +335,19 @@ namespace AutoKassa.Services.Backup.YandexDisk
             }
         }
 
-        private async Task<CloudBackupResult> CompleteSuccessAsync(string queueFile, CancellationToken ct)
+        private async Task<CloudBackupResult> CompleteSuccessAsync(string queueFile, long generation, CancellationToken ct)
         {
+            // Подключение изменилось, пока шла выгрузка (отключение или новый вход другого аккаунта):
+            // чужой успех не фиксируем — файл остаётся в очереди, следующий запуск подтвердит тот же
+            // облачный ресурс идемпотентным 409 без повторной передачи данных (раздел 6 аудита).
+            if (_authService.ConnectionGeneration != generation)
+            {
+                _log.Information("Подключение к Яндекс Диску изменено во время выгрузки — успех не фиксируем, копия остаётся в очереди");
+                var superseded = SetState(CloudBackupStatus.PendingRetry,
+                    "Подключение к Яндекс Диску изменилось во время выгрузки. Копия осталась в очереди и будет подтверждена при следующей попытке.");
+                return new CloudBackupResult(false, superseded);
+            }
+
             // Сначала фиксируем дату успеха (раздел 5 аудита): если запись даты не удалась,
             // файл очереди остаётся — следующий запуск подтвердит тот же облачный ресурс
             // идемпотентным 409 без повторной передачи данных.
@@ -338,6 +379,16 @@ namespace AutoKassa.Services.Backup.YandexDisk
                 var settings = await _settingsService.GetSettingsAsync().ConfigureAwait(false);
                 await RotateCloudBackupsAsync(settings.BackupKeepCount, ct).ConfigureAwait(false);
             }
+            catch (YandexDiskAuthException ex)
+            {
+                // Единая обработка 401 на всех стадиях: токен инвалидируем (если подключение не менялось),
+                // успех загрузки сохраняем — копия на Диске, дата зафиксирована.
+                _log.Warning(ex, "Доступ к Яндекс Диску утерян при ротации облачных копий");
+                await HandleAuthFailureAsync(generation, ct).ConfigureAwait(false);
+                var authState = SetState(CloudBackupStatus.AuthRequired,
+                    "Копия выгружена, но доступ к Яндекс Диску утерян при очистке старых версий. Подключите аккаунт заново.");
+                return new CloudBackupResult(true, authState);
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 _log.Warning(ex, "Ротация облачных копий не выполнена — загруженная копия сохранена");
@@ -346,6 +397,21 @@ namespace AutoKassa.Services.Backup.YandexDisk
             var state = SetState(CloudBackupStatus.UpToDate, BuildUpToDateMessage());
             _log.Information("Облачная копия выгружена на Яндекс Диск (последний успех {LastSuccessUtc})", _lastSuccessUtc);
             return new CloudBackupResult(true, state);
+        }
+
+        /// <summary>
+        /// Единая обработка HTTP 401: инвалидируем сохранённый токен, только если подключение
+        /// не изменилось с начала операции — иначе старая выгрузка сотрёт вновь сохранённый токен.
+        /// </summary>
+        private async Task HandleAuthFailureAsync(long generation, CancellationToken ct)
+        {
+            if (_authService.ConnectionGeneration != generation)
+            {
+                _log.Information("HTTP 401 при облачной операции игнорируется: подключение уже изменено (новый вход или отключение)");
+                return;
+            }
+
+            await _authService.InvalidateTokenAsync(ct).ConfigureAwait(false);
         }
 
         private async Task RotateCloudBackupsAsync(int keepCount, CancellationToken ct)
@@ -369,6 +435,12 @@ namespace AutoKassa.Services.Backup.YandexDisk
                 {
                     await _apiClient.DeleteResourceAsync("app:/" + stale.Name, ct).ConfigureAwait(false);
                     _log.Information("Старая облачная копия удалена при ротации: {Name}", stale.Name);
+                }
+                catch (YandexDiskAuthException)
+                {
+                    // 401 не глотаем: единая обработка в CompleteSuccessAsync — инвалидация токена
+                    // и честный AuthRequired без потери уже подтверждённого успеха загрузки.
+                    throw;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -536,21 +608,50 @@ namespace AutoKassa.Services.Backup.YandexDisk
         private string BuildUpToDateMessage()
             => _lastSuccessUtc == null
                 ? "Облачная копия актуальна."
-                : $"Облачная копия актуальна (последняя: {_lastSuccessUtc.Value:dd.MM.yyyy HH:mm} UTC).";
+                // Локальное время без метки UTC: рядом в UI показывается CloudLastSuccessText
+                // в локальном времени — разные зоны рядом читались как расхождение дат.
+                : $"Облачная копия актуальна (последняя: {_lastSuccessUtc.Value.ToLocalTime():dd.MM.yyyy HH:mm}).";
 
         private CloudBackupState Fail(CloudBackupStatus status, string userMessage, Exception? ex)
         {
             if (ex != null)
                 _log.Error(ex, "Облачное копирование не выполнено: {UserMessage}", userMessage);
 
+            _lastFailureUtc = _time.GetUtcNow().UtcDateTime;
             return SetState(status, userMessage);
         }
 
         private CloudBackupState SetState(CloudBackupStatus status, string userMessage)
         {
-            _state = new CloudBackupState(status, _lastSuccessUtc, FindNewestQueueFile() != null, userMessage);
+            var pendingFile = BuildPendingFileInfo();
+            _state = new CloudBackupState(
+                status,
+                _lastSuccessUtc,
+                pendingFile != null,
+                userMessage,
+                pendingFile,
+                _lastFailureUtc);
             StateChanged?.Invoke(_state);
             return _state;
+        }
+
+        /// <summary>Метаданные ожидающего файла очереди для отображения в UI; null, если очередь пуста.</summary>
+        private PendingQueueFileInfo? BuildPendingFileInfo()
+        {
+            try
+            {
+                var file = FindNewestQueueFile();
+                if (file == null)
+                    return null;
+
+                var info = new FileInfo(file);
+                return new PendingQueueFileInfo(info.Name, info.CreationTimeUtc, info.Length);
+            }
+            catch (Exception ex)
+            {
+                _log.Warning(ex, "Не удалось прочитать метаданные файла очереди облачной выгрузки");
+                return null;
+            }
         }
 
         private static bool IsManagedBackupName(string name)

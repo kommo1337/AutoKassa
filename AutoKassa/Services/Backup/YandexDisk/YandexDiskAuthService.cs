@@ -45,6 +45,7 @@ namespace AutoKassa.Services.Backup.YandexDisk
         private YandexDiskAuthState _state = YandexDiskAuthState.NotConnected;
         private YandexDiskToken? _loadedToken;
         private bool _stateLoaded;
+        private long _connectionGeneration;
         private PendingAttempt? _pending;
 
         public YandexDiskAuthService(
@@ -67,6 +68,18 @@ namespace AutoKassa.Services.Backup.YandexDisk
         /// <inheritdoc />
         public bool IsClientIdConfigured()
             => !string.IsNullOrWhiteSpace(_options.ClientId);
+
+        /// <inheritdoc />
+        public long ConnectionGeneration
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return _connectionGeneration;
+                }
+            }
+        }
 
         /// <inheritdoc />
         public async Task<YandexDiskAuthState> GetStateAsync(CancellationToken ct = default)
@@ -182,6 +195,8 @@ namespace AutoKassa.Services.Backup.YandexDisk
                 lock (_sync)
                 {
                     _loadedToken = token;
+                    // Новый токен = новое поколение: старые операции не должны его инвалидировать.
+                    _connectionGeneration++;
                 }
                 SetState(YandexDiskAuthState.Connected);
                 _log.Information("Яндекс Диск подключён, токен получен (срок действия до {ExpiresAtUtc})", token.ExpiresAtUtc);
@@ -223,6 +238,7 @@ namespace AutoKassa.Services.Backup.YandexDisk
             lock (_sync)
             {
                 _pending = null;
+                _connectionGeneration++;
             }
 
             await _tokenStore.ClearAsync(ct).ConfigureAwait(false);
@@ -257,6 +273,11 @@ namespace AutoKassa.Services.Backup.YandexDisk
         /// <inheritdoc />
         public async Task InvalidateTokenAsync(CancellationToken ct = default)
         {
+            lock (_sync)
+            {
+                _connectionGeneration++;
+            }
+
             await _tokenStore.ClearAsync(ct).ConfigureAwait(false);
             SetState(YandexDiskAuthState.AuthRequired);
             _log.Information("Токен Яндекс Диска инвалидирован — требуется повторный вход");

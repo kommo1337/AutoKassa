@@ -1,36 +1,16 @@
-using AutoKassa.ViewModels;
-using System;
-using System.Windows;
+using System.Windows.Controls;
 
 namespace AutoKassa.Views
 {
     /// <summary>
-    /// Логика взаимодействия для YandexClientIdDialogView.xaml
+    /// Модальный диалог ввода ClientId Яндекс Диска: показывается оверлеем внутри
+    /// окна настроек (паттерн редактора операции), DataContext — YandexClientIdDialogViewModel.
     /// </summary>
-    public partial class YandexClientIdDialogView : Window
+    public partial class YandexClientIdDialogView : UserControl
     {
-        private readonly YandexClientIdDialogViewModel _viewModel;
-
-        public YandexClientIdDialogView(YandexClientIdDialogViewModel viewModel)
+        public YandexClientIdDialogView()
         {
             InitializeComponent();
-            _viewModel = viewModel;
-            DataContext = viewModel;
-
-            _viewModel.OnClose = (result) =>
-            {
-                DialogResult = result;
-                Close();
-            };
-
-            Closed += OnClosed;
-        }
-
-        private void OnClosed(object? sender, EventArgs e)
-        {
-            _viewModel.OnClose = null;
-            Closed -= OnClosed;
-            _viewModel.Dispose();
         }
     }
 }

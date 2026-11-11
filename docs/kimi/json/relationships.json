@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-11-08T19:30:00+03:00",
+  "lastUpdated": "2026-11-12T02:10:00+03:00",
   "viewsToViewModels": [
     {
       "view": "AutoKassa/MainWindow.xaml",
@@ -942,7 +942,8 @@
           "service": "IYandexDiskBackupService",
           "via": "constructor",
           "commands": [
-            "UploadNowCommand"
+            "UploadNowCommand",
+            "DiscardPendingCopyCommand"
           ]
         },
         {
@@ -958,6 +959,11 @@
           "commands": [
             "CopyYandexAuthLinkCommand"
           ]
+        },
+        {
+          "service": "IYandexDiskClientIdStore",
+          "via": "constructor",
+          "commands": []
         }
       ]
     },

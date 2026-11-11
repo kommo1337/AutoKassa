@@ -20,7 +20,11 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
         /// <summary>Если задано — вызывается вместо стандартного успешного результата.</summary>
         public Func<bool, CancellationToken, Task<CloudBackupResult>>? UploadOverride { get; set; }
 
+        /// <summary>Если задано — вызывается вместо стандартного успешного результата DiscardPendingAndUploadAsync.</summary>
+        public Func<CancellationToken, Task<CloudBackupResult>>? DiscardPendingOverride { get; set; }
+
         public int UploadCallCount { get; private set; }
+        public int DiscardPendingCallCount { get; private set; }
         public IReadOnlyList<bool> UploadForceArgs => _uploadForceArgs;
 
         public event Action<CloudBackupState>? StateChanged;
@@ -34,6 +38,15 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
 
             if (UploadOverride != null)
                 return UploadOverride(force, ct);
+
+            return Task.FromResult(new CloudBackupResult(true, CurrentState));
+        }
+
+        public Task<CloudBackupResult> DiscardPendingAndUploadAsync(CancellationToken ct = default)
+        {
+            DiscardPendingCallCount++;
+            if (DiscardPendingOverride != null)
+                return DiscardPendingOverride(ct);
 
             return Task.FromResult(new CloudBackupResult(true, CurrentState));
         }

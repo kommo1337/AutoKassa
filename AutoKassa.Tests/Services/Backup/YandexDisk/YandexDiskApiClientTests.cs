@@ -316,6 +316,7 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
         private sealed class StubAuthService : IYandexDiskAuthService
         {
             public event Action? StateChanged { add { } remove { } }
+            public long ConnectionGeneration => 0;
             public Task<YandexDiskAuthState> GetStateAsync(CancellationToken ct = default)
                 => Task.FromResult(YandexDiskAuthState.Connected);
             public bool IsClientIdConfigured() => true;

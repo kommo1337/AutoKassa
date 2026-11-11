@@ -632,6 +632,105 @@ namespace AutoKassa.Tests.Services.Backup.YandexDisk
             _settings.CreateBackupCallCount.Should().Be(1, "без сохранённой даты копия считается просроченной");
         }
 
+        [Fact]
+        public async Task UploadNow_RotationAuthFailure_KeepsSuccessAndInvalidatesToken()
+        {
+            await ConnectAsync();
+            SetupMatchingResource();
+            // 401 на стадии чтения app:/ — единая обработка: токен инвалидируется,
+            // уже подтверждённый успех загрузки сохраняется (раздел 6 аудита).
+            _api.GetAppFolderResourcesAsyncFunc = _ => throw new YandexDiskAuthException("HTTP 401");
+
+            var result = await _svc.UploadNowAsync(force: true);
+
+            result.Success.Should().BeTrue("копия подтверждена на Диске — загрузка не отменяется");
+            result.State.Status.Should().Be(CloudBackupStatus.AuthRequired);
+            (await _tokenStore.GetAsync()).Should().BeNull("токен инвалидирован");
+            (await _auth.GetStateAsync()).Should().Be(YandexDiskAuthState.AuthRequired);
+            FindQueueFile().Should().BeNull("успех зафиксирован — файл очереди удалён");
+            _settings.Settings.YandexDiskLastBackupUtc.Should().NotBeNull("дата успеха сохранена");
+        }
+
+        [Fact]
+        public async Task UploadNow_DisconnectDuringUpload_KeepsQueueAndSkipsFinalization()
+        {
+            await ConnectAsync();
+            SetupMatchingResource();
+            // Пользователь отключает аккаунт, пока идёт выгрузка: generation меняется,
+            // старая операция не должна фиксировать чужой успех.
+            _api.UploadFileAsyncFunc = async (_, _, _) =>
+            {
+                await _auth.DisconnectAsync();
+                return YandexDiskUploadResult.Created;
+            };
+
+            var result = await _svc.UploadNowAsync(force: true);
+
+            result.Success.Should().BeFalse("подключение изменилось посреди выгрузки");
+            result.State.Status.Should().Be(CloudBackupStatus.PendingRetry);
+            FindQueueFile().Should().NotBeNull("файл остаётся для идемпотентного подтверждения следующей попыткой");
+            _settings.Settings.YandexDiskLastBackupUtc.Should().BeNull("успех не фиксируется чужой операцией");
+        }
+
+        [Fact]
+        public async Task UploadNow_AuthFailureAfterReconnect_DoesNotInvalidateNewToken()
+        {
+            // Пользователь успел переподключиться до того, как старая попытка получила 401:
+            // вновь сохранённый токен не инвалидируется.
+            var fakeAuth = new FakeYandexDiskAuthService
+            {
+                State = YandexDiskAuthState.Connected,
+                ValidToken = new YandexDiskToken("new-token", StartTime.UtcDateTime + TimeSpan.FromDays(1))
+            };
+            var svc = new YandexDiskBackupService(_settings, fakeAuth, _api, _time, _queueDir);
+            _api.GetUploadLinkAsyncFunc = (_, _, _) =>
+            {
+                fakeAuth.ConnectionGeneration++; // имитация нового входа посреди операции
+                throw new YandexDiskAuthException("HTTP 401");
+            };
+
+            var result = await svc.UploadNowAsync(force: true);
+
+            result.Success.Should().BeFalse();
+            result.State.Status.Should().Be(CloudBackupStatus.AuthRequired);
+            fakeAuth.InvalidateCallCount.Should().Be(0, "старая операция не инвалидирует вновь сохранённый токен");
+        }
+
+        [Fact]
+        public async Task DiscardPendingAndUpload_RemovesPendingFileAndUploadsNewSnapshot()
+        {
+            await ConnectAsync();
+            Directory.CreateDirectory(_queueDir);
+            var pending = Path.Combine(_queueDir, "AutoKassa_Backup_20260101_120000.db");
+            await File.WriteAllTextAsync(pending, "это не sqlite");
+            SetupMatchingResource();
+
+            var result = await _svc.DiscardPendingAndUploadAsync();
+
+            result.Success.Should().BeTrue("второй прогон: " + result.State);
+            File.Exists(pending).Should().BeFalse("ожидающий файл удалён командой пользователя");
+            _settings.CreateBackupCallCount.Should().Be(1, "создан новый снимок вместо удалённого");
+            _api.UploadFileCallCount.Should().Be(1, "новый снимок выгружен");
+            _settings.Settings.YandexDiskLastBackupUtc.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task UploadNow_TransientExhausted_StateExposesPendingFileInfoAndFailureTime()
+        {
+            await ConnectAsync();
+            _api.GetUploadLinkAsyncFunc = (_, _, _) => throw new YandexDiskTransientException("сеть недоступна");
+
+            var result = await _svc.UploadNowAsync(force: true);
+
+            result.Success.Should().BeFalse();
+            result.State.Status.Should().Be(CloudBackupStatus.PendingRetry);
+            result.State.PendingFile.Should().NotBeNull("состояние содержит метаданные ожидающего файла (раздел 6 аудита)");
+            result.State.PendingFile!.FileName.Should().StartWith("AutoKassa_Backup_");
+            result.State.PendingFile.SizeBytes.Should().BeGreaterThan(0);
+            result.State.LastFailureUtc.Should().Be(StartTime.UtcDateTime);
+            result.State.LastFailureUtc.Should().Be(_svc.CurrentState.LastFailureUtc);
+        }
+
         private static string Md5Hex(byte[] bytes)
             => Convert.ToHexString(MD5.HashData(bytes)).ToLowerInvariant();
     }

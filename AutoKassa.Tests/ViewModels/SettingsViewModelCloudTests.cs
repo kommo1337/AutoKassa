@@ -27,6 +27,7 @@ namespace AutoKassa.Tests.ViewModels
         private readonly FakeYandexDiskBackupService _backup;
         private readonly FakeAutomaticBackupService _coordinator;
         private readonly FakeClipboardService _clipboard;
+        private readonly FakeYandexDiskClientIdStore _clientIdStore;
         private readonly SettingsViewModel _vm;
 
         public SettingsViewModelCloudTests()
@@ -39,6 +40,7 @@ namespace AutoKassa.Tests.ViewModels
             _backup = new FakeYandexDiskBackupService();
             _coordinator = new FakeAutomaticBackupService();
             _clipboard = new FakeClipboardService();
+            _clientIdStore = new FakeYandexDiskClientIdStore();
 
             _vm = new SettingsViewModel(
                 _settings,
@@ -55,7 +57,8 @@ namespace AutoKassa.Tests.ViewModels
                 _auth,
                 _backup,
                 _coordinator,
-                _clipboard);
+                _clipboard,
+                _clientIdStore);
         }
 
         private async Task LoadAsync()
@@ -82,49 +85,122 @@ namespace AutoKassa.Tests.ViewModels
         }
 
         [Fact]
-        public async Task ConnectCommand_WithoutClientId_ShowsEntryDialog()
+        public async Task Load_WhenConnectedButBackupServiceNeverRan_ShowsConnectedStatusInsteadOfStaleNotConnected()
         {
-            // ClientId не задан — вместо предупреждения открывается диалог ввода.
+            // Рассинхрон UI: сервис выгрузки ещё не публиковал состояние (старое «не подключён»),
+            // но токен на месте — статус обязан отражать фактическое подключение.
+            _auth.State = YandexDiskAuthState.Connected;
+            var lastSuccess = new DateTime(2026, 11, 12, 1, 30, 0, DateTimeKind.Utc);
+            _settings.Settings.YandexDiskLastBackupUtc = lastSuccess;
+
+            await LoadAsync();
+
+            _vm.CloudStatusMessage.Should().Be("Яндекс Диск подключён.",
+                "до первого запуска выгрузки статус берётся из факта токена, а не из стартового состояния сервиса");
+            _vm.CloudLastSuccessText.Should().Be(lastSuccess.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
+        }
+
+        [Fact]
+        public async Task Load_WhenTokenExpired_ShowsReLoginMessage()
+        {
+            // AuthRequired после перезапуска: не «не подключён», а честный запрос повторного входа.
+            _auth.State = YandexDiskAuthState.AuthRequired;
+
+            await LoadAsync();
+
+            _vm.CloudStatusMessage.Should().Contain("Требуется повторный вход");
+            _vm.YandexAuthState.Should().Be(YandexDiskAuthState.AuthRequired);
+        }
+
+        [Fact]
+        public async Task BackupStateChanged_WithoutLastSuccess_ClearsDisplayedDate()
+        {
+            await LoadAsync();
+            var lastSuccess = new DateTime(2026, 11, 12, 1, 30, 0, DateTimeKind.Utc);
+            _backup.RaiseStateChanged(new CloudBackupState(
+                CloudBackupStatus.UpToDate, lastSuccess, false, "Облачная копия актуальна."));
+            await TestWaitHelper.WaitUntilAsync(() => _vm.CloudLastSuccessText != "—");
+
+            // Состояние без даты (например, после отключения новой учётной записи) очищает дату,
+            // а не оставляет устаревшую.
+            _backup.RaiseStateChanged(new CloudBackupState(
+                CloudBackupStatus.PendingRetry, null, true, "Копия осталась в очереди."));
+            await TestWaitHelper.WaitUntilAsync(() => _vm.CloudLastSuccessText == "—");
+
+            _vm.CloudLastSuccessUtc.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task ConnectCommand_WithoutClientId_OpensModalOverlay()
+        {
+            // ClientId не задан — вместо подключения открывается модальный оверлей ввода.
             await LoadAsync();
             _auth.Configured = false;
-            _dialog.DialogResult = false; // пользователь закрыл диалог
 
             _vm.ConnectYandexCommand.Execute(null);
-            await TestWaitHelper.WaitUntilAsync(() => _dialog.LastDialogViewModelType != null);
+            await TestWaitHelper.WaitUntilAsync(() => _vm.IsClientIdDialogOpen);
 
-            _dialog.LastDialogViewModelType.Should().Be(typeof(YandexClientIdDialogViewModel));
-            _auth.StartCallCount.Should().Be(0, "подключение не начинается без ClientId");
+            _vm.ClientIdDialog.Should().NotBeNull("диалог ввода ClientId создан");
+            _auth.StartCallCount.Should().Be(0, "подключение не начинается до ввода ClientId");
         }
 
         [Fact]
         public async Task ConnectCommand_WithoutClientId_AfterEnteringValue_StartsAuthorization()
         {
-            // Пользователь ввёл ClientId в диалоге — подключение продолжается без перезапуска.
+            // Пользователь ввёл ClientId в оверлее — диалог закрывается и подключение продолжается без перезапуска.
             await LoadAsync();
             _auth.Configured = false;
-            _dialog.DialogResult = true;
-            _dialog.OnShowDialog = () => _auth.Configured = true;
 
             _vm.ConnectYandexCommand.Execute(null);
+            await TestWaitHelper.WaitUntilAsync(() => _vm.IsClientIdDialogOpen);
+
+            _vm.ClientIdDialog!.ClientId = "new-client-id";
+            _clientIdStore.Stored = "new-client-id"; // как реальный стор: значение сразу доступно
+            _auth.Configured = true;
+            _vm.ClientIdDialog.SaveCommand.Execute(null);
             await TestWaitHelper.WaitUntilAsync(() => _vm.CloudAwaitingCode);
 
-            _auth.StartCallCount.Should().Be(1);
+            _vm.IsClientIdDialogOpen.Should().BeFalse("оверлей закрыт после сохранения");
+            _vm.ClientIdDialog.Should().BeNull("VM диалога освобождена");
+            _clientIdStore.LastSaved.Should().Be("new-client-id");
+            _auth.StartCallCount.Should().Be(1, "авторизация началась сразу после сохранения ClientId");
             _dialog.LastWarning.Should().BeNull();
             _vm.CloudAwaitingCode.Should().BeTrue();
         }
 
         [Fact]
-        public async Task ConnectCommand_WithoutClientId_WhenValueNotSaved_ShowsWarningAndStops()
+        public async Task ConnectCommand_WithoutClientId_WhenCancelled_ClosesOverlayAndStops()
         {
-            // Диалог подтверждён, но ClientId не появился (сбой сохранения) — честное предупреждение.
+            // Отмена в оверлее закрывает его и не начинает подключение.
             await LoadAsync();
             _auth.Configured = false;
-            _dialog.DialogResult = true;
 
             _vm.ConnectYandexCommand.Execute(null);
+            await TestWaitHelper.WaitUntilAsync(() => _vm.IsClientIdDialogOpen);
+
+            _vm.ClientIdDialog!.CancelCommand.Execute(null);
+
+            _vm.IsClientIdDialogOpen.Should().BeFalse();
+            _vm.ClientIdDialog.Should().BeNull();
+            _auth.StartCallCount.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task ConnectCommand_WithoutClientId_WhenValueNotSaved_ShowsWarningAndStops()
+        {
+            // Диалог подтверждён, но ClientId не применился (сбой сохранения) — честное предупреждение.
+            await LoadAsync();
+            _auth.Configured = false;
+
+            _vm.ConnectYandexCommand.Execute(null);
+            await TestWaitHelper.WaitUntilAsync(() => _vm.IsClientIdDialogOpen);
+
+            _vm.ClientIdDialog!.ClientId = "new-client-id";
+            _vm.ClientIdDialog.SaveCommand.Execute(null);
             await TestWaitHelper.WaitUntilAsync(() => _dialog.LastWarning != null);
 
             _dialog.LastWarning.Should().Contain("ClientId не сохранён");
+            _vm.IsClientIdDialogOpen.Should().BeFalse();
             _auth.StartCallCount.Should().Be(0);
         }
 
@@ -181,6 +257,8 @@ namespace AutoKassa.Tests.ViewModels
             _auth.LastCompletedCode.Should().Be("123456");
             _vm.YandexAuthState.Should().Be(YandexDiskAuthState.Connected);
             _vm.CloudAwaitingCode.Should().BeFalse();
+            _vm.CloudStatusMessage.Should().Be("Яндекс Диск подключён.",
+                "строка «Состояние» обновляется сразу после успешного подключения, а не ждёт события сервиса выгрузки");
             _settings.Settings.YandexDiskLastBackupUtc.Should().BeNull(
                 "при новом подключении дата сбрасывается — новая учётная запись сразу получит актуальную копию");
             _coordinator.RequestCheckCallCount.Should().BeGreaterThanOrEqualTo(1);
@@ -424,6 +502,79 @@ namespace AutoKassa.Tests.ViewModels
             await TestWaitHelper.WaitUntilAsync(() => _coordinator.RequestCheckCallCount >= 1);
 
             _settings.Settings.YandexDiskBackupEnabled.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task DiscardPendingCopyCommand_WithoutPending_IsDisabled()
+        {
+            await LoadAsync();
+            await MakeConnectedAsync();
+
+            _vm.DiscardPendingCopyCommand.CanExecute(null).Should().BeFalse(
+                "без ожидающего файла удалять нечего");
+            _backup.DiscardPendingCallCount.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task DiscardPendingCopyCommand_WhenDeclined_DoesNotTouchQueue()
+        {
+            await LoadAsync();
+            await MakeConnectedAsync();
+            _backup.RaiseStateChanged(new CloudBackupState(
+                CloudBackupStatus.PendingRetry, null, true, "Копия осталась в очереди.",
+                new PendingQueueFileInfo("AutoKassa_Backup_20261101_120000.db", DateTime.UtcNow, 4096)));
+            await TestWaitHelper.WaitUntilAsync(() => _vm.CloudHasPendingFile);
+            _dialog.ConfirmationResult = false;
+
+            _vm.DiscardPendingCopyCommand.Execute(null);
+            await TestWaitHelper.WaitUntilAsync(() => _dialog.LastConfirmation != null);
+            await Task.Delay(50); // команда не должна дойти до сервиса
+
+            _dialog.LastConfirmation.Should().Contain("Данные приложения не затрагиваются");
+            _backup.DiscardPendingCallCount.Should().Be(0, "отказ от подтверждения отменяет удаление");
+        }
+
+        [Fact]
+        public async Task DiscardPendingCopyCommand_WhenConfirmed_DeletesPendingAndUploadsNew()
+        {
+            await LoadAsync();
+            await MakeConnectedAsync();
+            _backup.RaiseStateChanged(new CloudBackupState(
+                CloudBackupStatus.PendingRetry, null, true, "Копия осталась в очереди.",
+                new PendingQueueFileInfo("AutoKassa_Backup_20261101_120000.db", DateTime.UtcNow, 4096)));
+            await TestWaitHelper.WaitUntilAsync(() => _vm.CloudHasPendingFile);
+            _dialog.ConfirmationResult = true;
+
+            _vm.DiscardPendingCopyCommand.Execute(null);
+            await TestWaitHelper.WaitUntilAsync(() => _backup.DiscardPendingCallCount == 1);
+
+            _toast.LastSuccess.Should().Contain("новая копия загружена");
+        }
+
+        /// <summary>Через событие сервиса доводит подключение до VM — иначе CanExecute команд видит устаревшее состояние.</summary>
+        private async Task MakeConnectedAsync()
+        {
+            _auth.State = YandexDiskAuthState.Connected;
+            _auth.RaiseStateChanged();
+            await TestWaitHelper.WaitUntilAsync(() => _vm.YandexAuthState == YandexDiskAuthState.Connected);
+        }
+
+        [Fact]
+        public async Task BackupStateChanged_WithPendingFile_ShowsPendingMetadata()
+        {
+            await LoadAsync();
+            var created = new DateTime(2026, 11, 1, 12, 0, 0, DateTimeKind.Utc);
+            var failure = new DateTime(2026, 11, 2, 8, 30, 0, DateTimeKind.Utc);
+
+            _backup.RaiseStateChanged(new CloudBackupState(
+                CloudBackupStatus.PendingRetry, null, true, "Копия осталась в очереди.",
+                new PendingQueueFileInfo("AutoKassa_Backup_20261101_120000.db", created, 2048),
+                failure));
+            await TestWaitHelper.WaitUntilAsync(() => _vm.CloudPendingFileText != null);
+
+            _vm.CloudPendingFileText.Should().Contain("AutoKassa_Backup_20261101_120000.db");
+            _vm.CloudPendingFileText.Should().Contain("2 КБ");
+            _vm.CloudLastFailureText.Should().Be(failure.ToLocalTime().ToString("dd.MM.yyyy HH:mm"));
         }
 
         #region Заглушки зависимостей, не относящихся к облачному сценарию

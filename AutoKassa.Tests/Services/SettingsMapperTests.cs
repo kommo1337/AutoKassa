@@ -20,7 +20,7 @@ namespace AutoKassa.Tests.Services
                 null!, null!, null!, null!, new FakeDataChangeService(),
                 null!, null!, null!, null!, null!, null!,
                 new FakeYandexDiskAuthService(), new FakeYandexDiskBackupService(),
-                new FakeAutomaticBackupService(), null!);
+                new FakeAutomaticBackupService(), null!, new FakeYandexDiskClientIdStore());
         }
 
         [Fact]

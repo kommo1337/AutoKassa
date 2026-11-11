@@ -349,7 +349,7 @@
 ### 3.15. Закрытое в пул соединение SQLite удерживает хендл файла
 - **Запрет:** не открывай файл БД через `SqliteConnection` с пулингом (в Microsoft.Data.Sqlite он включён по умолчанию), если сразу после этого файл удаляется или пересоздаётся.
 - **Почему:** `Dispose` возвращает соединение в пул, нативный хендл остаётся открытым: `File.Delete` падает с `IOException` («файл занят другим процессом», на части машин — вплоть до AccessViolation в нативном sqlite3). Так сломались тесты очереди облачного бэкапа, пока проверка снимка не перешла на `Pooling=false`.
-- **Правильно:** для разовых операций над файлом-копией (`PRAGMA integrity_check` снимка в очереди облачного бэкапа) открывай соединение с `Pooling=false`; глобальный `SqliteConnection.ClearAllPools()` — только для восстановления БД (`RestoreBackupAsync`), где это осознанная операция.
+- **Правильно:** для разовых операций над файлом-копией (PRAGMA integrity_check снимка в очереди облачного бэкапа; соединение назначения при создании снимка в `CreateSqliteSnapshotAsync` — файл сразу переносится/удаляется) открывай соединение с `Pooling=false`; глобальный `SqliteConnection.ClearAllPools()` — только для восстановления БД (`RestoreBackupAsync`), где это осознанная операция.
 - **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs) (`TryVerifyLocalSnapshotAsync`).
 - **Теги:** #sqlite
 
@@ -363,7 +363,7 @@
 ### 3.17. Облачная ротация удаляет только файлы `AutoKassa_Backup_yyyyMMdd_HHmmss.db` в `app:/` и только после успеха загрузки
 - **Запрет:** не удаляй из `app:/` ресурсы без точного управляемого имени и не удаляй старые копии раньше подтверждённой выгрузки новой.
 - **Почему:** `app:/` — пользовательская зона Яндекс Диска; безвозвратное удаление чужого файла, папки с похожим именем или единственной копии до загрузки — потеря данных.
-- **Правильно:** фильтр `type == "file"` (папки не считаются копиями) + точный формат имени `AutoKassa_Backup_yyyyMMdd_HHmmss.db` (широкая маска `AutoKassa_Backup_*.db` не допускается), сортировка по `created`, удаление сверх `BackupKeepCount` только после сверки размера/MD5 новой копии; ошибка ротации не отменяет уже подтверждённый успех загрузки. Список ресурсов читается из `_embedded.items` с контролем полноты по `_embedded.total`.
+- **Правильно:** фильтр `type == "file"` (папки не считаются копиями) + точный формат имени `AutoKassa_Backup_yyyyMMdd_HHmmss.db` (широкая маска `AutoKassa_Backup_*.db` не допускается), сортировка по `created`, удаление сверх `BackupKeepCount` только после сверки размера/MD5 новой копии; ошибка ротации не отменяет уже подтверждённый успех загрузки. Список ресурсов читается из `_embedded.items` с контролем полноты по `_embedded.total`. HTTP 401 на любой стадии (включая ротацию) — единая обработка: токен инвалидируется только при неизменном `IYandexDiskAuthService.ConnectionGeneration` (старая выгрузка не сотрёт вновь сохранённый токен), статус — `AuthRequired`, успех загрузки сохраняется.
 - **Файлы:** [`../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs`](../../AutoKassa/Services/Backup/YandexDisk/YandexDiskBackupService.cs) (`RotateCloudBackupsAsync`).
 - **Теги:** #security #business
 
